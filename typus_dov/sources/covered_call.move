@@ -19,16 +19,15 @@ module typus_dov::covered_call {
         num_of_pool: u64,
     }
 
-    struct PoolConfig<T: key + store> has key, store {
+    struct PoolConfig<phantom T> has key, store {
         id: UID,
         expired_type: u64,
         expired_date: u64,
         strike: u64,
-        underlying_asset: T,
         fee_percent: u64
     }
 
-    struct Pool<T: key + store> has key, store {
+    struct Pool<phantom T> has key, store {
         id: UID,
         config: PoolConfig<T>,
         deposit: Balance<T>,
@@ -46,11 +45,10 @@ module typus_dov::covered_call {
         })
     }
 
-    public entry fun new_config<T: key + store>(
+    public entry fun new_config<T>(
         expired_type: u64,
         expired_date: u64,
         strike: u64,
-        underlying_asset: T,
         fee_percent: u64,
         ctx: &mut TxContext
     ) {
@@ -58,22 +56,24 @@ module typus_dov::covered_call {
 
         emit(PoolConfigCreated { id: object::uid_to_inner(&id) });
 
-        transfer::share_object(PoolConfig {
+        transfer::share_object(PoolConfig<T> {
             id,
             expired_type,
             expired_date,
             strike,
-            underlying_asset,
             fee_percent
         })
     }
 
-    public entry fun new_pool<T: key + store>(
+    public entry fun new_pool<T>(
         _: &ManagerCap,
+        pool_registry: &mut PoolRegistry,
         config: PoolConfig<T>, 
         ctx: &mut TxContext
     ) {
         let id = object::new(ctx);
+
+        pool_registry.num_of_pool = pool_registry.num_of_pool + 1;
 
         emit(PoolCreated { id: object::uid_to_inner(&id) });
 
