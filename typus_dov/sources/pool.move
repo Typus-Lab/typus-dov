@@ -6,15 +6,15 @@ module typus_dov::pool {
     use sui::dynamic_field;
 
     struct Pool has key {
-        uid: UID,
+        id: UID,
         num_of_pool: u64,
     }
 
     fun init(ctx: &mut TxContext) {
-        let uid = object::new(ctx);
+        let id = object::new(ctx);
 
         transfer::share_object(Pool {
-            uid,
+            id,
             num_of_pool: 0
         })
     }
@@ -41,15 +41,15 @@ module typus_dov::pool {
             fee_percent,
             deposit: balance::zero<T>(),
         };
-        dynamic_field::add(&mut pool.uid, pool.num_of_pool, vault);
+        dynamic_field::add(&mut pool.id, pool.num_of_pool, vault);
         pool.num_of_pool = pool.num_of_pool + 1;
     }
 
-    public entry fun get_vault<T>(
+    public fun get_vault<T>(
         pool: &mut Pool,
         index: u64,
     ): &Vault<T> {
-        dynamic_field::borrow<u64, Vault<T>>(&mut pool.uid, index)
+        dynamic_field::borrow<u64, Vault<T>>(&mut pool.id, index)
     }
 
     #[test]
