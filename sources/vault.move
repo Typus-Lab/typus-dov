@@ -73,7 +73,7 @@ module typus_dov::vault {
         let uid = object::new(ctx);
         let id = object::uid_to_inner(&uid);
 
-        emit(PoolCreated{
+        emit(VaultCreated{
             id,
             expired_type,
             expired_date,
@@ -129,7 +129,7 @@ module typus_dov::vault {
 
     // ======== Events =========
     struct RegistryCreated has copy, drop { id: ID }
-    struct PoolCreated has copy, drop {
+    struct VaultCreated has copy, drop {
         id: ID,
         expired_type: u64,
         expired_date: u64,
