@@ -29,15 +29,14 @@ module typus_dov::vault {
     }
 
 
-    struct Vault<phantom T> has key, store {
-        id: UID,
+    struct Vault<phantom T> has store {
         config: VaultConfig,
         deposit: Balance<T>,
         share_supply: Supply<Share>,
     }
 
     struct Share has drop {
-        vault_id: ID
+        vault_index: u64
     }
 
     fun init(ctx: &mut TxContext) {
@@ -60,7 +59,6 @@ module typus_dov::vault {
         expired_date: u64,
         fee_percent: u64,
         deposit_limit: u64,
-        ctx: &mut TxContext
     ) {
         let config = VaultConfig{
             expired_type,
@@ -70,11 +68,7 @@ module typus_dov::vault {
             deposit_limit,
         };
 
-        let uid = object::new(ctx);
-        let id = object::uid_to_inner(&uid);
-
         emit(VaultCreated{
-            id,
             expired_type,
             expired_date,
             strike,
@@ -83,10 +77,9 @@ module typus_dov::vault {
         });
 
         let vault = Vault<T> {
-            id: uid,
             config,
             deposit: balance::zero<T>(),
-            share_supply: balance::create_supply(Share{vault_id: id})
+            share_supply: balance::create_supply(Share{vault_index: vault_registry.num_of_vault})
         };
         dynamic_field::add(&mut vault_registry.id, vault_registry.num_of_vault, vault);
         vault_registry.num_of_vault = vault_registry.num_of_vault + 1;
@@ -130,7 +123,6 @@ module typus_dov::vault {
     // ======== Events =========
     struct RegistryCreated has copy, drop { id: ID }
     struct VaultCreated has copy, drop {
-        id: ID,
         expired_type: u64,
         expired_date: u64,
         strike: u64,
