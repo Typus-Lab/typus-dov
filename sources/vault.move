@@ -6,6 +6,7 @@ module typus_dov::vault {
     use sui::dynamic_field;
     use sui::coin::{Self, Coin};
     use sui::event::emit;
+    use std::option::Option;
 
     /// For when supplied Coin is zero.
     const EZeroAmount: u64 = 0;
@@ -21,18 +22,24 @@ module typus_dov::vault {
     }
 
     struct VaultConfig has store {
-        expired_type: u64,
         expired_date: u64,
-        strike: u64,
         fee_percent: u64,
         deposit_limit: u64,
     }
 
-
     struct Vault<phantom T> has store {
         config: VaultConfig,
+        payoff_config: PayoffConfig,
         deposit: Balance<T>,
         share_supply: Supply<Share>,
+    }
+
+    struct PayoffConfig has store {
+        low_barrier_price: u64,
+        high_barrier_price: u64,
+        low_barrier_roi: Option<u64>,
+        high_barrier_roi: Option<u64>,
+        high_roi_constant: Option<u64>,
     }
 
     struct Share has drop {
@@ -54,30 +61,43 @@ module typus_dov::vault {
 
     public entry fun new_vault<T>(
         vault_registry: &mut VaultRegistry,
-        strike: u64,
-        expired_type: u64,
         expired_date: u64,
         fee_percent: u64,
         deposit_limit: u64,
+        low_barrier_price: u64,
+        high_barrier_price: u64,
+        low_barrier_roi: Option<u64>,
+        high_barrier_roi: Option<u64>,
+        high_roi_constant: Option<u64>,
     ) {
         let config = VaultConfig{
-            expired_type,
             expired_date,
-            strike,
             fee_percent,
             deposit_limit,
         };
 
+        let payoff_config = PayoffConfig {
+            low_barrier_price,
+            high_barrier_price,
+            low_barrier_roi,
+            high_barrier_roi,
+            high_roi_constant,
+        };
+
         emit(VaultCreated{
-            expired_type,
             expired_date,
-            strike,
             fee_percent,
             deposit_limit,
+            low_barrier_price,
+            high_barrier_price,
+            low_barrier_roi,
+            high_barrier_roi,
+            high_roi_constant,
         });
 
         let vault = Vault<T> {
             config,
+            payoff_config,
             deposit: balance::zero<T>(),
             share_supply: balance::create_supply(Share{vault_index: vault_registry.num_of_vault})
         };
@@ -123,10 +143,57 @@ module typus_dov::vault {
     // ======== Events =========
     struct RegistryCreated has copy, drop { id: ID }
     struct VaultCreated has copy, drop {
-        expired_type: u64,
         expired_date: u64,
-        strike: u64,
         fee_percent: u64,
         deposit_limit: u64,
+        low_barrier_price: u64,
+        high_barrier_price: u64,
+        low_barrier_roi: Option<u64>,
+        high_barrier_roi: Option<u64>,
+        high_roi_constant: Option<u64>,
+    }
+
+    // ======== Test-only code =========
+    #[test]
+    /// new vault
+    fun test_new_vault() {
+        use sui::test_scenario;
+        use sui::sui::SUI;
+        use std::option;
+
+        let admin = @0xBABE;
+        let scenario_val = test_scenario::begin(admin);
+        let scenario = &mut scenario_val;
+        {
+            // init(test_scenario::ctx(scenario));
+            let ctx = test_scenario::ctx(scenario);
+            let id = object::new(ctx);
+            emit(RegistryCreated { id: object::uid_to_inner(&id) });
+            transfer::transfer(ManagerCap { id: object::new(ctx) }, tx_context::sender(ctx));
+            transfer::share_object(VaultRegistry {
+                id,
+                num_of_vault: 0
+            })
+        };
+
+        test_scenario::next_tx(scenario, admin);
+        {
+            let registry = test_scenario::take_shared<VaultRegistry>(scenario);
+            new_vault<SUI>(
+                &mut registry,
+                1,
+                1,
+                1,
+                1,
+                2,
+                option::none<u64>(),
+                option::none<u64>(),
+                option::none<u64>()
+            );
+            test_scenario::return_shared(registry)
+        };
+
+        test_scenario::end(scenario_val);
+        
     }
 }
