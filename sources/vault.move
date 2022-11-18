@@ -6,7 +6,8 @@ module typus_dov::vault {
     use sui::dynamic_field;
     use sui::coin::{Self, Coin};
     use sui::event::emit;
-    use std::option::Option;
+    use std::option::{Self, Option};
+    use sui::table::{Self, Table};
 
     /// For when supplied Coin is zero.
     const EZeroAmount: u64 = 0;
@@ -32,6 +33,7 @@ module typus_dov::vault {
         payoff_config: PayoffConfig,
         deposit: Balance<T>,
         share_supply: Supply<Share>,
+        users: Table<address, Balance<Share>>
     }
 
     struct PayoffConfig has store, drop {
@@ -43,9 +45,7 @@ module typus_dov::vault {
         high_roi_constant: Option<u64>,
     }
 
-    struct Share has drop {
-        vault_index: u64
-    }
+    struct Share has drop {}
 
     fun init(ctx: &mut TxContext) {
         let id = object::new(ctx);
@@ -68,9 +68,7 @@ module typus_dov::vault {
         is_bullish: bool,
         low_barrier_price: u64,
         high_barrier_price: u64,
-        low_barrier_roi: Option<u64>,
-        high_barrier_roi: Option<u64>,
-        high_roi_constant: Option<u64>,
+        ctx: &mut TxContext
     ) {
         let config = VaultConfig{
             expired_date,
@@ -82,9 +80,9 @@ module typus_dov::vault {
             is_bullish,
             low_barrier_price,
             high_barrier_price,
-            low_barrier_roi,
-            high_barrier_roi,
-            high_roi_constant,
+            low_barrier_roi: option::none(),
+            high_barrier_roi: option::none(),
+            high_roi_constant: option::none(),
         };
 
         emit(VaultCreated{
@@ -92,17 +90,15 @@ module typus_dov::vault {
             fee_percent,
             deposit_limit,
             low_barrier_price,
-            high_barrier_price,
-            low_barrier_roi,
-            high_barrier_roi,
-            high_roi_constant,
+            high_barrier_price
         });
 
         let vault = Vault<T> {
             config,
             payoff_config,
             deposit: balance::zero<T>(),
-            share_supply: balance::create_supply(Share{vault_index: vault_registry.num_of_vault})
+            share_supply: balance::create_supply(Share{}),
+            users: table::new<address, Balance<Share>>(ctx),
         };
         dynamic_field::add(&mut vault_registry.id, vault_registry.num_of_vault, vault);
         vault_registry.num_of_vault = vault_registry.num_of_vault + 1;
@@ -113,10 +109,11 @@ module typus_dov::vault {
     ) {
         let vault = get_mut_vault<T>(vault_registry, index);
 
-        transfer::transfer(
-            deposit_(vault, token, ctx),
-            tx_context::sender(ctx)
-        );
+        let sender = tx_context::sender(ctx);
+
+        let token = deposit_(vault, token, ctx);
+
+        table::add(&mut vault.users, sender, coin::into_balance(token));
     }
 
     public fun deposit_<T>(
@@ -195,9 +192,6 @@ module typus_dov::vault {
         deposit_limit: u64,
         low_barrier_price: u64,
         high_barrier_price: u64,
-        low_barrier_roi: Option<u64>,
-        high_barrier_roi: Option<u64>,
-        high_roi_constant: Option<u64>,
     }
 
     // ======== Test-only code =========
@@ -206,7 +200,6 @@ module typus_dov::vault {
     fun test_new_vault() {
         use sui::test_scenario;
         use sui::sui::SUI;
-        use std::option;
 
         let admin = @0xBABE;
         let scenario_val = test_scenario::begin(admin);
@@ -234,9 +227,7 @@ module typus_dov::vault {
                 true,
                 1,
                 2,
-                option::none<u64>(),
-                option::none<u64>(),
-                option::none<u64>()
+                test_scenario::ctx(scenario)
             );
             test_scenario::return_shared(registry)
         };
