@@ -34,7 +34,8 @@ module typus_dov::vault {
         share_supply: Supply<Share>,
     }
 
-    struct PayoffConfig has store {
+    struct PayoffConfig has store, drop {
+        is_bullish: bool,
         low_barrier_price: u64,
         high_barrier_price: u64,
         low_barrier_roi: Option<u64>,
@@ -64,6 +65,7 @@ module typus_dov::vault {
         expired_date: u64,
         fee_percent: u64,
         deposit_limit: u64,
+        is_bullish: bool,
         low_barrier_price: u64,
         high_barrier_price: u64,
         low_barrier_roi: Option<u64>,
@@ -77,6 +79,7 @@ module typus_dov::vault {
         };
 
         let payoff_config = PayoffConfig {
+            is_bullish,
             low_barrier_price,
             high_barrier_price,
             low_barrier_roi,
@@ -140,6 +143,50 @@ module typus_dov::vault {
         dynamic_field::borrow_mut<u64, Vault<T>>(&mut vault_registry.id, index)
     }
 
+    public fun get_payoff_config_is_bullish(payoff_config: &PayoffConfig): bool {
+        payoff_config.is_bullish
+    }
+
+    public fun get_payoff_config_low_barrier_price(payoff_config: &PayoffConfig): u64 {
+        payoff_config.low_barrier_price
+    }
+
+    public fun get_payoff_config_high_barrier_price(payoff_config: &PayoffConfig): u64 {
+        payoff_config.high_barrier_price
+    }
+
+    public fun get_payoff_config_low_barrier_roi(payoff_config: &PayoffConfig): Option<u64> {
+        payoff_config.low_barrier_roi
+    }
+
+    public fun get_payoff_config_high_barrier_roi(payoff_config: &PayoffConfig): Option<u64> {
+        payoff_config.high_barrier_roi
+    }
+
+    public fun get_payoff_config_high_roi_constant(payoff_config: &PayoffConfig): Option<u64> {
+        payoff_config.high_roi_constant
+    }
+
+    #[test_only]
+    public fun new_payoff_config(
+        is_bullish: bool,
+        low_barrier_price: u64,
+        high_barrier_price: u64,
+        low_barrier_roi: Option<u64>,
+        high_barrier_roi: Option<u64>,
+        high_roi_constant: Option<u64>,
+    ): PayoffConfig{
+        PayoffConfig {
+            is_bullish,
+            low_barrier_price,
+            high_barrier_price,
+            low_barrier_roi,
+            high_barrier_roi,
+            high_roi_constant,
+        }
+    }
+    
+
     // ======== Events =========
     struct RegistryCreated has copy, drop { id: ID }
     struct VaultCreated has copy, drop {
@@ -184,6 +231,7 @@ module typus_dov::vault {
                 1,
                 1,
                 1,
+                true,
                 1,
                 2,
                 option::none<u64>(),
@@ -194,6 +242,6 @@ module typus_dov::vault {
         };
 
         test_scenario::end(scenario_val);
-        
     }
+
 }
