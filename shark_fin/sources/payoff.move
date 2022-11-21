@@ -1,9 +1,18 @@
-module typus_dov::shark_fin {
-    use std::option::{Option};
-    use std::option;
+module typus_shark_fin::payoff {
+    use std::option::{Self, Option};
+    use sui::object::{Self, UID};
+    use sui::tx_context::TxContext;
+
+
+    // ======== Errors =========
+
     const E_NO_CONFIG_CONTAINS_NONE: u64 = 888;
 
-    struct PayoffConfig has store, drop {
+
+    // ======== Structs =========
+
+    struct PayoffConfig has key, store {
+        id: UID,
         is_bullish: bool,
         low_barrier_price: u64,
         high_barrier_price: u64,
@@ -11,6 +20,8 @@ module typus_dov::shark_fin {
         high_barrier_roi: Option<u64>,
         high_roi_constant: Option<u64>,
     }
+
+    // ======== Functions =========
 
     public fun get_payoff_config_is_bullish(payoff_config: &PayoffConfig): bool {
         payoff_config.is_bullish
@@ -43,8 +54,10 @@ module typus_dov::shark_fin {
         low_barrier_roi: Option<u64>,
         high_barrier_roi: Option<u64>,
         high_roi_constant: Option<u64>,
+        ctx: &mut TxContext
     ): PayoffConfig {
         PayoffConfig {
+            id: object::new(ctx),
             is_bullish,
             low_barrier_price,
             high_barrier_price,

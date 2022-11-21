@@ -1,37 +1,32 @@
 module typus_dov::vault {
     use sui::tx_context::{Self, TxContext};
-    use sui::transfer;
     use sui::object::{Self, UID, ID};
     use sui::balance::{Self, Balance, Supply};
     use sui::dynamic_field;
     use sui::coin::{Self, Coin};
     use sui::event::emit;
-    use std::option::{Self};
     use sui::table::{Self, Table};
-    use typus_dov::payoff::{Self, PayoffConfig};
+    use sui::transfer;
 
-    /// For when supplied Coin is zero.
-    const EZeroAmount: u64 = 0;
+    // ======== Structs =========
 
-    /// For when someone attempts to add more liquidity than u128 Math allows.
-    const EVaultFull: u64 = 1;
+    struct ManagerCap<phantom P> has key, store { id: UID }
 
-    struct ManagerCap has key, store { id: UID }
-
-    struct VaultRegistry  has key {
+    struct VaultRegistry<phantom P>  has key {
         id: UID,
         num_of_vault: u64,
     }
 
-    struct Vault<phantom T> has store {
+    struct Vault<phantom T, P: store> has store {
         config: VaultConfig,
-        payoff_config: PayoffConfig,
+        payoff_config: P,
         deposit: Balance<T>,
         share_supply: Supply<Share>,
         users: Table<address, Balance<Share>>
     }
 
-    struct VaultConfig has store {
+    struct VaultConfig has key, store {
+        id: UID,
         expired_date: u64,
         fee_percent: u64,
         deposit_limit: u64,
@@ -40,54 +35,35 @@ module typus_dov::vault {
     // TODO: coin -> ledger
     struct Share has drop {}
 
-    fun init(ctx: &mut TxContext) {
-        let id = object::new(ctx);
 
-        emit(RegistryCreated { id: object::uid_to_inner(&id) });
+    // ======== Functions =========
 
-        transfer::transfer(ManagerCap { id: object::new(ctx) }, tx_context::sender(ctx));
-
-        transfer::share_object(VaultRegistry {
-            id,
-            num_of_vault: 0
-        })
+    public fun new_manager_cap<P>(
+        ctx: &mut TxContext
+    ): ManagerCap<P> {
+        ManagerCap<P> { id: object::new(ctx) } 
     }
 
-    public entry fun new_vault<T>(
-        vault_registry: &mut VaultRegistry,
-        expired_date: u64,
-        fee_percent: u64,
-        deposit_limit: u64,
-        is_bullish: bool,
-        low_barrier_price: u64,
-        high_barrier_price: u64,
+    public fun new_vault_registry<P>(
         ctx: &mut TxContext
     ) {
-        let config = VaultConfig{
-            expired_date,
-            fee_percent,
-            deposit_limit,
-        };
+        let id = object::new(ctx);
 
-        let payoff_config = payoff::new_payoff_config(
-            is_bullish,
-            low_barrier_price,
-            high_barrier_price,
-            option::none(),
-            option::none(),
-            option::none(),
-        );
+        emit(RegistryCreated<P> { id: object::uid_to_inner(&id) });
 
-        emit(VaultCreated{
-            expired_date,
-            fee_percent,
-            deposit_limit,
-            low_barrier_price,
-            high_barrier_price
-        });
+        let vault = VaultRegistry<P> { id, num_of_vault: 0 };
 
-        let vault = Vault<T> {
-            config,
+        transfer::share_object(vault);
+    }
+
+    public fun new_vault<T, P: store>(
+        vault_registry: &mut VaultRegistry<P>,
+        vault_config: VaultConfig,
+        payoff_config: P,
+        ctx: &mut TxContext
+    ) {
+        let vault = Vault<T, P> {
+            config: vault_config,
             payoff_config,
             deposit: balance::zero<T>(),
             share_supply: balance::create_supply(Share{}),
@@ -97,10 +73,13 @@ module typus_dov::vault {
         vault_registry.num_of_vault = vault_registry.num_of_vault + 1;
     }
 
-    entry fun deposit<T>(
-        vault_registry: &mut VaultRegistry, index: u64, token: Coin<T>, ctx: &mut TxContext
+    public fun deposit<T, P: store>(
+        vault_registry: &mut VaultRegistry<P>,
+        index: u64, 
+        token: Coin<T>, 
+        ctx: &mut TxContext
     ) {
-        let vault = get_mut_vault<T>(vault_registry, index);
+        let vault = get_mut_vault<T, P>(vault_registry, index);
 
         let sender = tx_context::sender(ctx);
 
@@ -116,8 +95,8 @@ module typus_dov::vault {
 
     }
 
-    public fun deposit_<T>(
-        vault: &mut Vault<T>, token: Coin<T>, ctx: &mut TxContext
+    fun deposit_<T, P: store>(
+        vault: &mut Vault<T, P>, token: Coin<T>, ctx: &mut TxContext
     ): Coin<Share> {
         let deposit_value = coin::value(&token);
 
@@ -133,69 +112,30 @@ module typus_dov::vault {
         coin::from_balance(balance, ctx)
     }
 
-    fun get_mut_vault<T>(
-        vault_registry: &mut VaultRegistry,
+    fun get_mut_vault<T, P: store>(
+        vault_registry: &mut VaultRegistry<P>,
         index: u64,
-    ): &mut Vault<T> {
-        dynamic_field::borrow_mut<u64, Vault<T>>(&mut vault_registry.id, index)
+    ): &mut Vault<T, P> {
+        dynamic_field::borrow_mut<u64, Vault<T, P>>(&mut vault_registry.id, index)
     }
 
-    fun get_vault<T>(
-        vault_registry: &mut VaultRegistry,
+    fun get_vault<T, P: store>(
+        vault_registry: &mut VaultRegistry<P>,
         index: u64,
-    ): Vault<T> {
-        dynamic_field::remove<u64, Vault<T>>(&mut vault_registry.id, index)
+    ): Vault<T, P> {
+        dynamic_field::remove<u64, Vault<T, P>>(&mut vault_registry.id, index)
     }
 
     // ======== Events =========
-    struct RegistryCreated has copy, drop { id: ID }
-    struct VaultCreated has copy, drop {
-        expired_date: u64,
-        fee_percent: u64,
-        deposit_limit: u64,
-        low_barrier_price: u64,
-        high_barrier_price: u64,
-    }
 
-    // ======== Test-only code =========
-    #[test]
-    /// new vault
-    fun test_new_vault() {
-        use sui::test_scenario;
-        use sui::sui::SUI;
+    struct RegistryCreated<phantom P> has copy, drop { id: ID }
 
-        let admin = @0xBABE;
-        let scenario_val = test_scenario::begin(admin);
-        let scenario = &mut scenario_val;
-        {
-            // init(test_scenario::ctx(scenario));
-            let ctx = test_scenario::ctx(scenario);
-            let id = object::new(ctx);
-            emit(RegistryCreated { id: object::uid_to_inner(&id) });
-            transfer::transfer(ManagerCap { id: object::new(ctx) }, tx_context::sender(ctx));
-            transfer::share_object(VaultRegistry {
-                id,
-                num_of_vault: 0
-            })
-        };
+    // ======== Errors =========
 
-        test_scenario::next_tx(scenario, admin);
-        {
-            let registry = test_scenario::take_shared<VaultRegistry>(scenario);
-            new_vault<SUI>(
-                &mut registry,
-                1,
-                1,
-                1,
-                true,
-                1,
-                2,
-                test_scenario::ctx(scenario)
-            );
-            test_scenario::return_shared(registry)
-        };
+    /// For when supplied Coin is zero.
+    const EZeroAmount: u64 = 0;
 
-        test_scenario::end(scenario_val);
-    }
+    /// For when someone attempts to add more liquidity than u128 Math allows.
+    const EVaultFull: u64 = 1;
 
 }

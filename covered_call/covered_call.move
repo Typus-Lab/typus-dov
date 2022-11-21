@@ -1,4 +1,4 @@
-module typus_dov::covered_call {
+module typus_covered_call::covered_call {
     use std::option::{Option};
     use typus_dov::i64::{Self, I64};
     use typus_dov::utils;
