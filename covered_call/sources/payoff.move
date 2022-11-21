@@ -1,15 +1,21 @@
-module typus_covered_call::covered_call {
-    use std::option::{Option};
-    use typus_dov::i64::{Self, I64};
-    use typus_dov::utils;
-    use std::option;
+module typus_shark_fin::payoff {
+    use std::option::{Self, Option};
+    use sui::object::{Self, UID};
+    use sui::tx_context::TxContext;
+
+
+    // ======== Errors =========
+
     const E_NO_CONFIG_CONTAINS_NONE: u64 = 888;
-    const ROI_DECIMAL: u64 = 8;
+
+    // ======== Structs =========
 
     struct PayoffConfig has store, drop {
+        id: UID,
         strike: u64,
         premium_roi: Option<u64>,
     }
+    // ======== Functions =========
 
     public fun get_payoff_config_strike(payoff_config: &PayoffConfig): u64 {
         payoff_config.strike
@@ -19,16 +25,19 @@ module typus_covered_call::covered_call {
         payoff_config.premium_roi
     }
 
+
     public fun new_payoff_config(
         strike: u64,
         premium_roi: Option<u64>,
+        ctx: &mut TxContext
     ): PayoffConfig {
         PayoffConfig {
+            id: object::new(ctx),
             strike,
             premium_roi,
         }
     }
-    
+
     // payoff represents the RoI per week
     /// e.g. a covered call vault:
     /// premium_roi = 1000, strike = 5000
@@ -72,5 +81,4 @@ module typus_covered_call::covered_call {
             debug::print(&i64::neg(&aa));
         }
     }
-
 }

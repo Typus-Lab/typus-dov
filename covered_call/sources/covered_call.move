@@ -1,9 +1,9 @@
-module typus_shark_fin::shark_fin {
+module typus_covered_call::covered_call {
     use sui::tx_context::{Self, TxContext};
     use sui::transfer;
     // use sui::event::emit;
     use typus_dov::vault::{Self, VaultRegistry, VaultConfig};
-    use typus_shark_fin::payoff::{PayoffConfig};
+    use typus_covered_call::payoff::{PayoffConfig};
 
     // ======== Structs =========
 
@@ -18,7 +18,7 @@ module typus_shark_fin::shark_fin {
     }
 
 
-    public entry fun new_shark_fin_vault<T>(
+    public entry fun new_covered_call_vault<T>(
         vault_registry: &mut VaultRegistry<PayoffConfig>,
         vault_config: VaultConfig,
         payoff_config: PayoffConfig,
@@ -33,8 +33,6 @@ module typus_shark_fin::shark_fin {
         expired_date: u64,
         fee_percent: u64,
         deposit_limit: u64,
-        is_bullish: bool,
-        low_barrier_price: u64,
-        high_barrier_price: u64,
+        strike: u64,
     }
 }
