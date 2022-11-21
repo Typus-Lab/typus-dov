@@ -22,18 +22,18 @@ module typus_dov::vault {
         num_of_vault: u64,
     }
 
-    struct VaultConfig has store {
-        expired_date: u64,
-        fee_percent: u64,
-        deposit_limit: u64,
-    }
-
     struct Vault<phantom T> has store {
         config: VaultConfig,
         payoff_config: PayoffConfig,
         deposit: Balance<T>,
         share_supply: Supply<Share>,
         users: Table<address, Balance<Share>>
+    }
+
+    struct VaultConfig has store {
+        expired_date: u64,
+        fee_percent: u64,
+        deposit_limit: u64,
     }
 
     struct PayoffConfig has store, drop {
@@ -45,6 +45,7 @@ module typus_dov::vault {
         high_roi_constant: Option<u64>,
     }
 
+    // TODO: coin -> ledger
     struct Share has drop {}
 
     fun init(ctx: &mut TxContext) {
@@ -111,9 +112,16 @@ module typus_dov::vault {
 
         let sender = tx_context::sender(ctx);
 
-        let token = deposit_(vault, token, ctx);
+        let share = deposit_(vault, token, ctx);
 
-        table::add(&mut vault.users, sender, coin::into_balance(token));
+        // check exist
+        if (table::contains(& vault.users, sender)){
+            let v = table::borrow_mut(&mut vault.users, sender);
+            balance::join(v, coin::into_balance(share));
+        } else {
+            table::add(&mut vault.users, sender, coin::into_balance(share));
+        };
+
     }
 
     public fun deposit_<T>(
@@ -133,11 +141,18 @@ module typus_dov::vault {
         coin::from_balance(balance, ctx)
     }
 
-    public fun get_mut_vault<T>(
+    fun get_mut_vault<T>(
         vault_registry: &mut VaultRegistry,
         index: u64,
     ): &mut Vault<T> {
         dynamic_field::borrow_mut<u64, Vault<T>>(&mut vault_registry.id, index)
+    }
+
+    fun get_vault<T>(
+        vault_registry: &mut VaultRegistry,
+        index: u64,
+    ): Vault<T> {
+        dynamic_field::remove<u64, Vault<T>>(&mut vault_registry.id, index)
     }
 
     public fun get_payoff_config_is_bullish(payoff_config: &PayoffConfig): bool {
