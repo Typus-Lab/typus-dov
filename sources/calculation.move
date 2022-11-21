@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 module typus_dov::calculation {
-    use typus_dov::vault::{Self, PayoffConfig};
+    use typus_dov::payoff::{Self, PayoffConfig};
     use std::option;
     const ROI_DECIMAL: u64 = 8;
     const E_NO_CONFIG_CONTAINS_NONE: u64 = 888;
@@ -17,12 +17,12 @@ module typus_dov::calculation {
     /// 3. given price = 5500, payoff return = 1000 + (3000 - 1000) * (5500 - 5000) / (6000 - 5000) = 2000
     public fun get_shark_fin_payoff_by_price(price: u64, payoff_config: &PayoffConfig): u64{
         // get values from PayoffConfig
-        let is_bullish = vault::get_payoff_config_is_bullish(payoff_config);
-        let low_barrier_price = vault::get_payoff_config_low_barrier_price(payoff_config);
-        let high_barrier_price = vault::get_payoff_config_high_barrier_price(payoff_config);
-        let low_barrier_roi = vault::get_payoff_config_low_barrier_roi(payoff_config);
-        let high_barrier_roi = vault::get_payoff_config_high_barrier_roi(payoff_config);
-        let high_roi_constant = vault::get_payoff_config_high_roi_constant(payoff_config);
+        let is_bullish = payoff::get_payoff_config_is_bullish(payoff_config);
+        let low_barrier_price = payoff::get_payoff_config_low_barrier_price(payoff_config);
+        let high_barrier_price = payoff::get_payoff_config_high_barrier_price(payoff_config);
+        let low_barrier_roi = payoff::get_payoff_config_low_barrier_roi(payoff_config);
+        let high_barrier_roi = payoff::get_payoff_config_high_barrier_roi(payoff_config);
+        let high_roi_constant = payoff::get_payoff_config_high_roi_constant(payoff_config);
         
         assert!(option::is_some(&low_barrier_roi), E_NO_CONFIG_CONTAINS_NONE);
         assert!(option::is_some(&high_barrier_roi), E_NO_CONFIG_CONTAINS_NONE);
@@ -63,8 +63,8 @@ module typus_dov::calculation {
     fun test_get_shark_fin_payoff_by_price() {
         use std::debug;
         use std::option;
-        use typus_dov::vault;
-        let payoff_config = vault::new_payoff_config(
+        use typus_dov::payoff;
+        let payoff_config = payoff::new_payoff_config(
             false,
             5000,
             6000,

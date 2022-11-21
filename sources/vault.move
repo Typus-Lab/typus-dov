@@ -6,8 +6,9 @@ module typus_dov::vault {
     use sui::dynamic_field;
     use sui::coin::{Self, Coin};
     use sui::event::emit;
-    use std::option::{Self, Option};
+    use std::option::{Self};
     use sui::table::{Self, Table};
+    use typus_dov::payoff::{Self, PayoffConfig};
 
     /// For when supplied Coin is zero.
     const EZeroAmount: u64 = 0;
@@ -34,15 +35,6 @@ module typus_dov::vault {
         expired_date: u64,
         fee_percent: u64,
         deposit_limit: u64,
-    }
-
-    struct PayoffConfig has store, drop {
-        is_bullish: bool,
-        low_barrier_price: u64,
-        high_barrier_price: u64,
-        low_barrier_roi: Option<u64>,
-        high_barrier_roi: Option<u64>,
-        high_roi_constant: Option<u64>,
     }
 
     // TODO: coin -> ledger
@@ -77,14 +69,14 @@ module typus_dov::vault {
             deposit_limit,
         };
 
-        let payoff_config = PayoffConfig {
+        let payoff_config = payoff::new_payoff_config(
             is_bullish,
             low_barrier_price,
             high_barrier_price,
-            low_barrier_roi: option::none(),
-            high_barrier_roi: option::none(),
-            high_roi_constant: option::none(),
-        };
+            option::none(),
+            option::none(),
+            option::none(),
+        );
 
         emit(VaultCreated{
             expired_date,
@@ -154,50 +146,6 @@ module typus_dov::vault {
     ): Vault<T> {
         dynamic_field::remove<u64, Vault<T>>(&mut vault_registry.id, index)
     }
-
-    public fun get_payoff_config_is_bullish(payoff_config: &PayoffConfig): bool {
-        payoff_config.is_bullish
-    }
-
-    public fun get_payoff_config_low_barrier_price(payoff_config: &PayoffConfig): u64 {
-        payoff_config.low_barrier_price
-    }
-
-    public fun get_payoff_config_high_barrier_price(payoff_config: &PayoffConfig): u64 {
-        payoff_config.high_barrier_price
-    }
-
-    public fun get_payoff_config_low_barrier_roi(payoff_config: &PayoffConfig): Option<u64> {
-        payoff_config.low_barrier_roi
-    }
-
-    public fun get_payoff_config_high_barrier_roi(payoff_config: &PayoffConfig): Option<u64> {
-        payoff_config.high_barrier_roi
-    }
-
-    public fun get_payoff_config_high_roi_constant(payoff_config: &PayoffConfig): Option<u64> {
-        payoff_config.high_roi_constant
-    }
-
-    #[test_only]
-    public fun new_payoff_config(
-        is_bullish: bool,
-        low_barrier_price: u64,
-        high_barrier_price: u64,
-        low_barrier_roi: Option<u64>,
-        high_barrier_roi: Option<u64>,
-        high_roi_constant: Option<u64>,
-    ): PayoffConfig{
-        PayoffConfig {
-            is_bullish,
-            low_barrier_price,
-            high_barrier_price,
-            low_barrier_roi,
-            high_barrier_roi,
-            high_roi_constant,
-        }
-    }
-    
 
     // ======== Events =========
     struct RegistryCreated has copy, drop { id: ID }
