@@ -13,7 +13,7 @@ module typus_dov::utils {
         multi
     }
 
-     #[test]
+    #[test]
     public fun test_i64() {
         use typus_dov::i64;
         use std::debug;

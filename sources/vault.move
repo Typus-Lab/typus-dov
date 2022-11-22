@@ -1,12 +1,12 @@
 module typus_dov::vault {
-    use sui::tx_context::{Self, TxContext};
-    use sui::object::{Self, UID, ID};
     use sui::balance::{Self, Balance};
-    use sui::dynamic_field;
     use sui::coin::{Self, Coin};
+    use sui::dynamic_field;
     use sui::event::emit;
+    use sui::object::{Self, UID, ID};
     use sui::table::{Self, Table};
     use sui::transfer;
+    use sui::tx_context::{Self, TxContext};
 
     // ======== Structs =========
 
