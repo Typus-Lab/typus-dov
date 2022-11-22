@@ -1,7 +1,7 @@
 module typus_dov::vault {
     use sui::tx_context::{Self, TxContext};
     use sui::object::{Self, UID, ID};
-    use sui::balance::{Self, Balance, Supply};
+    use sui::balance::{Self, Balance};
     use sui::dynamic_field;
     use sui::coin::{Self, Coin};
     use sui::event::emit;
@@ -21,8 +21,8 @@ module typus_dov::vault {
         config: VaultConfig,
         payoff_config: P,
         deposit: Balance<T>,
-        share_supply: Supply<Share>,
-        users: Table<address, Balance<Share>>
+        share_supply: u64,
+        users_table: Table<address, u64>
     }
 
     struct VaultConfig has key, store {
@@ -31,10 +31,6 @@ module typus_dov::vault {
         fee_percent: u64,
         deposit_limit: u64,
     }
-
-    // TODO: coin -> ledger
-    struct Share has drop {}
-
 
     // ======== Functions =========
 
@@ -66,8 +62,8 @@ module typus_dov::vault {
             config: vault_config,
             payoff_config,
             deposit: balance::zero<T>(),
-            share_supply: balance::create_supply(Share{}),
-            users: table::new<address, Balance<Share>>(ctx),
+            share_supply: 0,
+            users_table: table::new<address, u64>(ctx),
         };
         dynamic_field::add(&mut vault_registry.id, vault_registry.num_of_vault, vault);
         vault_registry.num_of_vault = vault_registry.num_of_vault + 1;
@@ -83,21 +79,6 @@ module typus_dov::vault {
 
         let sender = tx_context::sender(ctx);
 
-        let share = deposit_(vault, token, ctx);
-
-        // check exist
-        if (table::contains(& vault.users, sender)){
-            let v = table::borrow_mut(&mut vault.users, sender);
-            balance::join(v, coin::into_balance(share));
-        } else {
-            table::add(&mut vault.users, sender, coin::into_balance(share));
-        };
-
-    }
-
-    fun deposit_<T, P: store>(
-        vault: &mut Vault<T, P>, token: Coin<T>, ctx: &mut TxContext
-    ): Coin<Share> {
         let deposit_value = coin::value(&token);
 
         assert!(deposit_value > 0, EZeroAmount);
@@ -108,8 +89,16 @@ module typus_dov::vault {
 
         assert!(tok_amt < vault.config.deposit_limit, EVaultFull);
 
-        let balance = balance::increase_supply(&mut vault.share_supply, deposit_value);
-        coin::from_balance(balance, ctx)
+        vault.share_supply = vault.share_supply + deposit_value;
+
+        // check exist
+        if (table::contains(& vault.users_table, sender)){
+            let v = table::borrow_mut(&mut vault.users_table, sender);
+            *v = *v + deposit_value;
+        } else {
+            table::add(&mut vault.users_table, sender, deposit_value);
+        };
+
     }
 
     fun get_mut_vault<T, P: store>(
