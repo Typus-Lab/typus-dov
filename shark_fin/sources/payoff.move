@@ -3,6 +3,7 @@ module typus_shark_fin::payoff {
     use sui::object::{Self, UID};
     use sui::tx_context::TxContext;
 
+    const ROI_DECIMAL: u64 = 8;
 
     // ======== Errors =========
 
@@ -122,18 +123,31 @@ module typus_shark_fin::payoff {
     fun test_get_shark_fin_payoff_by_price() {
         use std::debug;
         use std::option;
-        let payoff_config = new_payoff_config(
-            false,
-            5000,
-            6000,
-            option::some<u64>(1000),
-            option::some<u64>(3000),
-            option::some<u64>(1500),
-        );
-        let aa = get_shark_fin_payoff_by_price(
-            5000,
-            &payoff_config
-        );
-        debug::print(&aa);
+        use sui::test_scenario;
+        use sui::transfer;
+
+        let admin = @0xBABE;
+        let scenario_val = test_scenario::begin(admin);
+        let scenario = &mut scenario_val;
+        {
+            let ctx = test_scenario::ctx(scenario);
+            
+            let payoff_config = new_payoff_config(
+                false,
+                5000,
+                6000,
+                option::some<u64>(1000),
+                option::some<u64>(3000),
+                option::some<u64>(1500),
+                ctx
+            );
+            let aa = get_shark_fin_payoff_by_price(
+                5000,
+                &payoff_config
+            );
+            debug::print(&aa);
+            transfer::transfer<PayoffConfig>(payoff_config, admin);
+        };
+        test_scenario::end(scenario_val);
     }
 }

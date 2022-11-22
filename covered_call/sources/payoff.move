@@ -1,8 +1,11 @@
-module typus_shark_fin::payoff {
+module typus_covered_call::payoff {
     use std::option::{Self, Option};
     use sui::object::{Self, UID};
     use sui::tx_context::TxContext;
+    use typus_dov::i64::{Self, I64};
+    use typus_dov::utils;
 
+    const ROI_DECIMAL: u64 = 8;
 
     // ======== Errors =========
 
@@ -10,7 +13,7 @@ module typus_shark_fin::payoff {
 
     // ======== Structs =========
 
-    struct PayoffConfig has store, drop {
+    struct PayoffConfig has key, store {
         id: UID,
         strike: u64,
         premium_roi: Option<u64>,
@@ -67,18 +70,31 @@ module typus_shark_fin::payoff {
     fun test_get_covered_call_payoff_by_price() {
         use std::debug;
         use std::option;
-        let payoff_config = new_payoff_config(
-            5000,
-            option::some<u64>(1000),
-        );
-        let aa = get_covered_call_payoff_by_price(
-            6000,
-            &payoff_config
-        );
-        debug::print(&i64::is_neg(&aa));
-        debug::print(&i64::abs(&aa));
-        if (i64::is_neg(&aa)){
-            debug::print(&i64::neg(&aa));
-        }
+        use sui::test_scenario;
+        use sui::transfer;
+
+        let admin = @0xBABE;
+        let scenario_val = test_scenario::begin(admin);
+        let scenario = &mut scenario_val;
+        {
+            let ctx = test_scenario::ctx(scenario);
+            
+            let payoff_config = new_payoff_config(
+                5000,
+                option::some<u64>(1000),
+                ctx
+            );
+            let aa = get_covered_call_payoff_by_price(
+                6000,
+                &payoff_config
+            );
+            debug::print(&i64::is_neg(&aa));
+            debug::print(&i64::abs(&aa));
+            if (i64::is_neg(&aa)){
+                debug::print(&i64::neg(&aa));
+            };
+            transfer::transfer<PayoffConfig>(payoff_config, admin);
+        };
+        test_scenario::end(scenario_val);
     }
 }
