@@ -6,13 +6,15 @@ module typus_dov::rfq {
     use sui::tx_context::TxContext;
     use std::vector;
 
+    const E_BID_NOT_EXISTS: u64 = 0;
+
     struct Rfq has store {
         index: u64,
         bids: Table<u64, Bid>,
         ownerships: Table<address, vector<u64>>
     }
 
-    struct Bid has store {
+    struct Bid has drop, store {
         price: u64,
         size: u64,
         owner: address,
@@ -56,6 +58,18 @@ module typus_dov::rfq {
                 ownership,
             )
         }
+    }
+
+    public fun remove_bid(
+        rfq: &mut Rfq,
+        owner: address,
+        bid_index: u64,
+    ): Bid {
+        let ownership = table::borrow_mut(&mut rfq.ownerships, owner);
+        let (bid_exist, index) = vector::index_of(ownership, &bid_index);
+        assert!(bid_exist, E_BID_NOT_EXISTS);
+        vector::swap_remove(ownership, index);
+        table::remove(&mut rfq.bids, bid_index)
     }
 
     #[test]
@@ -128,6 +142,31 @@ module typus_dov::rfq {
         assert!(*bid_index == 3, 18);
 
         test_scenario::end(admin_scenario);
+        rfq
+    }
+
+    #[test]
+    fun test_rfq_remove_bid_success(): Rfq {
+        let rfq = test_rfq_new_bid();
+
+        let user1 = @0xBABE1;
+        let user2 = @0xBABE2;
+        remove_bid(&mut rfq, user1, 0);
+        remove_bid(&mut rfq, user1, 2);
+        remove_bid(&mut rfq, user2, 1);
+        remove_bid(&mut rfq, user2, 3);
+
+        rfq
+    }
+
+    #[test]
+    #[expected_failure]
+    fun test_rfq_remove_bid_failure(): Rfq {
+        let rfq = test_rfq_new_bid();
+
+        let monkey = @0x8787;
+        remove_bid(&mut rfq, monkey, 0);
+
         rfq
     }
 }
