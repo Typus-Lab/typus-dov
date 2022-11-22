@@ -2,8 +2,9 @@ module typus_shark_fin::shark_fin {
     use sui::tx_context::{Self, TxContext};
     use sui::transfer;
     // use sui::event::emit;
-    use typus_dov::vault::{Self, VaultRegistry, VaultConfig};
-    use typus_shark_fin::payoff::{PayoffConfig};
+    use typus_dov::vault::{Self, VaultRegistry};
+    use typus_shark_fin::payoff::{Self, PayoffConfig};
+    use std::string;
 
     // ======== Structs =========
 
@@ -20,11 +21,21 @@ module typus_shark_fin::shark_fin {
 
     public entry fun new_shark_fin_vault<T>(
         vault_registry: &mut VaultRegistry<PayoffConfig>,
-        vault_config: VaultConfig,
-        payoff_config: PayoffConfig,
+        // vault_config: VaultConfig,
+        is_bullish: bool,
+        low_barrier_price: u64,
+        high_barrier_price: u64,
         ctx: &mut TxContext
     ){
-        vault::new_vault<T, PayoffConfig>(vault_registry, vault_config, payoff_config, ctx);
+        let payoff_config = payoff::new_payoff_config(is_bullish,low_barrier_price,high_barrier_price,ctx);
+
+        let n = vault::new_vault<T, PayoffConfig>(vault_registry, payoff_config, ctx);
+
+        vault::new_sub_vault<T, PayoffConfig>(vault_registry, n, string::utf8(b"rolling"), ctx);
+
+        vault::new_sub_vault<T, PayoffConfig>(vault_registry, n, string::utf8(b"no_rolling"), ctx);
+
+        vault::new_sub_vault<T, PayoffConfig>(vault_registry, n, string::utf8(b"maker"), ctx);
     }
 
     // ======== Events =========

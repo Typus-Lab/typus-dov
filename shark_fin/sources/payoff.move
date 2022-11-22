@@ -52,9 +52,6 @@ module typus_shark_fin::payoff {
         is_bullish: bool,
         low_barrier_price: u64,
         high_barrier_price: u64,
-        low_barrier_roi: Option<u64>,
-        high_barrier_roi: Option<u64>,
-        high_roi_constant: Option<u64>,
         ctx: &mut TxContext
     ): PayoffConfig {
         PayoffConfig {
@@ -62,9 +59,9 @@ module typus_shark_fin::payoff {
             is_bullish,
             low_barrier_price,
             high_barrier_price,
-            low_barrier_roi,
-            high_barrier_roi,
-            high_roi_constant,
+            low_barrier_roi: option::none(),
+            high_barrier_roi: option::none(),
+            high_roi_constant: option::none(),
         }
     }
 
@@ -136,9 +133,6 @@ module typus_shark_fin::payoff {
                 false,
                 5000,
                 6000,
-                option::some<u64>(1000),
-                option::some<u64>(3000),
-                option::some<u64>(1500),
                 ctx
             );
             let aa = get_shark_fin_payoff_by_price(
