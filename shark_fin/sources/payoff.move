@@ -1,9 +1,11 @@
 module typus_shark_fin::payoff {
     use std::option::{Self, Option};
 
-    friend typus_shark_fin::shark_fin;
-
     const ROI_DECIMAL: u64 = 8;
+
+
+    friend typus_shark_fin::shark_fin;
+    friend typus_shark_fin::settlement;
 
     // ======== Errors =========
 
@@ -20,7 +22,7 @@ module typus_shark_fin::payoff {
         high_barrier_roi: Option<u64>,
         high_roi_constant: Option<u64>,
     }
-
+    
     // ======== Functions =========
 
     public fun get_payoff_config_is_bullish(payoff_config: &PayoffConfig): bool {
@@ -47,18 +49,25 @@ module typus_shark_fin::payoff {
         payoff_config.high_roi_constant
     }
 
+    public fun get_roi_decimal(): u64 {
+        ROI_DECIMAL
+    }
+
     public(friend) fun new_payoff_config(
         is_bullish: bool,
         low_barrier_price: u64,
         high_barrier_price: u64,
+        low_barrier_roi: Option<u64>,
+        high_barrier_roi: Option<u64>,
+        high_roi_constant: Option<u64>,
     ): PayoffConfig {
         PayoffConfig {
             is_bullish,
             low_barrier_price,
             high_barrier_price,
-            low_barrier_roi: option::none(),
-            high_barrier_roi: option::none(),
-            high_roi_constant: option::none(),
+            low_barrier_roi,
+            high_barrier_roi,
+            high_roi_constant,
         }
     }
 
@@ -124,6 +133,9 @@ module typus_shark_fin::payoff {
             false,
             5000,
             6000,
+            option::none(),
+            option::none(),
+            option::none(),
         );
         let aa = get_shark_fin_payoff_by_price(
             5000,

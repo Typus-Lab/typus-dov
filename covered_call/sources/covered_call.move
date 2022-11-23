@@ -1,31 +1,61 @@
 module typus_covered_call::covered_call {
+    use std::option;
+    use std::string;
+
     use sui::tx_context::{Self, TxContext};
     use sui::transfer;
     // use sui::event::emit;
-    use typus_dov::vault::{Self, VaultRegistry, VaultConfig};
-    use typus_covered_call::payoff::{PayoffConfig};
+
+    use typus_dov::vault::{Self, VaultRegistry};
+    use typus_covered_call::payoff::{Self, PayoffConfig};
 
     // ======== Structs =========
+
+    struct Config has store {
+        payoff_config: PayoffConfig,
+        expiration_ts: u64
+    }
 
     // ======== Functions =========
 
     fun init(ctx: &mut TxContext) {
-        let manager_cap = vault::new_manager_cap<PayoffConfig>(ctx);
+        let manager_cap = vault::new_manager_cap<Config>(ctx);
 
         transfer::transfer(manager_cap, tx_context::sender(ctx));
 
-        vault::new_vault_registry<PayoffConfig>(ctx);
+        vault::new_vault_registry<Config>(ctx);
     }
 
+    public fun get_payoff_config(config: &Config): &PayoffConfig {
+        &config.payoff_config
+    }
 
+    // Entry Functions
     public entry fun new_covered_call_vault<T>(
-        vault_registry: &mut VaultRegistry<PayoffConfig>,
-        vault_config: VaultConfig,
-        payoff_config: PayoffConfig,
+        vault_registry: &mut VaultRegistry<Config>,
+        strike: u64,
+        expiration_ts: u64,
         ctx: &mut TxContext
     ){
-        vault::new_vault<T, PayoffConfig>(vault_registry, vault_config, payoff_config, ctx);
+        let payoff_config = payoff::new_payoff_config(
+            strike,
+            option::none(),
+        );
+
+        let config = Config {
+            payoff_config,
+            expiration_ts
+        };
+
+        let n = vault::new_vault<T, Config>(vault_registry, config, ctx);
+
+        vault::new_sub_vault<T, Config>(vault_registry, n, string::utf8(b"rolling"), ctx);
+
+        vault::new_sub_vault<T, Config>(vault_registry, n, string::utf8(b"regular"), ctx);
+
+        vault::new_sub_vault<T, Config>(vault_registry, n, string::utf8(b"maker"), ctx);
     }
+
 
     // ======== Events =========
 
