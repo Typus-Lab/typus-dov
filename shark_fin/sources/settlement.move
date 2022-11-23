@@ -1,7 +1,6 @@
 module typus_shark_fin::settlement {
     use std::string;
     use sui::table;
-    use sui::balance;
     use typus_dov::utils;
     use typus_dov::i64;
     use typus_dov::vault::{Self, Vault};
