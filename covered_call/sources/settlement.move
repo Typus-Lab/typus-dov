@@ -5,18 +5,19 @@ module typus_covered_call::settlement {
     use typus_dov::utils;
     use typus_dov::i64;
     use typus_dov::vault::{Self, Vault};
-    use typus_covered_call::payoff::{Self, Config};
+    use typus_covered_call::payoff;
+    use typus_covered_call::covered_call::{Self, Config};
 
     const E_VAULT_HAS_BEEN_SETTLED: u64 = 666;
-
-    // ======== Structs =========
 
     // ======== Functions =========
 
     fun settle_internal<T>(dov: &mut Vault<T, Config>){
         // get price
         let price = 1; // need to be replaced by oracle price
-        let payoff_config = payoff::get_payoff_config(vault::get_config(dov));
+
+        let config = vault::get_config(dov);
+        let payoff_config = covered_call::get_payoff_config(config);
 
         // calculate settlement roi
         let roi = payoff::get_covered_call_payoff_by_price(price, payoff_config);

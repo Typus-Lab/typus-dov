@@ -3,6 +3,11 @@ module typus_covered_call::payoff {
     use typus_dov::i64::{Self, I64};
     use typus_dov::utils;
 
+    friend typus_covered_call::covered_call;
+    friend typus_covered_call::settlement;
+
+    // ======== Constants =========
+
     const ROI_DECIMAL: u64 = 8;
 
     // ======== Errors =========
@@ -15,25 +20,14 @@ module typus_covered_call::payoff {
         strike: u64,
         premium_roi: Option<u64>,
     }
-    struct Config has store, drop {
-        payoff_config: PayoffConfig,
-        expiration_ts: u64
-    }
+
     // ======== Functions =========
-
-    public fun get_payoff_config_strike(payoff_config: &PayoffConfig): u64 {
-        payoff_config.strike
-    }
-
-    public fun get_payoff_config_premium_roi(payoff_config: &PayoffConfig): Option<u64> {
-        payoff_config.premium_roi
-    }
 
     public fun get_roi_decimal(): u64 {
         ROI_DECIMAL
     }
 
-    public fun new_payoff_config(
+    public(friend) fun new_payoff_config(
         strike: u64,
         premium_roi: Option<u64>,
     ): PayoffConfig {
@@ -43,11 +37,6 @@ module typus_covered_call::payoff {
         }
     }
 
-    public fun get_payoff_config(config: &Config): &PayoffConfig {
-        &config.payoff_config
-    }
-
-
     // payoff represents the RoI per week
     /// e.g. a covered call vault:
     /// premium_roi = 1000, strike = 5000
@@ -55,8 +44,8 @@ module typus_covered_call::payoff {
     /// 2. given price = 5500, payoff return = 1000 - ROI_DECIMAL * (5500 - 5000) / 5000 = -4000 = -999_000
     public fun get_covered_call_payoff_by_price(price: u64, payoff_config: &PayoffConfig): I64{
         // get values from PayoffConfig
-        let strike = get_payoff_config_strike(payoff_config);
-        let premium_roi = get_payoff_config_premium_roi(payoff_config);
+        let strike = payoff_config.strike;
+        let premium_roi = payoff_config.premium_roi;
         
         assert!(option::is_some(&premium_roi), E_NO_CONFIG_CONTAINS_NONE);
 
