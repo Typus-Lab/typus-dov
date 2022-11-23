@@ -24,9 +24,6 @@ module typus_covered_call::settlement {
 
         // calculate payoff for vault user
         // -> mm payoff = - user total payoff
-        // let rolling_user_balance = vault::get_mut_vault_deposit<T, Config>(dov, string::utf8(b"rolling"));
-        // let regular_user_balance = vault::get_mut_vault_deposit<T, Config>(dov, string::utf8(b"regular"));
-        // let mm_balance = vault::get_mut_vault_deposit<T, Config>(dov, string::utf8(b"maker"));
 
         let user_balance_value = balance::value<T>(vault::get_mut_vault_deposit<T, Config>(dov, string::utf8(b"rolling")))
             + balance::value<T>(vault::get_mut_vault_deposit<T, Config>(dov, string::utf8(b"regular")));
@@ -41,12 +38,7 @@ module typus_covered_call::settlement {
         let user_total_payoff = i64::sub(&user_final_balance, &i64::from(user_balance_value));
         let rolling_user_payoff = i64::div(&i64::mul(&user_total_payoff, &i64::from(rolling_share_supply)), &i64::from(share_supply));
         let regular_user_payoff = i64::sub(&user_total_payoff, &rolling_user_payoff);
-        // let mm_payoff = if (i64::is_neg(&user_total_payoff)) {i64::abs(&user_total_payoff)} else {i64::neg(&user_total_payoff)};
 
-        // get mm_balance from vault
-        // let mm_balance_value = balance::value<T>(mm_balance);
-        // let mm_final_balance_value = i64::add(&i64::from(mm_balance_value), &mm_payoff);
-        
         // internal transfer
         if (i64::compare(&user_total_payoff, &i64::zero()) != 0) {
             if (i64::is_neg(&user_total_payoff)){
@@ -74,12 +66,7 @@ module typus_covered_call::settlement {
         expired_dov: &mut Vault<T, Config>,
         new_dov: &mut Vault<T, Config>,
     ){
-        // get roll over list
-        // let roll_over_table = vault::get_vault_user_map<T, Config>(expired_dov, string::utf8(b"rolling"));
-        // let user_index = vault::get_vault_user_index<T, Config>(expired_dov, string::utf8(b"rolling"));
-
         // transfer deposit to new vault
-        // let rolling_user_balance_at_expired = vault::get_mut_vault_deposit<T, Config>(expired_dov, string::utf8(b"rolling"));
         let rolling_user_balance_value_at_expired = balance::value<T>(vault::get_mut_vault_deposit<T, Config>(expired_dov, string::utf8(b"rolling")));
         let rolling_user_balance_at_new = vault::get_mut_vault_deposit<T, Config>(new_dov, string::utf8(b"rolling"));
         let coin =  balance::split<T>(
