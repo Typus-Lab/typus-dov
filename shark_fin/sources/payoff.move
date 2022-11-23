@@ -2,12 +2,11 @@ module typus_shark_fin::payoff {
     use std::option::{Self, Option};
 
     friend typus_shark_fin::shark_fin;
+    friend typus_shark_fin::settlement;
+
+    // ======== Constants =========
 
     const ROI_DECIMAL: u64 = 8;
-
-
-    friend typus_shark_fin::shark_fin;
-    friend typus_shark_fin::settlement;
 
     // ======== Errors =========
 
@@ -24,12 +23,7 @@ module typus_shark_fin::payoff {
         high_barrier_roi: Option<u64>,
         high_roi_constant: Option<u64>,
     }
-
-    struct Config has store {
-        payoff_config: PayoffConfig,
-        expiration_ts: u64
-    }
-
+    
     // ======== Functions =========
 
     public fun get_payoff_config_is_bullish(payoff_config: &PayoffConfig): bool {
