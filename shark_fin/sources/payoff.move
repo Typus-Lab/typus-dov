@@ -1,12 +1,11 @@
 module typus_shark_fin::payoff {
     use std::option::{Self, Option};
 
+    const ROI_DECIMAL: u64 = 8;
+
+
     friend typus_shark_fin::shark_fin;
     friend typus_shark_fin::settlement;
-
-    // ======== Constants =========
-
-    const ROI_DECIMAL: u64 = 8;
 
     // ======== Errors =========
 
