@@ -21,6 +21,11 @@ module typus_shark_fin::payoff {
         high_roi_constant: Option<u64>,
     }
 
+    struct Config has store {
+        payoff_config: PayoffConfig,
+        expiration_ts: u64
+    }
+
     // ======== Functions =========
 
     public fun get_payoff_config_is_bullish(payoff_config: &PayoffConfig): bool {
@@ -47,19 +52,27 @@ module typus_shark_fin::payoff {
         payoff_config.high_roi_constant
     }
 
-    public(friend) fun new_payoff_config(
+    public fun new_config(
+        expiration_ts: u64,
         is_bullish: bool,
         low_barrier_price: u64,
         high_barrier_price: u64,
-    ): PayoffConfig {
-        PayoffConfig {
-            is_bullish,
-            low_barrier_price,
-            high_barrier_price,
-            low_barrier_roi: option::none(),
-            high_barrier_roi: option::none(),
-            high_roi_constant: option::none(),
-        }
+    ): Config {
+        Config {
+            payoff_config: PayoffConfig {
+                is_bullish,
+                low_barrier_price,
+                high_barrier_price,
+                low_barrier_roi: option::none(),
+                high_barrier_roi: option::none(),
+                high_roi_constant: option::none(),
+            },
+            expiration_ts
+        } 
+    }
+
+    public fun get_payoff_config(config: &Config): &PayoffConfig {
+        &config.payoff_config
     }
 
     // payoff represents the RoI per week

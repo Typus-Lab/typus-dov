@@ -22,19 +22,24 @@ module typus_shark_fin::shark_fin {
 
     public entry fun new_shark_fin_vault<T>(
         vault_registry: &mut VaultRegistry<PayoffConfig>,
-        // vault_config: VaultConfig,
+        expiration_ts: u64,
         is_bullish: bool,
         low_barrier_price: u64,
         high_barrier_price: u64,
         ctx: &mut TxContext
     ){
-        let payoff_config = payoff::new_payoff_config(is_bullish,low_barrier_price,high_barrier_price);
+        let config = payoff::new_config(
+            expiration_ts,
+            is_bullish,
+            low_barrier_price,
+            high_barrier_price
+        );
 
-        let n = vault::new_vault<T, PayoffConfig>(vault_registry, payoff_config, ctx);
+        let n = vault::new_vault<T, PayoffConfig>(vault_registry, *payoff::get_payoff_config(&config), ctx);
 
         vault::new_sub_vault<T, PayoffConfig>(vault_registry, n, string::utf8(b"rolling"), ctx);
 
-        vault::new_sub_vault<T, PayoffConfig>(vault_registry, n, string::utf8(b"no_rolling"), ctx);
+        vault::new_sub_vault<T, PayoffConfig>(vault_registry, n, string::utf8(b"regular"), ctx);
 
         vault::new_sub_vault<T, PayoffConfig>(vault_registry, n, string::utf8(b"maker"), ctx);
     }

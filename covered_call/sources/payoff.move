@@ -4,7 +4,6 @@ module typus_covered_call::payoff {
     use sui::tx_context::TxContext;
     use typus_dov::i64::{Self, I64};
     use typus_dov::utils;
-    use typus_dov::vault::{Self, Vault};
 
     const ROI_DECIMAL: u64 = 8;
 
@@ -19,6 +18,10 @@ module typus_covered_call::payoff {
         strike: u64,
         premium_roi: Option<u64>,
     }
+    struct Config has key, store {
+        payoff_config: PayoffConfig,
+        expiration_ts: u64
+    }
     // ======== Functions =========
 
     public fun get_payoff_config_strike(payoff_config: &PayoffConfig): u64 {
@@ -27,10 +30,6 @@ module typus_covered_call::payoff {
 
     public fun get_payoff_config_premium_roi(payoff_config: &PayoffConfig): Option<u64> {
         payoff_config.premium_roi
-    }
-
-    public fun get_payoff_config_by_vault<T>(vault: &Vault<T, PayoffConfig>): &PayoffConfig {
-        vault::get_payoff_config<T, PayoffConfig>(vault)
     }
 
     public fun get_roi_decimal(): u64 {
@@ -47,6 +46,10 @@ module typus_covered_call::payoff {
             strike,
             premium_roi,
         }
+    }
+
+    public fun get_payoff_config(config: &Config): &PayoffConfig {
+        &config.payoff_config
     }
 
 
