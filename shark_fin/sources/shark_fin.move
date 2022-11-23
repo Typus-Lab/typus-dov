@@ -27,7 +27,7 @@ module typus_shark_fin::shark_fin {
         high_barrier_price: u64,
         ctx: &mut TxContext
     ){
-        let payoff_config = payoff::new_payoff_config(is_bullish,low_barrier_price,high_barrier_price,ctx);
+        let payoff_config = payoff::new_payoff_config(is_bullish,low_barrier_price,high_barrier_price);
 
         let n = vault::new_vault<T, PayoffConfig>(vault_registry, payoff_config, ctx);
 

@@ -1,7 +1,7 @@
 module typus_shark_fin::payoff {
     use std::option::{Self, Option};
-    use sui::object::{Self, UID};
-    use sui::tx_context::TxContext;
+
+    friend typus_shark_fin::shark_fin;
 
     const ROI_DECIMAL: u64 = 8;
 
@@ -12,8 +12,7 @@ module typus_shark_fin::payoff {
 
     // ======== Structs =========
 
-    struct PayoffConfig has key, store {
-        id: UID,
+    struct PayoffConfig has store {
         is_bullish: bool,
         low_barrier_price: u64,
         high_barrier_price: u64,
@@ -48,14 +47,12 @@ module typus_shark_fin::payoff {
         payoff_config.high_roi_constant
     }
 
-    public fun new_payoff_config(
+    public(friend) fun new_payoff_config(
         is_bullish: bool,
         low_barrier_price: u64,
         high_barrier_price: u64,
-        ctx: &mut TxContext
     ): PayoffConfig {
         PayoffConfig {
-            id: object::new(ctx),
             is_bullish,
             low_barrier_price,
             high_barrier_price,
@@ -117,31 +114,23 @@ module typus_shark_fin::payoff {
 
     #[test]
     /// get_shark_fin_payoff_by_price
-    fun test_get_shark_fin_payoff_by_price() {
+    fun test_get_shark_fin_payoff_by_price(): PayoffConfig {
         use std::debug;
-        use std::option;
         use sui::test_scenario;
-        use sui::transfer;
 
         let admin = @0xBABE;
         let scenario_val = test_scenario::begin(admin);
-        let scenario = &mut scenario_val;
-        {
-            let ctx = test_scenario::ctx(scenario);
-            
-            let payoff_config = new_payoff_config(
-                false,
-                5000,
-                6000,
-                ctx
-            );
-            let aa = get_shark_fin_payoff_by_price(
-                5000,
-                &payoff_config
-            );
-            debug::print(&aa);
-            transfer::transfer<PayoffConfig>(payoff_config, admin);
-        };
+        let payoff_config = new_payoff_config(
+            false,
+            5000,
+            6000,
+        );
+        let aa = get_shark_fin_payoff_by_price(
+            5000,
+            &payoff_config
+        );
+        debug::print(&aa);
         test_scenario::end(scenario_val);
+        payoff_config
     }
 }
