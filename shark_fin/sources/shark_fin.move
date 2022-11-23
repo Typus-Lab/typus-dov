@@ -5,6 +5,7 @@ module typus_shark_fin::shark_fin {
     use typus_dov::vault::{Self, VaultRegistry};
     use typus_shark_fin::payoff::{Self, PayoffConfig};
     use std::string;
+    use sui::coin::Coin;
 
     // ======== Structs =========
 
@@ -36,6 +37,26 @@ module typus_shark_fin::shark_fin {
         vault::new_sub_vault<T, PayoffConfig>(vault_registry, n, string::utf8(b"no_rolling"), ctx);
 
         vault::new_sub_vault<T, PayoffConfig>(vault_registry, n, string::utf8(b"maker"), ctx);
+    }
+
+    public entry fun deposit<T>(
+        vault_registry: &mut VaultRegistry<PayoffConfig>,
+        index: u64,
+        rolling: bool,
+        token: Coin<T>, 
+        ctx: &mut TxContext
+    ){
+        let name = if (rolling) {
+            string::utf8(b"rolling")
+        } else {
+            string::utf8(b"no_rolling")
+        };
+
+        let sub_vault = vault::get_mut_sub_vault(vault_registry, index, name);
+
+        let value = vault::deposit<T, PayoffConfig>(sub_vault, token);
+
+        vault::add_share<T, PayoffConfig>(sub_vault, value, ctx);
     }
 
     // ======== Events =========
