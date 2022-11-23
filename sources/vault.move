@@ -18,24 +18,25 @@ module typus_dov::vault {
         num_of_vault: u64,
     }
 
-    struct Vault<phantom T, P: store> has store {
-        // config: VaultConfig,
-        payoff_config: P,
+    struct Vault<phantom T, C: store> has store {
+        config: C,
         sub_vaults: Table<String, SubVault<T>>
     }
 
     struct SubVault<phantom T> has store {
+        index: u64,
         deposit: Balance<T>,
         share_supply: u64,
+        user_map: Table<u64, address>,
         users_table: Table<address, u64>
     }
 
-    struct VaultConfig has key, store {
-        id: UID,
-        expired_date: u64,
-        fee_percent: u64,
-        deposit_limit: u64,
-    }
+    // struct VaultConfig has key, store {
+    //     id: UID,
+    //     expired_date: u64,
+    //     fee_percent: u64,
+    //     deposit_limit: u64,
+    // }
 
     // ======== Functions =========
 
@@ -57,15 +58,14 @@ module typus_dov::vault {
         transfer::share_object(vault);
     }
 
-    public fun new_vault<T, P: store>(
-        vault_registry: &mut VaultRegistry<P>,
+    public fun new_vault<T, C: store>(
+        vault_registry: &mut VaultRegistry<C>,
         // vault_config: VaultConfig,
-        payoff_config: P,
+        config: C,
         ctx: &mut TxContext
     ): u64 {
-        let vault = Vault<T, P> {
-            // config: vault_config,
-            payoff_config,
+        let vault = Vault<T, C> {
+            config,
             sub_vaults: table::new<String, SubVault<T>>(ctx),
         };
         let n = vault_registry.num_of_vault;
@@ -83,26 +83,28 @@ module typus_dov::vault {
         let vault = get_mut_vault<T, P>(vault_registry, index);
 
         let sub_vault = SubVault<T> {
+            index: 0,
             deposit: balance::zero<T>(),
             share_supply: 0,
+            user_map: table::new<u64, address>(ctx),
             users_table: table::new<address, u64>(ctx),
         };
 
         table::add(&mut vault.sub_vaults, name, sub_vault);
     }
 
-    public entry fun new_vault_config(
-        ctx: &mut TxContext
-    ) {
-        let vault = VaultConfig {
-            id: object::new(ctx),
-            expired_date: 0,
-            fee_percent: 0,
-            deposit_limit: 0, 
-        };
+    // public entry fun new_vault_config(
+    //     ctx: &mut TxContext
+    // ) {
+    //     let vault = VaultConfig {
+    //         id: object::new(ctx),
+    //         expired_date: 0,
+    //         fee_percent: 0,
+    //         deposit_limit: 0, 
+    //     };
 
-        transfer::share_object(vault);
-    }
+    //     transfer::share_object(vault);
+    // }
 
     public fun deposit<T, P: store>(
         sub_vault: &mut SubVault<T> ,
@@ -160,35 +162,49 @@ module typus_dov::vault {
         table::borrow_mut(&mut vault.sub_vaults, name)
     }
 
-    public fun get_payoff_config<T, P: store>(vault: &Vault<T, P>): &P {
-        &vault.payoff_config
+    public fun get_config<T, P: store>(vault: &Vault<T, P>): &P {
+        &vault.config
     }
 
-    public fun get_vault_deposit<T, P: store>(vault: &Vault<T, P>): &Balance<T> {
-        &vault.deposit
+    public fun get_vault_deposit<T, P: store>(vault: &Vault<T, P>, name: String): &Balance<T> {
+        let sub_vault = table::borrow(&vault.sub_vaults, name);
+        &sub_vault.deposit
     }
     
-    public fun get_vault_share_supply<T, P: store>(vault: &Vault<T, P>): &u64 {
-        &vault.share_supply
+    public fun get_mut_vault_deposit<T, P: store>(vault: &mut Vault<T, P>, name: String): &mut Balance<T> {
+        let sub_vault = table::borrow_mut(&mut vault.sub_vaults, name);
+        &mut sub_vault.deposit
+    }
+    
+    public fun get_vault_share_supply<T, P: store>(vault: &Vault<T, P>, name: String): &u64 {
+        let sub_vault = table::borrow(&vault.sub_vaults, name);
+        &sub_vault.share_supply
     }
 
-    public fun get_vault_users_table<T, P: store>(vault: &Vault<T, P>): &Table<address, u64> {
-        &vault.users_table
+    public fun get_vault_users_table<T, P: store>(vault: &Vault<T, P>, name: String): &Table<address, u64> {
+        let sub_vault = table::borrow(&vault.sub_vaults, name);
+        &sub_vault.users_table
     }
 
-    public fun get_mut_vault_users_table<T, P: store>(vault: &mut Vault<T, P>): &mut Table<address, u64> {
-        &mut vault.users_table
+    public fun get_mut_vault_users_table<T, P: store>(vault: &mut Vault<T, P>, name: String): &mut Table<address, u64> {
+        let sub_vault = table::borrow_mut(&mut vault.sub_vaults, name);
+        &mut sub_vault.users_table
     }
 
-    public fun add_share_supply<T, P: store>(vault: &mut Vault<T, P>, shares: u64) {
-        vault.share_supply = vault.share_supply + shares;
+    public fun get_vault_user_index<T, P: store>(vault: &Vault<T, P>, name: String): &u64 {
+        let sub_vault = table::borrow(&vault.sub_vaults, name);
+        &sub_vault.index
     }
-    // public fun get_payoff_config<T, P: store>(
-    //     vault_registry: &VaultRegistry<P>,
-    //     index: u64
-    // ): &PayoffConfig{
-    //     get_vault<T, P>()
-    // }
+
+    public fun get_vault_user_map<T, P: store>(vault: &Vault<T, P>, name: String): &Table<u64, address> {
+        let sub_vault = table::borrow(&vault.sub_vaults, name);
+        &sub_vault.user_map
+    }
+
+    public fun add_share_supply<T, P: store>(vault: &mut Vault<T, P>, name: String, shares: u64) {
+        let sub_vault = table::borrow_mut(&mut vault.sub_vaults, name);
+        sub_vault.share_supply = sub_vault.share_supply + shares;
+    }
 
     // ======== Events =========
 

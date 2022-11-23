@@ -1,7 +1,5 @@
 module typus_shark_fin::payoff {
     use std::option::{Self, Option};
-    use sui::object::{Self, UID};
-    use sui::tx_context::TxContext;
 
     const ROI_DECIMAL: u64 = 8;
 
@@ -12,14 +10,18 @@ module typus_shark_fin::payoff {
 
     // ======== Structs =========
 
-    struct PayoffConfig has key, store {
-        id: UID,
+    struct PayoffConfig has store, copy, drop {
         is_bullish: bool,
         low_barrier_price: u64,
         high_barrier_price: u64,
         low_barrier_roi: Option<u64>,
         high_barrier_roi: Option<u64>,
         high_roi_constant: Option<u64>,
+    }
+
+    struct Config has store, copy, drop {
+        payoff_config: PayoffConfig,
+        expiration_ts: u64
     }
 
     // ======== Functions =========
@@ -48,21 +50,27 @@ module typus_shark_fin::payoff {
         payoff_config.high_roi_constant
     }
 
-    public fun new_payoff_config(
+    public fun new_config(
+        expiration_ts: u64,
         is_bullish: bool,
         low_barrier_price: u64,
         high_barrier_price: u64,
-        ctx: &mut TxContext
-    ): PayoffConfig {
-        PayoffConfig {
-            id: object::new(ctx),
-            is_bullish,
-            low_barrier_price,
-            high_barrier_price,
-            low_barrier_roi: option::none(),
-            high_barrier_roi: option::none(),
-            high_roi_constant: option::none(),
-        }
+    ): Config {
+        Config {
+            payoff_config: PayoffConfig {
+                is_bullish,
+                low_barrier_price,
+                high_barrier_price,
+                low_barrier_roi: option::none(),
+                high_barrier_roi: option::none(),
+                high_roi_constant: option::none(),
+            },
+            expiration_ts
+        } 
+    }
+
+    public fun get_payoff_config(config: &Config): &PayoffConfig {
+        &config.payoff_config
     }
 
     // payoff represents the RoI per week
@@ -119,29 +127,17 @@ module typus_shark_fin::payoff {
     /// get_shark_fin_payoff_by_price
     fun test_get_shark_fin_payoff_by_price() {
         use std::debug;
-        use std::option;
-        use sui::test_scenario;
-        use sui::transfer;
 
-        let admin = @0xBABE;
-        let scenario_val = test_scenario::begin(admin);
-        let scenario = &mut scenario_val;
-        {
-            let ctx = test_scenario::ctx(scenario);
-            
-            let payoff_config = new_payoff_config(
-                false,
-                5000,
-                6000,
-                ctx
-            );
-            let aa = get_shark_fin_payoff_by_price(
-                5000,
-                &payoff_config
-            );
-            debug::print(&aa);
-            transfer::transfer<PayoffConfig>(payoff_config, admin);
-        };
-        test_scenario::end(scenario_val);
+        let config = new_config(
+            111111111,
+            false,
+            5000,
+            6000,
+        );
+        let aa = get_shark_fin_payoff_by_price(
+            5000,
+            &config.payoff_config
+        );
+        debug::print(&aa);
     }
 }

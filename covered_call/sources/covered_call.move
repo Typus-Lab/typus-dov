@@ -1,11 +1,19 @@
 module typus_covered_call::covered_call {
     use sui::tx_context::{Self, TxContext};
     use sui::transfer;
+    use sui::object::{Self, UID};
     // use sui::event::emit;
-    use typus_dov::vault::{Self, VaultRegistry, VaultConfig};
+    use typus_dov::vault::{Self, VaultRegistry};
     use typus_covered_call::payoff::{PayoffConfig};
 
     // ======== Structs =========
+
+    struct VaultConfig has key, store {
+        id: UID,
+        expiration_ts: u64,
+        fee_percent: u64,
+        deposit_limit: u64,
+    }
 
     // ======== Functions =========
 
@@ -17,6 +25,20 @@ module typus_covered_call::covered_call {
         vault::new_vault_registry<PayoffConfig>(ctx);
     }
 
+    // Entry Functions
+
+    public entry fun new_vault_config(
+        ctx: &mut TxContext
+    ) {
+        let vault = VaultConfig {
+            id: object::new(ctx),
+            expiration_ts: 0,
+            fee_percent: 0,
+            deposit_limit: 0, 
+        };
+
+        transfer::share_object(vault);
+    }
 
     public entry fun new_covered_call_vault<T>(
         vault_registry: &mut VaultRegistry<PayoffConfig>,
@@ -24,7 +46,7 @@ module typus_covered_call::covered_call {
         payoff_config: PayoffConfig,
         ctx: &mut TxContext
     ){
-        vault::new_vault<T, PayoffConfig>(vault_registry, vault_config, payoff_config, ctx);
+        vault::new_vault<T, PayoffConfig>(vault_registry, payoff_config, ctx);
     }
 
     // ======== Events =========

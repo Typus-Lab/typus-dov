@@ -1,100 +1,148 @@
 module typus_covered_call::settlement {
     use std::vector;
+    use std::string;
     use sui::table;
     use sui::balance;
     use typus_dov::utils;
     use typus_dov::i64;
     use typus_dov::vault::{Self, Vault};
-    use typus_covered_call::payoff::{Self, PayoffConfig};
+    use typus_covered_call::payoff::{Self, Config, PayoffConfig};
+
+    const E_VAULT_HAS_BEEN_SETTLED: u64 = 666;
 
     // ======== Structs =========
 
     // ======== Functions =========
 
-    fun settle_internal<T>(dov: &Vault<T, PayoffConfig>){
+    fun settle_internal<T>(dov: &mut Vault<T, Config>){
         // get price
         let price = 1; // need to be replaced by oracle price
-        // let dov = vault::get_vault<T, P>
-        let payoff_config = payoff::get_payoff_config_by_vault<T>(dov);
+        let payoff_config = payoff::get_payoff_config(vault::get_config(dov));
+
         // calculate settlement roi
         let roi = payoff::get_covered_call_payoff_by_price(price, payoff_config);
         let roi_multiplier = i64::from(utils::multiplier(payoff::get_roi_decimal()));
-        // calculate payoff for vault user
-        let user_balance = balance::value<T>(vault::get_vault_deposit<T, PayoffConfig>(dov));
-        let user_final_balance = i64::div(&i64::mul(&i64::from(user_balance),&i64::add(&roi_multiplier, &roi)), &roi_multiplier);
 
-        // calculate payoff for mm
+        // calculate payoff for vault user
+        // -> mm payoff = - user total payoff
+        let rolling_user_balance = vault::get_mut_vault_deposit<T, Config>(dov, string::utf8(b"rolling"));
+        let regular_user_balance = vault::get_mut_vault_deposit<T, Config>(dov, string::utf8(b"regular"));
+        let mm_balance = vault::get_mut_vault_deposit<T, Config>(dov, string::utf8(b"maker"));
+
+        let user_balance_value = balance::value<T>(rolling_user_balance) + balance::value<T>(regular_user_balance);
+        let rolling_share_supply = *vault::get_vault_share_supply<T, Config>(dov, string::utf8(b"rolling"));
+        let regular_share_supply = *vault::get_vault_share_supply<T, Config>(dov, string::utf8(b"regular"));
+        let share_supply = rolling_share_supply + regular_share_supply;
+
+        assert!(user_balance_value == share_supply, E_VAULT_HAS_BEEN_SETTLED);
+
+        let user_final_balance = i64::div(&i64::mul(&i64::from(user_balance_value),&i64::add(&roi_multiplier, &roi)), &roi_multiplier);
+        
+        let user_total_payoff = i64::sub(&user_final_balance, &i64::from(user_balance_value));
+        let rolling_user_payoff = i64::div(&i64::mul(&user_total_payoff, &i64::from(rolling_share_supply)), &i64::from(share_supply));
+        let regular_user_payoff = i64::sub(&user_total_payoff, &rolling_user_payoff);
+        // let mm_payoff = if (i64::is_neg(&user_total_payoff)) {i64::abs(&user_total_payoff)} else {i64::neg(&user_total_payoff)};
+
         // get mm_balance from vault
-        // mm_final_balance = mm_balance + diff, which diff = user_final_balance - user_balance
+        // let mm_balance_value = balance::value<T>(mm_balance);
+        // let mm_final_balance_value = i64::add(&i64::from(mm_balance_value), &mm_payoff);
         
         // internal transfer
-        if (!i64::is_neg(&user_final_balance)){
-            if (i64::as_u64(&user_final_balance) > user_balance) {
-                // transfer mm margin into vault.deposit
-            } else if (i64::as_u64(&user_final_balance) < user_balance) {
-                // transfer vault.deposit into mm margin
+        if (i64::compare(&user_total_payoff, &i64::zero()) != 0) {
+            if (i64::is_neg(&user_total_payoff)){
+                // Also rolling_user_payoff & regular_user_payoff are negative
+                // split user payoff and transfer to mm
+                let payoff_u64 = i64::as_u64(&i64::abs(&rolling_user_payoff));
+                let coin = balance::split<T>(rolling_user_balance, payoff_u64);
+                balance::join<T>(mm_balance, coin);
+                let payoff_u64 = i64::as_u64(&i64::abs(&regular_user_payoff));
+                let coin = balance::split<T>(regular_user_balance, payoff_u64);
+                balance::join<T>(mm_balance, coin);
+            } else if (i64::is_neg(&user_total_payoff)){
+                // Also rolling_user_payoff & regular_user_payoff are positive
+                // split mm payoff and transfer to users
+                let coin = balance::split<T>(mm_balance, i64::as_u64(&rolling_user_payoff));
+                balance::join<T>(rolling_user_balance, coin);
+                let coin = balance::split<T>(mm_balance, i64::as_u64(&regular_user_payoff));
+                balance::join<T>(regular_user_balance, coin);
             }
         }
-
-        // calculate performance fee
-        
-
+        // TODO: calculate performance fee
     }
 
     fun settle_roll_over<T>(
-        expired_dov: &mut Vault<T, PayoffConfig>,
-        new_dov: &mut Vault<T, PayoffConfig>,
-        roll_over_list: &vector<address>,
+        expired_dov: &mut Vault<T, Config>,
+        new_dov: &mut Vault<T, Config>,
     ){
+        // get roll over list
+        let roll_over_table = vault::get_vault_user_map<T, Config>(expired_dov, string::utf8(b"rolling"));
+        let user_index = vault::get_vault_user_index<T, Config>(expired_dov, string::utf8(b"rolling"));
+
         // transfer deposit to new vault
-        // ???
+        let rolling_user_balance_at_expired = vault::get_mut_vault_deposit<T, Config>(expired_dov, string::utf8(b"rolling"));
+        let rolling_user_balance_value_at_expired = balance::value<T>(rolling_user_balance_at_expired);
+        let rolling_user_balance_at_new = vault::get_mut_vault_deposit<T, Config>(new_dov, string::utf8(b"rolling"));
+        let coin =  balance::split<T>(rolling_user_balance_at_expired, balance::value<T>(rolling_user_balance_at_expired));
+        balance::join<T>(rolling_user_balance_at_new, coin);
 
         // transfer shares to new vault
         // adjust the shares for new coming users and combine with table of old users
         let share_price_decimal = 8;
         let share_price_multiplier = utils::multiplier(share_price_decimal);
-        let user_balance_value = balance::value<T>(vault::get_vault_deposit<T, PayoffConfig>(expired_dov));
-        let share_supply = vault::get_vault_share_supply<T, PayoffConfig>(expired_dov);
 
-        // combine share supply
-        vault::add_share_supply<T, PayoffConfig>(new_dov, user_balance_value);
+        let rolling_user_balance_value_at_expired = balance::value<T>(rolling_user_balance_at_expired);
+        let rolling_user_share_supply_at_expired = vault::get_vault_share_supply<T, Config>(expired_dov, string::utf8(b"rolling"));
+
+        // combine share supply: use expired balance value instead of expired share
+        vault::add_share_supply<T, Config>(new_dov, string::utf8(b"rolling"), rolling_user_balance_value_at_expired);
 
         // adjust user share
-        let share_price = share_price_multiplier * user_balance_value / *share_supply;
-        let expired_dov_users_table = vault::get_vault_users_table<T, PayoffConfig>(expired_dov);
-        
-        let new_dov_users_table = vault::get_mut_vault_users_table<T, PayoffConfig>(new_dov);
+        let share_price = share_price_multiplier * rolling_user_balance_value_at_expired / *rolling_user_share_supply_at_expired;
+
+        let expired_dov_users_table = vault::get_vault_users_table<T, Config>(expired_dov, string::utf8(b"rolling"));
+        let new_dov_users_table = vault::get_mut_vault_users_table<T, Config>(new_dov, string::utf8(b"rolling"));
 
         let i = 0;
-        let n = vector::length<address>(roll_over_list);
+        let n = *user_index;
         while (i < n) {
-            let user_address = vector::borrow<address>(roll_over_list, i);
-            let adjusted_shares_in_expired_pool = *table::borrow<address, u64>(expired_dov_users_table, *user_address) * share_price / share_price_multiplier;
-            if (table::contains<address, u64>(new_dov_users_table, *user_address)){
-                let user_share = table::borrow_mut<address, u64>(new_dov_users_table, *user_address);
-                *user_share = *user_share + adjusted_shares_in_expired_pool;
-            } else {
-                table::add<address, u64>(new_dov_users_table, *user_address, adjusted_shares_in_expired_pool);
+            if (table::contains<u64, address>(roll_over_table, i)) {
+                let user_address = table::borrow<u64, address>(roll_over_table, i);
+                let adjusted_shares_in_expired_pool = *table::borrow<address, u64>(expired_dov_users_table, *user_address) 
+                    * share_price 
+                    / share_price_multiplier;
+
+                if (table::contains<address, u64>(new_dov_users_table, *user_address)){
+                    let user_share = table::borrow_mut<address, u64>(new_dov_users_table, *user_address);
+                    *user_share = *user_share + adjusted_shares_in_expired_pool;
+                } else {
+                    table::add<address, u64>(new_dov_users_table, *user_address, adjusted_shares_in_expired_pool);
+                };
             };
+            
             i = i + 1;
         };
         
     }
 
-    fun adjust_vault_stage<T>(dov: &mut Vault<T, PayoffConfig>, stage: u64) {
+    fun adjust_vault_stage<T>(dov: &mut Vault<T, Config>, stage: u64) {
         // let dov_stage = get mut stage
         // dov_stage = stage;
     }
 
-    public entry fun settle_with_roll_over<T>(
-        expired_dov: Vault<T, PayoffConfig>,
-        new_dov: Vault<T, PayoffConfig>,
-        roll_over_list: &vector<address>,
+    public entry fun settle_without_roll_over<T>(
+        expired_dov: Vault<T, Config>,
     ){
-        settle_internal<T>(&expired_dov);
-        settle_roll_over<T>(&mut expired_dov, &mut new_dov, roll_over_list);
-        adjust_vault_stage<T>(&mut expired_dov, 4);
-        adjust_vault_stage<T>(&mut new_dov, 1);
+        settle_internal<T>(&mut expired_dov);
+    }
+
+    public entry fun settle_with_roll_over<T>(
+        expired_dov: Vault<T, Config>,
+        new_dov: Vault<T, Config>,
+    ){
+        settle_internal<T>(&mut expired_dov);
+        settle_roll_over<T>(&mut expired_dov, &mut new_dov);
+        // adjust_vault_stage<T>(&mut expired_dov, 4);
+        // adjust_vault_stage<T>(&mut new_dov, 1);
         // stage: 0 = warmup, 1 = auction, 2 = on-going, 3 = expired, 4 = settled
     }
 
