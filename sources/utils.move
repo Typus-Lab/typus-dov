@@ -2,6 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 module typus_dov::utils {
+    use sui::balance::{Self, Balance};
+    use sui::coin::{Self, Coin};
+
     // decimals
     public fun multiplier(decimal: u64): u64 {
         let i = 0;
@@ -11,6 +14,12 @@ module typus_dov::utils {
             i = i + 1;
         };
         multi
+    }
+
+    // extract balance from coin
+    public fun extract_balance_from_coin<Token>(coin: &mut Coin<Token>, value: u64): Balance<Token> {
+        let balance = coin::balance_mut(coin);
+        balance::split(balance, value)
     }
 
     #[test]
