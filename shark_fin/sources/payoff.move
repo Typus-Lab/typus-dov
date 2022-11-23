@@ -19,11 +19,6 @@ module typus_shark_fin::payoff {
         high_roi_constant: Option<u64>,
     }
 
-    struct Config has store, copy, drop {
-        payoff_config: PayoffConfig,
-        expiration_ts: u64
-    }
-
     // ======== Functions =========
 
     public fun get_payoff_config_is_bullish(payoff_config: &PayoffConfig): bool {
@@ -54,27 +49,22 @@ module typus_shark_fin::payoff {
         ROI_DECIMAL
     }
 
-    public fun new_config(
-        expiration_ts: u64,
+    public fun new_payoff_config(
         is_bullish: bool,
         low_barrier_price: u64,
         high_barrier_price: u64,
-    ): Config {
-        Config {
-            payoff_config: PayoffConfig {
-                is_bullish,
-                low_barrier_price,
-                high_barrier_price,
-                low_barrier_roi: option::none(),
-                high_barrier_roi: option::none(),
-                high_roi_constant: option::none(),
-            },
-            expiration_ts
-        } 
-    }
-
-    public fun get_payoff_config(config: &Config): &PayoffConfig {
-        &config.payoff_config
+        low_barrier_roi: Option<u64>,
+        high_barrier_roi: Option<u64>,
+        high_roi_constant: Option<u64>,
+    ): PayoffConfig {
+        PayoffConfig {
+            is_bullish,
+            low_barrier_price,
+            high_barrier_price,
+            low_barrier_roi,
+            high_barrier_roi,
+            high_roi_constant,
+        }
     }
 
     // payoff represents the RoI per week
@@ -131,16 +121,17 @@ module typus_shark_fin::payoff {
     /// get_shark_fin_payoff_by_price
     fun test_get_shark_fin_payoff_by_price() {
         use std::debug;
-
-        let config = new_config(
-            111111111,
+        let payoff_config = new_payoff_config(
             false,
             5000,
             6000,
+            option::none(),
+            option::none(),
+            option::none(),
         );
         let aa = get_shark_fin_payoff_by_price(
             5000,
-            &config.payoff_config
+            &payoff_config
         );
         debug::print(&aa);
     }
