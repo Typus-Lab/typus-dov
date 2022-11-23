@@ -5,22 +5,24 @@ module typus_dov::rfq {
     use sui::table::{Self, Table};
     use sui::tx_context::TxContext;
     use std::vector;
+    use sui::coin::{Self, Coin};
 
     const E_BID_NOT_EXISTS: u64 = 0;
 
-    struct Rfq has store {
+    struct Rfq<phantom Token> has store {
         index: u64,
-        bids: Table<u64, Bid>,
+        bids: Table<u64, Bid<Token>>,
         ownerships: Table<address, vector<u64>>
     }
 
-    struct Bid has drop, store {
+    struct Bid<phantom Token> has store {
         price: u64,
         size: u64,
+        coin: Coin<Token>,
         owner: address,
     }
 
-    public fun new(ctx: &mut TxContext): Rfq {
+    public fun new<Token>(ctx: &mut TxContext): Rfq<Token> {
         Rfq {
             index: 0,
             bids: table::new(ctx),
@@ -28,11 +30,13 @@ module typus_dov::rfq {
         }
     }
 
-    public fun new_bid(
-        rfq: &mut Rfq,
+    public fun new_bid<Token>(
+        rfq: &mut Rfq<Token>,
         price: u64,
         size: u64,
         owner: address,
+        coin: &mut Coin<Token>,
+        ctx: &mut TxContext,
     ) {
         let index = rfq.index;
         table::add(
@@ -41,6 +45,7 @@ module typus_dov::rfq {
             Bid {
                 price,
                 size,
+                coin: coin::split(coin, price * size, ctx),
                 owner,
             }
         );
@@ -60,11 +65,11 @@ module typus_dov::rfq {
         }
     }
 
-    public fun remove_bid(
-        rfq: &mut Rfq,
+    public fun remove_bid<Token>(
+        rfq: &mut Rfq<Token>,
         owner: address,
         bid_index: u64,
-    ): Bid {
+    ): Bid<Token> {
         let ownership = table::borrow_mut(&mut rfq.ownerships, owner);
         let (bid_exist, index) = vector::index_of(ownership, &bid_index);
         assert!(bid_exist, E_BID_NOT_EXISTS);
@@ -73,8 +78,10 @@ module typus_dov::rfq {
     }
 
     #[test]
-    fun test_rfq_new_bid(): Rfq {
+    fun test_rfq_new_bid(): Rfq<sui::sui::SUI> {
         use std::vector;
+        use sui::coin;
+        use sui::sui::SUI;
         use sui::table;
         use sui::test_scenario;
 
@@ -83,12 +90,13 @@ module typus_dov::rfq {
         let user2 = @0xBABE2;
         let admin_scenario = test_scenario::begin(admin);
         let rfq = new(test_scenario::ctx(&mut admin_scenario));
+        let coin = coin::mint_for_testing<SUI>(1000000, test_scenario::ctx(&mut admin_scenario));
 
         /*
             bids[0] => bid{100, 1, user1}
             ownerships[user1] => [0]
         */
-        new_bid(&mut rfq, 100, 1, user1);
+        new_bid(&mut rfq, 100, 1, user1, &mut coin, test_scenario::ctx(&mut admin_scenario));
         assert!(rfq.index == 1, 1);
         let bid = table::borrow(&rfq.bids, 0);
         assert!(bid.price == 100 && bid.size == 1 && bid.owner == user1, 2);
@@ -101,7 +109,7 @@ module typus_dov::rfq {
             bids[1] => bid{200, 2, user2}
             ownerships[user2] => [1]
         */
-        new_bid(&mut rfq, 200, 2, user2);
+        new_bid(&mut rfq, 200, 2, user2, &mut coin, test_scenario::ctx(&mut admin_scenario));
         assert!(rfq.index == 2, 5);
         let bid = table::borrow(&rfq.bids, 0);
         assert!(bid.price == 100 && bid.size == 1 && bid.owner == user1, 6);
@@ -114,7 +122,7 @@ module typus_dov::rfq {
             bids[2] => bid{300, 3, user1}
             ownerships[user1] => [0, 2]
         */
-        new_bid(&mut rfq, 300, 3, user1);
+        new_bid(&mut rfq, 300, 3, user1, &mut coin, test_scenario::ctx(&mut admin_scenario));
         assert!(rfq.index == 3, 9);
         let bid = table::borrow(&rfq.bids, 0);
         assert!(bid.price == 100 && bid.size == 1 && bid.owner == user1, 10);
@@ -130,7 +138,7 @@ module typus_dov::rfq {
             bids[1] => bid{400, 4, user2}
             ownerships[user2] => [1, 3]
         */
-        new_bid(&mut rfq, 400, 4, user2);
+        new_bid(&mut rfq, 400, 4, user2, &mut coin, test_scenario::ctx(&mut admin_scenario));
         assert!(rfq.index == 4, 14);
         let bid = table::borrow(&rfq.bids, 0);
         assert!(bid.price == 100 && bid.size == 1 && bid.owner == user1, 15);
@@ -141,32 +149,35 @@ module typus_dov::rfq {
         let bid_index = vector::borrow(ownership, 1);
         assert!(*bid_index == 3, 18);
 
+        coin::destroy_for_testing(coin);
         test_scenario::end(admin_scenario);
         rfq
     }
 
     #[test]
-    fun test_rfq_remove_bid_success(): Rfq {
+    fun test_rfq_remove_bid_success(): (Rfq<sui::sui::SUI>, vector<Bid<sui::sui::SUI>>) {
         let rfq = test_rfq_new_bid();
+        let bids = vector::empty();
 
         let user1 = @0xBABE1;
         let user2 = @0xBABE2;
-        remove_bid(&mut rfq, user1, 0);
-        remove_bid(&mut rfq, user1, 2);
-        remove_bid(&mut rfq, user2, 1);
-        remove_bid(&mut rfq, user2, 3);
+        vector::push_back(&mut bids, remove_bid(&mut rfq, user1, 0));
+        vector::push_back(&mut bids, remove_bid(&mut rfq, user1, 2));
+        vector::push_back(&mut bids, remove_bid(&mut rfq, user2, 1));
+        vector::push_back(&mut bids, remove_bid(&mut rfq, user2, 3));
 
-        rfq
+        (rfq, bids)
     }
 
     #[test]
     #[expected_failure]
-    fun test_rfq_remove_bid_failure(): Rfq {
+    fun test_rfq_remove_bid_failure(): (Rfq<sui::sui::SUI>, vector<Bid<sui::sui::SUI>>) {
         let rfq = test_rfq_new_bid();
+        let bids = vector::empty();
 
         let monkey = @0x8787;
-        remove_bid(&mut rfq, monkey, 0);
+        vector::push_back(&mut bids, remove_bid(&mut rfq, monkey, 0));
 
-        rfq
+        (rfq, bids)
     }
 }
