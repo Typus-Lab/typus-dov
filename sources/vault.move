@@ -13,7 +13,7 @@ module typus_dov::vault {
 
     struct ManagerCap<phantom P> has key, store { id: UID }
 
-    struct VaultRegistry<phantom P>  has key {
+    struct VaultRegistry<phantom P> has key {
         id: UID,
         num_of_vault: u64,
     }
@@ -144,11 +144,11 @@ module typus_dov::vault {
         dynamic_field::borrow_mut<u64, Vault<T, P>>(&mut vault_registry.id, index)
     }
 
-    fun get_vault<T, P: store>(
-        vault_registry: &mut VaultRegistry<P>,
+    public fun get_vault<T, P: store>(
+        vault_registry: &VaultRegistry<P>,
         index: u64,
-    ): Vault<T, P> {
-        dynamic_field::remove<u64, Vault<T, P>>(&mut vault_registry.id, index)
+    ): &Vault<T, P> {
+        dynamic_field::borrow<u64, Vault<T, P>>(&vault_registry.id, index)
     }
 
     public fun get_mut_sub_vault<T, P: store>(
@@ -159,6 +159,36 @@ module typus_dov::vault {
         let vault = get_mut_vault<T, P>(vault_registry, index);
         table::borrow_mut(&mut vault.sub_vaults, name)
     }
+
+    public fun get_payoff_config<T, P: store>(vault: &Vault<T, P>): &P {
+        &vault.payoff_config
+    }
+
+    public fun get_vault_deposit<T, P: store>(vault: &Vault<T, P>): &Balance<T> {
+        &vault.deposit
+    }
+    
+    public fun get_vault_share_supply<T, P: store>(vault: &Vault<T, P>): &u64 {
+        &vault.share_supply
+    }
+
+    public fun get_vault_users_table<T, P: store>(vault: &Vault<T, P>): &Table<address, u64> {
+        &vault.users_table
+    }
+
+    public fun get_mut_vault_users_table<T, P: store>(vault: &mut Vault<T, P>): &mut Table<address, u64> {
+        &mut vault.users_table
+    }
+
+    public fun add_share_supply<T, P: store>(vault: &mut Vault<T, P>, shares: u64) {
+        vault.share_supply = vault.share_supply + shares;
+    }
+    // public fun get_payoff_config<T, P: store>(
+    //     vault_registry: &VaultRegistry<P>,
+    //     index: u64
+    // ): &PayoffConfig{
+    //     get_vault<T, P>()
+    // }
 
     // ======== Events =========
 
