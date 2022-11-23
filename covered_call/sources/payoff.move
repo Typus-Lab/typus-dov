@@ -4,6 +4,7 @@ module typus_covered_call::payoff {
     use sui::tx_context::TxContext;
     use typus_dov::i64::{Self, I64};
     use typus_dov::utils;
+    use typus_dov::vault::{Self, Vault};
 
     const ROI_DECIMAL: u64 = 8;
 
@@ -28,6 +29,13 @@ module typus_covered_call::payoff {
         payoff_config.premium_roi
     }
 
+    public fun get_payoff_config_by_vault<T>(vault: &Vault<T, PayoffConfig>): &PayoffConfig {
+        vault::get_payoff_config<T, PayoffConfig>(vault)
+    }
+
+    public fun get_roi_decimal(): u64 {
+        ROI_DECIMAL
+    }
 
     public fun new_payoff_config(
         strike: u64,
@@ -40,6 +48,7 @@ module typus_covered_call::payoff {
             premium_roi,
         }
     }
+
 
     // payoff represents the RoI per week
     /// e.g. a covered call vault:
