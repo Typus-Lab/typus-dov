@@ -5,7 +5,8 @@ module typus_shark_fin::settlement {
     use typus_dov::utils;
     use typus_dov::i64;
     use typus_dov::vault::{Self, Vault};
-    use typus_shark_fin::payoff::{Self, Config};
+    use typus_shark_fin::payoff;
+    use typus_shark_fin::shark_fin::{Self, Config};
 
     const E_VAULT_HAS_BEEN_SETTLED: u64 = 666;
 
@@ -16,7 +17,7 @@ module typus_shark_fin::settlement {
     fun settle_internal<T>(dov: &mut Vault<T, Config>){
         // get price
         let price = 1; // need to be replaced by oracle price
-        let payoff_config = payoff::get_payoff_config(vault::get_config(dov));
+        let payoff_config = shark_fin::get_payoff_config(vault::get_config(dov));
 
         // calculate settlement roi
         let roi = i64::from(payoff::get_shark_fin_payoff_by_price(price, payoff_config));

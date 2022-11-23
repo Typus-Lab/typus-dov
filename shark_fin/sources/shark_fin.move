@@ -1,6 +1,7 @@
 module typus_shark_fin::shark_fin {
     use sui::tx_context::{Self, TxContext};
     use sui::transfer;
+    use std::option;
     // use sui::event::emit;
     use typus_dov::vault::{Self, VaultRegistry};
     use typus_shark_fin::payoff::{Self, PayoffConfig};
@@ -9,39 +10,54 @@ module typus_shark_fin::shark_fin {
 
     // ======== Structs =========
 
+    struct Config has store, copy, drop {
+        payoff_config: PayoffConfig,
+        expiration_ts: u64
+    }
+
     // ======== Functions =========
 
     fun init(ctx: &mut TxContext) {
-        let manager_cap = vault::new_manager_cap<PayoffConfig>(ctx);
+        let manager_cap = vault::new_manager_cap<Config>(ctx);
 
         transfer::transfer(manager_cap, tx_context::sender(ctx));
 
-        vault::new_vault_registry<PayoffConfig>(ctx);
+        vault::new_vault_registry<Config>(ctx);
     }
 
+    public fun get_payoff_config(config: &Config): &PayoffConfig {
+        &config.payoff_config
+    }
 
     public entry fun new_shark_fin_vault<T>(
-        vault_registry: &mut VaultRegistry<PayoffConfig>,
+        vault_registry: &mut VaultRegistry<Config>,
         expiration_ts: u64,
         is_bullish: bool,
         low_barrier_price: u64,
         high_barrier_price: u64,
         ctx: &mut TxContext
     ){
-        let config = payoff::new_config(
-            expiration_ts,
+        let payoff_config = payoff::new_payoff_config(
             is_bullish,
             low_barrier_price,
-            high_barrier_price
+            high_barrier_price,
+            option::none(),
+            option::none(),
+            option::none(),
         );
+ 
+        let config = Config {
+            payoff_config,
+            expiration_ts
+        };
 
-        let n = vault::new_vault<T, PayoffConfig>(vault_registry, *payoff::get_payoff_config(&config), ctx);
+        let n = vault::new_vault<T, Config>(vault_registry, config, ctx);
 
-        vault::new_sub_vault<T, PayoffConfig>(vault_registry, n, string::utf8(b"rolling"), ctx);
+        vault::new_sub_vault<T, Config>(vault_registry, n, string::utf8(b"rolling"), ctx);
 
-        vault::new_sub_vault<T, PayoffConfig>(vault_registry, n, string::utf8(b"regular"), ctx);
+        vault::new_sub_vault<T, Config>(vault_registry, n, string::utf8(b"regular"), ctx);
 
-        vault::new_sub_vault<T, PayoffConfig>(vault_registry, n, string::utf8(b"maker"), ctx);
+        vault::new_sub_vault<T, Config>(vault_registry, n, string::utf8(b"maker"), ctx);
     }
 
     public entry fun deposit<T>(

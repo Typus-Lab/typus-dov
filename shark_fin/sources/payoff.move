@@ -56,27 +56,22 @@ module typus_shark_fin::payoff {
         ROI_DECIMAL
     }
 
-    public fun new_config(
-        expiration_ts: u64,
+    public fun new_payoff_config(
         is_bullish: bool,
         low_barrier_price: u64,
         high_barrier_price: u64,
-    ): Config {
-        Config {
-            payoff_config: PayoffConfig {
-                is_bullish,
-                low_barrier_price,
-                high_barrier_price,
-                low_barrier_roi: option::none(),
-                high_barrier_roi: option::none(),
-                high_roi_constant: option::none(),
-            },
-            expiration_ts
-        } 
-    }
-
-    public fun get_payoff_config(config: &Config): &PayoffConfig {
-        &config.payoff_config
+        low_barrier_roi: Option<u64>,
+        high_barrier_roi: Option<u64>,
+        high_roi_constant: Option<u64>,
+    ): PayoffConfig {
+        PayoffConfig {
+            is_bullish,
+            low_barrier_price,
+            high_barrier_price,
+            low_barrier_roi,
+            high_barrier_roi,
+            high_roi_constant,
+        }
     }
 
     // payoff represents the RoI per week
@@ -141,6 +136,9 @@ module typus_shark_fin::payoff {
             false,
             5000,
             6000,
+            option::none(),
+            option::none(),
+            option::none(),
         );
         let aa = get_shark_fin_payoff_by_price(
             5000,

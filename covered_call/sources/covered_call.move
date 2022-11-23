@@ -26,9 +26,11 @@ module typus_covered_call::covered_call {
         vault::new_vault_registry<Config>(ctx);
     }
 
+    public fun get_payoff_config(config: &Config): &PayoffConfig {
+        &config.payoff_config
+    }
+
     // Entry Functions
-
-
     public entry fun new_covered_call_vault<T>(
         vault_registry: &mut VaultRegistry<Config>,
         strike: u64,
@@ -54,9 +56,6 @@ module typus_covered_call::covered_call {
         vault::new_sub_vault<T, Config>(vault_registry, n, string::utf8(b"maker"), ctx);
     }
 
-    public fun get_payoff_config(config: &Config): &PayoffConfig {
-        &config.payoff_config
-    }
 
     // ======== Events =========
 
