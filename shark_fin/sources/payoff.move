@@ -3,6 +3,10 @@ module typus_shark_fin::payoff {
 
     const ROI_DECIMAL: u64 = 8;
 
+
+    friend typus_shark_fin::shark_fin;
+    friend typus_shark_fin::settlement;
+
     // ======== Errors =========
 
     const E_NO_CONFIG_CONTAINS_NONE: u64 = 888;
@@ -49,7 +53,7 @@ module typus_shark_fin::payoff {
         ROI_DECIMAL
     }
 
-    public fun new_payoff_config(
+    public(friend) fun new_payoff_config(
         is_bullish: bool,
         low_barrier_price: u64,
         high_barrier_price: u64,
