@@ -50,6 +50,10 @@ module typus_shark_fin::payoff {
         payoff_config.high_roi_constant
     }
 
+    public fun get_roi_decimal(): u64 {
+        ROI_DECIMAL
+    }
+
     public fun new_config(
         expiration_ts: u64,
         is_bullish: bool,
