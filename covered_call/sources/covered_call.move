@@ -11,7 +11,7 @@ module typus_covered_call::covered_call {
 
     // ======== Structs =========
 
-    struct Config has store {
+    struct Config has store, drop {
         payoff_config: PayoffConfig,
         expiration_ts: u64
     }

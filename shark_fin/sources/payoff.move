@@ -14,7 +14,7 @@ module typus_shark_fin::payoff {
 
     // ======== Structs =========
 
-    struct PayoffConfig has store {
+    struct PayoffConfig has store, drop {
         is_bullish: bool,
         low_barrier_price: u64,
         high_barrier_price: u64,

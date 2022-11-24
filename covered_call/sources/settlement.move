@@ -121,16 +121,19 @@ module typus_covered_call::settlement {
         // settle_internal<T>(&mut expired_dov);
     // }
 
-    // public entry fun settle_with_roll_over<T>(
-    //     expired_dov: Vault,
-    //     new_dov: Vault,
-    // ){
-        // settle_internal<T>(&mut expired_dov);
-        // settle_roll_over<T>(&mut expired_dov, &mut new_dov);
+    public entry fun settle_with_roll_over<T>(
+        expired_dov: &mut Vault<T, Config>,
+        new_dov: &mut Vault<T, Config>,
+    ) {
+        settle_internal(expired_dov);
+        settle_roll_over(expired_dov, new_dov);
+
         // adjust_vault_stage<T>(&mut expired_dov, 4);
         // adjust_vault_stage<T>(&mut new_dov, 1);
         // stage: 0 = warmup, 1 = auction, 2 = on-going, 3 = expired, 4 = settled
-    // }
+    }
+
+
 
     // ======== Events =========
 

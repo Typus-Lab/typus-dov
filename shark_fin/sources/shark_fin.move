@@ -10,7 +10,7 @@ module typus_shark_fin::shark_fin {
 
     // ======== Structs =========
 
-    struct Config has store {
+    struct Config has store, drop {
         payoff_config: PayoffConfig,
         expiration_ts: u64
     }
