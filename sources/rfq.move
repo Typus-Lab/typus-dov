@@ -117,15 +117,11 @@ module typus_dov::rfq {
     public fun reveal_bid<Token>(
         rfq: &mut Rfq<Token>,
         bid_index: u64,
-        // encrypted (price+size+blinding_factor) with zk proof
         commitment: vector<u8>,
-        // real price after revealing
         price: u64,
-        // real size after revealing
         size: u64,
-        // blinding_factor after revealing
         blinding_factor: u64,
-        // coin: &mut Coin<Token>,
+        _coin: &mut Coin<Token>,
         owner: address,
         ctx: &mut TxContext,
     ) {
