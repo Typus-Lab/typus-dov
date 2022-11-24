@@ -10,7 +10,7 @@ module typus_shark_fin::shark_fin {
 
     // ======== Structs =========
 
-    struct Config has store, drop {
+    struct Config has store {
         payoff_config: PayoffConfig,
         expiration_ts: u64
     }
@@ -61,7 +61,7 @@ module typus_shark_fin::shark_fin {
     }
 
     public entry fun deposit<T>(
-        vault_registry: &mut VaultRegistry<PayoffConfig>,
+        vault_registry: &mut VaultRegistry<Config>,
         index: u64,
         rolling: bool,
         coin: &mut Coin<T>,
@@ -76,9 +76,9 @@ module typus_shark_fin::shark_fin {
 
         let sub_vault = vault::get_mut_sub_vault(vault_registry, index, name);
 
-        let value = vault::deposit<T, PayoffConfig>(sub_vault, coin, amount);
+        let value = vault::deposit<T, Config>(sub_vault, coin, amount);
 
-        vault::add_share<T, PayoffConfig>(sub_vault, value, ctx);
+        vault::add_share<T, Config>(sub_vault, value, ctx);
     }
 
     // ======== Events =========
