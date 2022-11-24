@@ -19,6 +19,7 @@ module typus_dov::rfq {
     }
 
     struct Bid<phantom Token> has store {
+        index: u64,
         price: u64,
         size: u64,
         coin: Coin<Token>,
@@ -48,6 +49,7 @@ module typus_dov::rfq {
             &mut rfq.bids,
             index,
             Bid {
+                index,
                 price,
                 size,
                 coin: coin::split(coin, price * size, ctx),
@@ -80,12 +82,69 @@ module typus_dov::rfq {
         assert!(bid_exist, E_BID_NOT_EXISTS);
         vector::swap_remove(ownership, index);
         let Bid {
+            index: _,
             price: _,
             size: _,
             coin,
             owner,
         } = table::remove(&mut rfq.bids, bid_index);
         transfer::transfer(coin, owner);
+    }
+
+    fun sort<Token>(bids: &mut vector<Bid<Token>>) {
+        let length = vector::length(bids);
+        sort_(bids, 0, length - 1);
+    }
+
+    fun sort_<Token>(bids: &mut vector<Bid<Token>>, l: u64, r: u64) {
+        if (l >= r) {
+            return
+        };
+
+        let pivot_price = vector::borrow(bids, l).price;
+        let left = l;
+        let right = r + 1;
+        loop {
+            while (left < r && vector::borrow(bids, left + 1).price <= pivot_price) {
+                left = left + 1;
+            };
+            while (right > l && vector::borrow(bids, right - 1).price >= pivot_price) {
+                right = right - 1;
+            };
+            if (left < right) {
+                vector::swap(bids, left, right);
+            }
+            else {
+                break
+            }
+        };
+        vector::swap(bids, l, right);
+
+        sort_(bids, l, right - 1);
+        sort_(bids, left, r);
+    }
+    
+    fun selection_sort<Token>(bids: &mut vector<Bid<Token>>) {
+        let length = vector::length(bids);
+        let i = 0;
+        while (i < length) {
+            let min_price = vector::borrow(bids, i).price;
+            let min_index = vector::borrow(bids, i).index;
+            let min_at = i;
+            let j = i + 1;
+            while (j < length) {
+                let price = vector::borrow(bids, j).price;
+                let index = vector::borrow(bids, j).index;
+                if(price < min_price || (price == min_price && index > min_index)) {
+                    min_price = price;
+                    min_index = index;
+                    min_at = j;
+                };
+                j = j + 1;
+            };
+            vector::swap(bids, i, min_at);
+            i = i + 1;
+        }
     }
 
     #[test]
@@ -188,5 +247,121 @@ module typus_dov::rfq {
         remove_bid(&mut rfq, monkey, 0);
 
         rfq
+    }
+
+    #[test]
+    fun test_rfq_sorting(): vector<Bid<sui::sui::SUI>> {
+        use sui::test_scenario;
+        use sui::sui::SUI;
+        use sui::coin;
+        use std::debug;
+
+        let admin = @0xFFFF;
+        let admin_scenario = test_scenario::begin(admin);
+        let coin = coin::mint_for_testing<SUI>(10000, test_scenario::ctx(&mut admin_scenario));
+
+        let bids = vector::empty();
+        vector::push_back(
+            &mut bids,
+            Bid<SUI> {
+                index: 0,
+                price: 123,
+                size: 1,
+                coin: coin::split(&mut coin, 100, test_scenario::ctx(&mut admin_scenario)),
+                owner: admin,
+            }
+        );
+        vector::push_back(
+            &mut bids,
+            Bid<SUI> {
+                index: 1,
+                price: 42,
+                size: 2,
+                coin: coin::split(&mut coin, 100, test_scenario::ctx(&mut admin_scenario)),
+                owner: admin,
+            }
+        );
+        vector::push_back(
+            &mut bids,
+            Bid<SUI> {
+                index: 2,
+                price: 435,
+                size: 3,
+                coin: coin::split(&mut coin, 100, test_scenario::ctx(&mut admin_scenario)),
+                owner: admin,
+            }
+        );
+        vector::push_back(
+            &mut bids,
+            Bid<SUI> {
+                index: 3,
+                price: 33,
+                size: 4,
+                coin: coin::split(&mut coin, 100, test_scenario::ctx(&mut admin_scenario)),
+                owner: admin,
+            }
+        );
+        vector::push_back(
+            &mut bids,
+            Bid<SUI> {
+                index: 4,
+                price: 123,
+                size: 5,
+                coin: coin::split(&mut coin, 100, test_scenario::ctx(&mut admin_scenario)),
+                owner: admin,
+            }
+        );
+        vector::push_back(
+            &mut bids,
+            Bid<SUI> {
+                index: 5,
+                price: 33,
+                size: 6,
+                coin: coin::split(&mut coin, 100, test_scenario::ctx(&mut admin_scenario)),
+                owner: admin,
+            }
+        );
+        vector::push_back(
+            &mut bids,
+            Bid<SUI> {
+                index: 6,
+                price: 435,
+                size: 7,
+                coin: coin::split(&mut coin, 100, test_scenario::ctx(&mut admin_scenario)),
+                owner: admin,
+            }
+        );
+        vector::push_back(
+            &mut bids,
+            Bid<SUI> {
+                index: 7,
+                price: 42,
+                size: 8,
+                coin: coin::split(&mut coin, 100, test_scenario::ctx(&mut admin_scenario)),
+                owner: admin,
+            }
+        );
+        selection_sort(&mut bids);
+
+        debug::print(&vector::borrow<Bid<SUI>>(&bids, 0).index);
+        debug::print(&vector::borrow<Bid<SUI>>(&bids, 0).price);
+        debug::print(&vector::borrow<Bid<SUI>>(&bids, 1).index);
+        debug::print(&vector::borrow<Bid<SUI>>(&bids, 1).price);
+        debug::print(&vector::borrow<Bid<SUI>>(&bids, 2).index);
+        debug::print(&vector::borrow<Bid<SUI>>(&bids, 2).price);
+        debug::print(&vector::borrow<Bid<SUI>>(&bids, 3).index);
+        debug::print(&vector::borrow<Bid<SUI>>(&bids, 3).price);
+        debug::print(&vector::borrow<Bid<SUI>>(&bids, 4).index);
+        debug::print(&vector::borrow<Bid<SUI>>(&bids, 4).price);
+        debug::print(&vector::borrow<Bid<SUI>>(&bids, 5).index);
+        debug::print(&vector::borrow<Bid<SUI>>(&bids, 5).price);
+        debug::print(&vector::borrow<Bid<SUI>>(&bids, 6).index);
+        debug::print(&vector::borrow<Bid<SUI>>(&bids, 6).price);
+        debug::print(&vector::borrow<Bid<SUI>>(&bids, 7).index);
+        debug::print(&vector::borrow<Bid<SUI>>(&bids, 7).price);
+
+        coin::destroy_for_testing(coin);
+        test_scenario::end(admin_scenario);
+        bids
     }
 }
