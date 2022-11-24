@@ -110,11 +110,11 @@ module typus_dov::vault {
     public fun deposit<T, C: store>(
         sub_vault: &mut SubVault<T> ,
         coin: &mut Coin<T>,
-        value: u64,
+        amount: u64,
     ): u64 {
-        assert!(value > 0, EZeroAmount);
+        assert!(amount > 0, EZeroAmount);
 
-        let balance = utils::extract_balance_from_coin(coin, value);
+        let balance = utils::extract_balance_from_coin(coin, amount);
         let amount = balance::join(&mut sub_vault.deposit, balance);
 
         amount

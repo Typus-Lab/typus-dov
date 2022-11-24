@@ -64,7 +64,8 @@ module typus_shark_fin::shark_fin {
         vault_registry: &mut VaultRegistry<PayoffConfig>,
         index: u64,
         rolling: bool,
-        token: Coin<T>, 
+        coin: &mut Coin<T>,
+        amount: u64,
         ctx: &mut TxContext
     ){
         let name = if (rolling) {
@@ -75,7 +76,7 @@ module typus_shark_fin::shark_fin {
 
         let sub_vault = vault::get_mut_sub_vault(vault_registry, index, name);
 
-        let value = vault::deposit<T, PayoffConfig>(sub_vault, token);
+        let value = vault::deposit<T, PayoffConfig>(sub_vault, coin, amount);
 
         vault::add_share<T, PayoffConfig>(sub_vault, value, ctx);
     }
