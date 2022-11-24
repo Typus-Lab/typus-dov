@@ -1,13 +1,14 @@
 module typus_dov::vault {
+    use std::string::String;
     use sui::balance::{Self, Balance};
-    use sui::coin::{Self, Coin};
+    use sui::coin::Coin;
     use sui::dynamic_field;
     use sui::event::emit;
     use sui::object::{Self, UID, ID};
     use sui::table::{Self, Table};
     use sui::transfer;
     use sui::tx_context::{Self, TxContext};
-    use std::string::String;
+    use typus_dov::utils;
 
     // ======== Structs =========
 
@@ -108,17 +109,15 @@ module typus_dov::vault {
 
     public fun deposit<T, C: store>(
         sub_vault: &mut SubVault<T> ,
-        token: Coin<T>, 
+        coin: &mut Coin<T>,
+        value: u64,
     ): u64 {
-        let deposit_value = coin::value(&token);
+        assert!(value > 0, EZeroAmount);
 
-        assert!(deposit_value > 0, EZeroAmount);
+        let balance = utils::extract_balance_from_coin(coin, value);
+        let amount = balance::join(&mut sub_vault.deposit, balance);
 
-        let tok_balance = coin::into_balance(token);
-
-        let tok_amt = balance::join(&mut sub_vault.deposit, tok_balance);
-
-        tok_amt
+        amount
     }
 
     public fun add_share<T, C: store>(
