@@ -62,7 +62,6 @@ module typus_covered_call::payoff {
     }
 
     #[test]
-    /// get_shark_fin_payoff_by_price
     fun test_get_covered_call_payoff_by_price() {
         use std::debug;
         use std::option;
