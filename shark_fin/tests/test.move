@@ -1,17 +1,19 @@
 #[test_only]
 module typus_shark_fin::test {
     use std::option;
-    use sui::test_scenario;
+    use sui::test_scenario::{Self, Scenario};
+    use sui::transfer;
+    use sui::sui::SUI;
+    use sui::balance;
+    use sui::coin;
+    use std::string;
 
     use typus_dov::vault::{Self, VaultRegistry};
     use typus_shark_fin::payoff::{Self, PayoffConfig};
-
+    use typus_shark_fin::shark_fin::{Self, Config};
 
     #[test]
-    fun test_new_vault() {
-        use sui::sui::SUI;
-        use typus_shark_fin::shark_fin::{Self, Config};
-
+    fun test_new_vault(): Scenario {
         let admin = @0x1;
         let scenario_val = test_scenario::begin(admin);
         let scenario = &mut scenario_val;
@@ -33,7 +35,36 @@ module typus_shark_fin::test {
 
             test_scenario::return_shared(registry)
         };
-        test_scenario::end(scenario_val);
+        test_scenario::next_tx(scenario, admin);
+        scenario_val
+    }
+
+    #[test]
+    fun test_deposit(): Scenario {
+        let admin = @0x1;
+        let scenario_val = test_new_vault();
+        let scenario = &mut scenario_val;
+        
+        let registry = test_scenario::take_shared<VaultRegistry<Config>>(scenario);
+
+        let balance = balance::create_for_testing<SUI>(1000);
+
+        let coin = coin::from_balance(balance, test_scenario::ctx(scenario));
+
+        test_scenario::next_tx(scenario, admin);
+
+        shark_fin::deposit<SUI>(&mut registry, 0, true, &mut coin, 1000, test_scenario::ctx(scenario));
+
+        test_scenario::next_tx(scenario, admin);
+
+        let share = vault::get_user_share<SUI, Config>(&mut registry, 0, string::utf8(b"rolling"), admin);
+
+        assert!(share == 1000, 0);
+
+        test_scenario::return_shared(registry);
+        transfer::transfer(coin, admin);
+
+        scenario_val
     }
 
     #[test]

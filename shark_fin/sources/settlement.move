@@ -94,12 +94,12 @@ module typus_shark_fin::settlement {
             let contains = table::contains<u64, address>(vault::get_vault_user_map<T, Config>(vault_registry, expired_index, string::utf8(b"rolling")), i);
             if (contains) {
                 let user_address = vault::get_user_address<T, Config>(vault_registry, expired_index, string::utf8(b"rolling"), i);
-                let adjusted_shares_in_expired_pool = *table::borrow<address, u64>(vault::get_vault_users_table<T, Config>(vault_registry, expired_index, string::utf8(b"rolling")), user_address) 
+                let adjusted_shares_in_expired_pool = vault::get_user_share<T, Config>(vault_registry, expired_index, string::utf8(b"rolling"), user_address) 
                     * share_price 
                     / share_price_multiplier;
 
                 if (table::contains<address, u64>(vault::get_mut_vault_users_table<T, Config>(vault_registry, new_index, string::utf8(b"rolling")), user_address)){
-                    let user_share = table::borrow_mut<address, u64>(vault::get_mut_vault_users_table<T, Config>(vault_registry, new_index, string::utf8(b"rolling")), user_address);
+                    let user_share = vault::get_mut_user_share<T, Config>(vault_registry, new_index, string::utf8(b"rolling"), user_address);
                     *user_share = *user_share + adjusted_shares_in_expired_pool;
                 } else {
                     table::add<address, u64>(vault::get_mut_vault_users_table<T, Config>(vault_registry, new_index, string::utf8(b"rolling")), user_address, adjusted_shares_in_expired_pool);

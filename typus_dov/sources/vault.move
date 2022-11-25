@@ -250,7 +250,7 @@ module typus_dov::vault {
     }
 
     public fun get_user_address<T, C: store>(
-        vault_registry: &mut VaultRegistry<C>,
+        vault_registry: & VaultRegistry<C>,
         index: u64,
         name: String,         
         i: u64
@@ -258,6 +258,27 @@ module typus_dov::vault {
         let sub_vault = get_sub_vault<T, C>(vault_registry, index, name);
         *table::borrow<u64, address>(&sub_vault.user_map, i)
     }
+
+    public fun get_user_share<T, C: store>(
+        vault_registry: & VaultRegistry<C>,
+        index: u64,
+        name: String,         
+        user: address
+    ): u64 {
+        let sub_vault = get_sub_vault<T, C>(vault_registry, index, name);
+        *table::borrow<address, u64>(&sub_vault.users_table, user)
+    }
+
+    public fun get_mut_user_share<T, C: store>(
+        vault_registry: &mut VaultRegistry<C>,
+        index: u64,
+        name: String,         
+        user: address
+    ): &mut u64 {
+        let sub_vault = get_mut_sub_vault<T, C>(vault_registry, index, name);
+        table::borrow_mut<address, u64>(&mut sub_vault.users_table, user)
+    }
+
 
     // ======== Events =========
 
