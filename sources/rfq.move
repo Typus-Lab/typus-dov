@@ -115,6 +115,10 @@ module typus_dov::rfq {
         table::borrow(&rfq.ownerships, owner)
     }
 
+    // public entry fun delivery<Token>(rfq: &mut Rfq<Token>) {
+
+    // }
+
     // public entry fun test_sorting<Token>(rfq: &mut Rfq<Token>, ctx: &mut TxContext) {
     //     use std::string;
     //     use typus_dov::convert;
@@ -214,107 +218,115 @@ module typus_dov::rfq {
         }
     }
 
-    // #[test]
-    // fun test_rfq_new_bid(): Rfq<sui::sui::SUI> {
-    //     use std::vector;
-    //     use sui::coin;
-    //     use sui::sui::SUI;
-    //     use sui::table;
-    //     use sui::test_scenario;
+    #[test]
+    fun test_rfq_new_bid(): Rfq<sui::sui::SUI> {
+        use std::vector;
+        use sui::coin;
+        use sui::sui::SUI;
+        use sui::table;
+        use sui::test_scenario;
 
-    //     let admin = @0xFFFF;
-    //     let user1 = @0xBABE1;
-    //     let user2 = @0xBABE2;
-    //     let admin_scenario = test_scenario::begin(admin);
-    //     let rfq = new(test_scenario::ctx(&mut admin_scenario));
-    //     let coin = coin::mint_for_testing<SUI>(1000000, test_scenario::ctx(&mut admin_scenario));
+        let admin = @0xFFFF;
+        let user1 = @0xBABE1;
+        let user2 = @0xBABE2;
+        let admin_scenario = test_scenario::begin(admin);
+        let user1_scenario = test_scenario::begin(user1);
+        let user2_scenario = test_scenario::begin(user2);
+        let coin = coin::mint_for_testing<SUI>(1000000, test_scenario::ctx(&mut admin_scenario));
+        let rfq = new(test_scenario::ctx(&mut admin_scenario));
 
-    //     /*
-    //         bids[0] => bid{100, 1, user1}
-    //         ownerships[user1] => [0]
-    //     */
-    //     new_bid(&mut rfq, 100, 1, user1, &mut coin, test_scenario::ctx(&mut admin_scenario));
-    //     assert!(rfq.index == 1, 1);
-    //     let bid = table::borrow(&rfq.bids, 0);
-    //     assert!(bid.price == 100 && bid.size == 1 && bid.owner == user1, 2);
-    //     let ownership = table::borrow(&rfq.ownerships, user1);
-    //     assert!(vector::length(ownership) == 1, 3);
-    //     let bid_index = vector::borrow(ownership, 0);
-    //     assert!(*bid_index == 0, 4);
+        /*
+            bids[0] => bid{100, 1, user1}
+            ownerships[user1] => [0]
+        */
+        new_bid(&mut rfq, 100, 1, &mut coin, test_scenario::ctx(&mut user1_scenario));
+        assert!(rfq.index == 1, 1);
+        let bid = table::borrow(&rfq.bids, 0);
+        let fund = table::borrow(&rfq.funds, 0);
+        assert!(bid.price == 100 && bid.size == 1 && fund.owner == user1, 2);
+        let ownership = table::borrow(&rfq.ownerships, user1);
+        assert!(vector::length(ownership) == 1, 3);
+        let bid_index = vector::borrow(ownership, 0);
+        assert!(*bid_index == 0, 4);
 
-    //     /*
-    //         bids[1] => bid{200, 2, user2}
-    //         ownerships[user2] => [1]
-    //     */
-    //     new_bid(&mut rfq, 200, 2, user2, &mut coin, test_scenario::ctx(&mut admin_scenario));
-    //     assert!(rfq.index == 2, 5);
-    //     let bid = table::borrow(&rfq.bids, 0);
-    //     assert!(bid.price == 100 && bid.size == 1 && bid.owner == user1, 6);
-    //     let ownership = table::borrow(&rfq.ownerships, user2);
-    //     assert!(vector::length(ownership) == 1, 7);
-    //     let bid_index = vector::borrow(ownership, 0);
-    //     assert!(*bid_index == 1, 8);
+        /*
+            bids[1] => bid{200, 2, user2}
+            ownerships[user2] => [1]
+        */
+        new_bid(&mut rfq, 200, 2, &mut coin, test_scenario::ctx(&mut user2_scenario));
+        assert!(rfq.index == 2, 5);
+        let bid = table::borrow(&rfq.bids, 1);
+        let fund = table::borrow(&rfq.funds, 1);
+        assert!(bid.price == 200 && bid.size == 2 && fund.owner == user2, 6);
+        let ownership = table::borrow(&rfq.ownerships, user2);
+        assert!(vector::length(ownership) == 1, 7);
+        let bid_index = vector::borrow(ownership, 0);
+        assert!(*bid_index == 1, 8);
 
-    //     /*
-    //         bids[2] => bid{300, 3, user1}
-    //         ownerships[user1] => [0, 2]
-    //     */
-    //     new_bid(&mut rfq, 300, 3, user1, &mut coin, test_scenario::ctx(&mut admin_scenario));
-    //     assert!(rfq.index == 3, 9);
-    //     let bid = table::borrow(&rfq.bids, 0);
-    //     assert!(bid.price == 100 && bid.size == 1 && bid.owner == user1, 10);
-    //     let ownership = table::borrow(&rfq.ownerships, user1);
-    //     assert!(vector::length(ownership) == 2, 11);
-    //     let bid_index = vector::borrow(ownership, 0);
-    //     assert!(*bid_index == 0, 12);
-    //     let bid_index = vector::borrow(ownership, 1);
-    //     assert!(*bid_index == 2, 13);
+        /*
+            bids[2] => bid{300, 3, user1}
+            ownerships[user1] => [0, 2]
+        */
+        new_bid(&mut rfq, 300, 3, &mut coin, test_scenario::ctx(&mut user1_scenario));
+        assert!(rfq.index == 3, 9);
+        let bid = table::borrow(&rfq.bids, 2);
+        let fund = table::borrow(&rfq.funds, 2);
+        assert!(bid.price == 300 && bid.size == 3 && fund.owner == user1, 10);
+        let ownership = table::borrow(&rfq.ownerships, user1);
+        assert!(vector::length(ownership) == 2, 11);
+        let bid_index = vector::borrow(ownership, 0);
+        assert!(*bid_index == 0, 12);
+        let bid_index = vector::borrow(ownership, 1);
+        assert!(*bid_index == 2, 13);
 
 
-    //     /*
-    //         bids[1] => bid{400, 4, user2}
-    //         ownerships[user2] => [1, 3]
-    //     */
-    //     new_bid(&mut rfq, 400, 4, user2, &mut coin, test_scenario::ctx(&mut admin_scenario));
-    //     assert!(rfq.index == 4, 14);
-    //     let bid = table::borrow(&rfq.bids, 0);
-    //     assert!(bid.price == 100 && bid.size == 1 && bid.owner == user1, 15);
-    //     let ownership = table::borrow(&rfq.ownerships, user2);
-    //     assert!(vector::length(ownership) == 2, 16);
-    //     let bid_index = vector::borrow(ownership, 0);
-    //     assert!(*bid_index == 1, 17);
-    //     let bid_index = vector::borrow(ownership, 1);
-    //     assert!(*bid_index == 3, 18);
+        /*
+            bids[1] => bid{400, 4, user2}
+            ownerships[user2] => [1, 3]
+        */
+        new_bid(&mut rfq, 400, 4, &mut coin, test_scenario::ctx(&mut user2_scenario));
+        assert!(rfq.index == 4, 14);
+        let bid = table::borrow(&rfq.bids, 3);
+        let fund = table::borrow(&rfq.funds, 3);
+        assert!(bid.price == 400 && bid.size == 4 && fund.owner == user2, 15);
+        let ownership = table::borrow(&rfq.ownerships, user2);
+        assert!(vector::length(ownership) == 2, 16);
+        let bid_index = vector::borrow(ownership, 0);
+        assert!(*bid_index == 1, 17);
+        let bid_index = vector::borrow(ownership, 1);
+        assert!(*bid_index == 3, 18);
 
-    //     coin::destroy_for_testing(coin);
-    //     test_scenario::end(admin_scenario);
-    //     rfq
-    // }
+        coin::destroy_for_testing(coin);
+        test_scenario::end(admin_scenario);
+        test_scenario::end(user1_scenario);
+        test_scenario::end(user2_scenario);
+        rfq
+    }
 
-    // #[test]
-    // fun test_rfq_remove_bid_success(): Rfq<sui::sui::SUI> {
-    //     let rfq = test_rfq_new_bid();
+    #[test]
+    fun test_rfq_remove_bid_success(): Rfq<sui::sui::SUI> {
+        let rfq = test_rfq_new_bid();
 
-    //     let user1 = @0xBABE1;
-    //     let user2 = @0xBABE2;
-    //     remove_bid(&mut rfq, user1, 0);
-    //     remove_bid(&mut rfq, user1, 2);
-    //     remove_bid(&mut rfq, user2, 1);
-    //     remove_bid(&mut rfq, user2, 3);
+        let user1 = @0xBABE1;
+        let user2 = @0xBABE2;
+        remove_bid(&mut rfq, user1, 0);
+        remove_bid(&mut rfq, user1, 2);
+        remove_bid(&mut rfq, user2, 1);
+        remove_bid(&mut rfq, user2, 3);
 
-    //     rfq
-    // }
+        rfq
+    }
 
-    // #[test]
-    // #[expected_failure]
-    // fun test_rfq_remove_bid_failure(): Rfq<sui::sui::SUI> {
-    //     let rfq = test_rfq_new_bid();
+    #[test]
+    #[expected_failure]
+    fun test_rfq_remove_bid_failure(): Rfq<sui::sui::SUI> {
+        let rfq = test_rfq_new_bid();
 
-    //     let monkey = @0x8787;
-    //     remove_bid(&mut rfq, monkey, 0);
+        let monkey = @0x8787;
+        remove_bid(&mut rfq, monkey, 0);
 
-    //     rfq
-    // }
+        rfq
+    }
 
     // #[test]
     // fun test_rfq_sorting(): vector<Bid<sui::sui::SUI>> {
