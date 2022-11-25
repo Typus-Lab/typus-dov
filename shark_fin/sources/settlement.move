@@ -18,7 +18,7 @@ module typus_shark_fin::settlement {
         // TODO: check expiration_ts
 
         // get price
-        let price = 1; // need to be replaced by oracle price
+        let price = 95; // need to be replaced by oracle price
         let payoff_config = shark_fin::get_payoff_config(vault::get_config<T, Config>(vault_registry,expired_index));
 
         // calculate settlement roi
@@ -116,11 +116,12 @@ module typus_shark_fin::settlement {
         // dov_stage = stage;
     // }
 
-    // public entry fun settle_without_roll_over<T>(
-    //     expired_dov: Vault<T, Config>,
-    // ){
-        // settle_internal<T>(&mut expired_dov);
-    // }
+    public entry fun settle_without_roll_over<T>(
+        vault_registry: &mut VaultRegistry<Config>,
+        expired_index: u64,
+    ){
+        settle_internal<T>(vault_registry, expired_index);
+    }
 
     public entry fun settle_with_roll_over<T>(
         vault_registry: &mut VaultRegistry<Config>,
@@ -141,5 +142,70 @@ module typus_shark_fin::settlement {
         fee_percent: u64,
         deposit_limit: u64,
         strike: u64,
+    }
+
+    // ======== Test Functions =========
+    #[test]
+    fun test_settle_internal<C>(): VaultRegistry<C> {
+        // use sui::transfer;
+        use sui::test_scenario;
+        use sui::sui::SUI;
+        use sui::coin;
+        use typus_shark_fin::shark_fin::{Self, Config};
+        use typus_dov::vault;
+
+        let admin = @0xFFFF;
+        let admin_scenario = test_scenario::begin(admin);
+        let ctx = test_scenario::ctx(&mut admin_scenario);
+        let vault_registry = vault::test_only_new_vault_registry<Config>(ctx);
+        shark_fin::new_shark_fin_vault<SUI>(
+            &mut vault_registry,
+            1,
+            true,
+            90,
+            110,
+            ctx
+        );
+        shark_fin::new_shark_fin_vault<SUI>(
+            &mut vault_registry,
+            2,
+            true,
+            95,
+            115,
+            ctx
+        );
+
+        // user deposit
+        let test_coin = coin::mint_for_testing<SUI>(1000000, ctx);
+        let coin_amount = coin::value<SUI>(&test_coin);
+        shark_fin::deposit<SUI>(
+            &mut vault_registry,
+            0,
+            true,
+            &mut test_coin,
+            coin_amount,
+            ctx
+        );
+
+        // mm deposit
+        let mm_test_coin = coin::mint_for_testing<SUI>(10000, ctx);
+        let mm_sub_vault = vault::get_mut_sub_vault(
+                &mut vault_registry,
+                0,
+                string::utf8(b"maker")
+            );
+        let value = vault::deposit<SUI, Config>(
+            mm_sub_vault,
+            &mut mm_test_coin,
+            10000
+        );
+        vault::add_share<SUI, Config>(mm_sub_vault, value, ctx);
+
+        // settle internal
+        settle_without_roll_over<SUI>(&mut vault_registry, 0);
+        coin::destroy_for_testing(test_coin);
+        coin::destroy_for_testing(mm_test_coin);
+        test_scenario::end(admin_scenario);
+        vault_registry<Config>
     }
 }

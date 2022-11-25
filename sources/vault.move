@@ -265,4 +265,23 @@ module typus_dov::vault {
     /// For when someone attempts to add more liquidity than u128 Math allows.
     const EVaultFull: u64 = 1;
 
+    // ======== TestFunctions ==
+    #[test_only]
+    public fun test_only_new_vault_registry<C>(
+        ctx: &mut TxContext
+    ): VaultRegistry<C> {
+        let id = object::new(ctx);
+
+        emit(RegistryCreated<C> { id: object::uid_to_inner(&id) });
+
+        let vault = VaultRegistry<C> { id, num_of_vault: 0 };
+        // transfer::share_object(vault);
+       vault
+    }
+    // #[test_only]
+    // public fun test_only_distroy_vault_registry<C>(
+    //     vault_registry: VaultRegistry<C>
+    // ) {
+    //     let _ = vault_registry;
+    // }
 }
