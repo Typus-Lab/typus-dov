@@ -146,7 +146,7 @@ module typus_shark_fin::settlement {
 
     // ======== Test Functions =========
     #[test]
-    fun test_settle_internal<C>(): VaultRegistry<C> {
+    fun test_settle_internal(): VaultRegistry<Config> {
         // use sui::transfer;
         use sui::test_scenario;
         use sui::sui::SUI;
@@ -189,23 +189,21 @@ module typus_shark_fin::settlement {
 
         // mm deposit
         let mm_test_coin = coin::mint_for_testing<SUI>(10000, ctx);
-        let mm_sub_vault = vault::get_mut_sub_vault(
-                &mut vault_registry,
-                0,
-                string::utf8(b"maker")
-            );
         let value = vault::deposit<SUI, Config>(
-            mm_sub_vault,
+            &mut vault_registry,
+            0, 
+            string::utf8(b"maker"),
             &mut mm_test_coin,
             10000
         );
-        vault::add_share<SUI, Config>(mm_sub_vault, value, ctx);
+        vault::add_share<SUI, Config>(&mut vault_registry, 0, string::utf8(b"maker"), value, ctx);
 
         // settle internal
         settle_without_roll_over<SUI>(&mut vault_registry, 0);
         coin::destroy_for_testing(test_coin);
         coin::destroy_for_testing(mm_test_coin);
         test_scenario::end(admin_scenario);
-        vault_registry<Config>
+       
+        vault_registry
     }
 }

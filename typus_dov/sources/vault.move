@@ -89,12 +89,15 @@ module typus_dov::vault {
     }
 
     public fun deposit<T, C: store>(
-        sub_vault: &mut SubVault<T> ,
+        vault_registry: &mut VaultRegistry<C>,
+        index: u64,
+        name: String,
         coin: &mut Coin<T>,
         amount: u64,
     ): u64 {
         assert!(amount > 0, EZeroAmount);
 
+        let sub_vault = get_mut_sub_vault<T, C>(vault_registry, index, name);
         let balance = utils::extract_balance_from_coin(coin, amount);
         let amount = balance::join(&mut sub_vault.deposit, balance);
 
@@ -102,11 +105,14 @@ module typus_dov::vault {
     }
 
     public fun add_share<T, C: store>(
-        sub_vault: &mut SubVault<T> ,
+        vault_registry: &mut VaultRegistry<C>,
+        index: u64,
+        name: String,
         value: u64,
         ctx: &mut TxContext
     ) {
         let sender = tx_context::sender(ctx);
+        let sub_vault = get_mut_sub_vault<T, C>(vault_registry, index, name);
 
         sub_vault.share_supply = sub_vault.share_supply + value;
 

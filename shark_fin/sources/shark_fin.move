@@ -74,11 +74,9 @@ module typus_shark_fin::shark_fin {
             string::utf8(b"no_rolling")
         };
 
-        let sub_vault = vault::get_mut_sub_vault(vault_registry, index, name);
+        let value = vault::deposit<T, Config>(vault_registry, index, name, coin, amount);
 
-        let value = vault::deposit<T, Config>(sub_vault, coin, amount);
-
-        vault::add_share<T, Config>(sub_vault, value, ctx);
+        vault::add_share<T, Config>(vault_registry, index, name, value, ctx);
     }
 
     // ======== Events =========
