@@ -3,6 +3,7 @@
 
 module typus_dov::rfq {
     use std::vector;
+    use sui::balance::{Self, Balance};
     use sui::coin::{Self, Coin};
     use sui::object::{Self, UID};
     use sui::table::{Self, Table};
@@ -115,9 +116,55 @@ module typus_dov::rfq {
         table::borrow(&rfq.ownerships, owner)
     }
 
-    // public entry fun delivery<Token>(rfq: &mut Rfq<Token>) {
+    public entry fun delivery<Token>(rfq: &mut Rfq<Token>, price: u64, size: u64, balance: &mut Balance<Token>, ctx: &mut TxContext) {
+        // sort the bids
+        let bids = vector::empty();
+        let index = rfq.index;
+        while (index > 0) {
+            let bid = table::borrow(&mut rfq.bids, index - 1);
+            vector::push_back(&mut bids, *bid);
+            index = index - 1;
+        };
+        selection_sort<Token>(&mut bids);
 
-    // }
+        // matching
+        while (!vector::is_empty(&bids)) {
+            // get market maker bid and fund
+            let bid = vector::pop_back(&mut bids);
+            let Fund {
+                coin,
+                owner
+            } = table::remove(&mut rfq.funds, bid.index);
+            if (bid.price >= price && size > 0) {
+                // filled
+                if (bid.size <= size) {
+                    balance::join(balance, coin::into_balance(coin));
+                }
+                // partially filled
+                else {
+                    balance::join(balance, balance::split(coin::balance_mut(&mut coin), bid.price * bid.size));
+                    transfer::transfer(coin, owner);
+                };
+                size = size - bid.size;
+            }
+            else {
+                transfer::transfer(coin, owner);
+            };
+        };
+
+        transfer::transfer(
+            TestResult {
+                id: sui::object::new(ctx),
+                result: bids,
+            },
+            tx_context::sender(ctx),
+        );
+    }
+
+    struct TestResult has key, store {
+        id: UID,
+        result: vector<Bid>,
+    }
 
     // public entry fun test_sorting<Token>(rfq: &mut Rfq<Token>, ctx: &mut TxContext) {
     //     use std::string;
