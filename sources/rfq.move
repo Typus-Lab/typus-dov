@@ -121,8 +121,8 @@ module typus_dov::rfq {
         price: u64,
         size: u64,
         blinding_factor: u64,
-        _coin: &mut Coin<Token>,
-        owner: address,
+        coin: &mut Coin<Token>,
+        _owner: address,
         ctx: &mut TxContext,
     ) {
         assert!(tx_context::epoch(ctx) >= rfq.bid_closing_time, E_AUCTION_NOT_CLOSED);
@@ -133,8 +133,8 @@ module typus_dov::rfq {
         // let sender = tx_context::sender(ctx);
         // assert!(bid.owner == sender, E_OWNER_MISMATCH);
 
-        // TODO: transfer quote coins
-        // bid.coin = option::some(coin::split(coin, price * size, ctx));
+        // transfer quote coins
+        option::fill(&mut bid.coin, coin::split(coin, price * size, ctx));
 
         debug::print(&price);
         debug::print(&size);
@@ -170,10 +170,10 @@ module typus_dov::rfq {
 
     /// TODO
     fun verify_bid_commitment(
-        commitment: &vector<u8>,
-        price: u64,
-        size: u64,
-        blinding_factor: u64
+        _commitment: &vector<u8>,
+        _price: u64,
+        _size: u64,
+        _blinding_factor: u64
     ): bool {
         true
     }
@@ -183,20 +183,20 @@ module typus_dov::rfq {
         owner: address,
         bid_index: u64,
     ) {
-        // let ownership = table::borrow_mut(&mut rfq.ownerships, owner);
-        // let (bid_exist, index) = vector::index_of(ownership, &bid_index);
-        // assert!(bid_exist, E_BID_NOT_EXISTS);
-        // vector::swap_remove(ownership, index);
-        // let Bid {
-        //     index: _,
-        //     commitment: _,
-        //     price: _,
-        //     size: _,
-        //     blinding_factor: _,
-        //     coin,
-        //     owner,
-        // } = table::remove(&mut rfq.bids, bid_index);
-        // transfer::transfer(coin, owner);
+        let ownership = table::borrow_mut(&mut rfq.ownerships, owner);
+        let (bid_exist, index) = vector::index_of(ownership, &bid_index);
+        assert!(bid_exist, E_BID_NOT_EXISTS);
+        vector::swap_remove(ownership, index);
+        let Bid {
+            index: _,
+            commitment: _,
+            price: _,
+            size: _,
+            blinding_factor: _,
+            coin,
+            owner,
+        } = table::remove(&mut rfq.bids, bid_index);
+        transfer::transfer(option::destroy_some(coin), owner)
     }
 
     fun sort<Token>(bids: &mut vector<Bid<Token>>) {
@@ -209,14 +209,14 @@ module typus_dov::rfq {
             return
         };
 
-        let pivot_price = vector::borrow(bids, l).price;
+        let pivot_price = *option::borrow(&vector::borrow(bids, l).price);
         let left = l;
         let right = r + 1;
         loop {
-            while (left < r && vector::borrow(bids, left + 1).price <= pivot_price) {
+            while (left < r && *option::borrow(&vector::borrow(bids, left + 1).price) <= pivot_price) {
                 left = left + 1;
             };
-            while (right > l && vector::borrow(bids, right - 1).price >= pivot_price) {
+            while (right > l && *option::borrow(&vector::borrow(bids, right - 1).price) >= pivot_price) {
                 right = right - 1;
             };
             if (left < right) {
@@ -236,14 +236,14 @@ module typus_dov::rfq {
         let length = vector::length(bids);
         let i = 0;
         while (i < length) {
-            let min_price = vector::borrow(bids, i).price;
+            let min_price = option::borrow<u64>(&(vector::borrow(bids, i).price));
             let min_index = vector::borrow(bids, i).index;
             let min_at = i;
             let j = i + 1;
             while (j < length) {
-                let price = vector::borrow(bids, j).price;
+                let price = option::borrow<u64>(&(vector::borrow(bids, j).price));
                 let index = vector::borrow(bids, j).index;
-                if(price < min_price || (price == min_price && index > min_index)) {
+                if(*price < *min_price || (*price == *min_price && index > min_index)) {
                     min_price = price;
                     min_index = index;
                     min_at = j;
