@@ -5,6 +5,8 @@ module typus_shark_fin::payoff {
 
     friend typus_shark_fin::shark_fin;
     friend typus_shark_fin::settlement;
+
+    #[test_only]
     friend typus_shark_fin::test;
 
     // ======== Constants =========

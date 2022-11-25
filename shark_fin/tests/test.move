@@ -1,54 +1,43 @@
 #[test_only]
 module typus_shark_fin::test {
-    // use std::debug;
-    // use sui::test_scenario;
-
     use std::option;
-    // use sui::object::{Self, UID, ID};
-    // use sui::tx_context::{Self, TxContext};
-    // use sui::transfer;
+    use sui::test_scenario;
 
-    use typus_shark_fin::payoff;
+    use typus_dov::vault::{Self, VaultRegistry};
+    use typus_shark_fin::payoff::{Self, PayoffConfig};
 
-    // #[test]
-    // fun test_new_vault() {
-    //     use sui::sui::SUI;
-
-    //     let admin = @0xBABE;
-    //     let scenario_val = test_scenario::begin(admin);
-    //     let scenario = &mut scenario_val;
-    //     {
-    //         // init(test_scenario::ctx(scenario));
-    //         let ctx = test_scenario::ctx(scenario);
-    //         let id = object::new(ctx);
-    //         transfer::transfer(ManagerCap { id: object::new(ctx) }, tx_context::sender(ctx));
-    //         transfer::share_object(VaultRegistry {
-    //             id,
-    //             num_of_vault: 0
-    //         })
-    //     };
-
-    //     test_scenario::next_tx(scenario, admin);
-    //     {
-    //         let registry = test_scenario::take_shared<VaultRegistry>(scenario);
-    //         new_vault<SUI>(
-    //             &mut registry,
-    //             1,
-    //             1,
-    //             1,
-    //             true,
-    //             1,
-    //             2,
-    //             test_scenario::ctx(scenario)
-    //         );
-    //         test_scenario::return_shared(registry)
-    //     };
-
-    //     test_scenario::end(scenario_val);
-    // }
 
     #[test]
-    fun test_get_shark_fin_payoff_by_price(): payoff::PayoffConfig {
+    fun test_new_vault() {
+        use sui::sui::SUI;
+        use typus_shark_fin::shark_fin::{Self, Config};
+
+        let admin = @0x1;
+        let scenario_val = test_scenario::begin(admin);
+        let scenario = &mut scenario_val;
+        {
+            shark_fin::test_init(test_scenario::ctx(scenario));
+        };
+        test_scenario::next_tx(scenario, admin);
+        {
+            let registry = test_scenario::take_shared<VaultRegistry<Config>>(scenario);
+            shark_fin::new_shark_fin_vault<SUI>(
+                &mut registry,
+                1,
+                true,
+                1,
+                2,
+                test_scenario::ctx(scenario)
+            );
+            vault::get_vault<SUI, Config>(&registry, 0);     
+
+            test_scenario::return_shared(registry)
+        };
+        test_scenario::end(scenario_val);
+    }
+
+    #[test]
+    fun test_get_shark_fin_payoff_by_price(): PayoffConfig {
 
         let payoff_config = payoff::new_payoff_config(
             false,
