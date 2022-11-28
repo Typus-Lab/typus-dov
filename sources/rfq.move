@@ -49,6 +49,9 @@ module typus_dov::rfq {
         size: Option<u64>,
         /// blinding_factor after revealing
         blinding_factor: Option<u64>,
+        /// user's deposit required by min_deposit of Rfq
+        deposit: Coin<Token>,
+        /// user's coin for trade
         coin: Option<Coin<Token>>,
         owner: address,
     }
@@ -75,6 +78,7 @@ module typus_dov::rfq {
     public fun new_bid<Token>(
         rfq: &mut Rfq<Token>,
         commitment: vector<u8>,
+        coin: &mut Coin<Token>, 
         ctx: &mut TxContext,
     ) {
         assert!(tx_context::epoch(ctx) < rfq.bid_closing_time, E_AUCTION_CLOSED);
@@ -90,6 +94,7 @@ module typus_dov::rfq {
                 price: option::none(),
                 size: option::none(),
                 blinding_factor: option::none(),
+                depsoit: coin::split(coin, rfq.min_deposit, ctx), // user send deposit when creating a new bid
                 coin: option::none(), // transfer coin only after revealing the bid
                 owner,
             }
@@ -282,6 +287,7 @@ module typus_dov::rfq {
         new_bid(
             &mut rfq,
             b"i am user1, my sealed bid is (x,y) with blinding_factor z",
+            &mut coin,
             test_scenario::ctx(&mut user1_scenario)
         );
         assert!(rfq.index == 1, 1);
