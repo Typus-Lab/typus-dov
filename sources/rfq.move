@@ -75,10 +75,10 @@ module typus_dov::rfq {
     public fun new_bid<Token>(
         rfq: &mut Rfq<Token>,
         commitment: vector<u8>,
-        owner: address,
         ctx: &mut TxContext,
     ) {
         assert!(tx_context::epoch(ctx) < rfq.bid_closing_time, E_AUCTION_CLOSED);
+        let owner = tx_context::sender(ctx);
         let index = rfq.index;
         // todo - transfer deposit to vault
         table::add(
@@ -118,7 +118,6 @@ module typus_dov::rfq {
         size: u64,
         blinding_factor: u64,
         coin: &mut Coin<Token>,
-        _owner: address,
         ctx: &mut TxContext,
     ) {
         // assert!(tx_context::epoch(ctx) >= rfq.bid_closing_time, E_AUCTION_NOT_CLOSED);
@@ -126,8 +125,8 @@ module typus_dov::rfq {
 
         assert!(bid_index < rfq.index, E_BID_NOT_EXISTS);
         let bid = table::borrow_mut(&mut rfq.bids, bid_index);
-        // let sender = tx_context::sender(ctx);
-        // assert!(bid.owner == sender, E_OWNER_MISMATCH);
+        let sender = tx_context::sender(ctx);
+        assert!(bid.owner == sender, E_OWNER_MISMATCH);
 
         // transfer quote coins
         option::fill(&mut bid.coin, coin::split(coin, price * size, ctx));
