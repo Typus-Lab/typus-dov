@@ -121,9 +121,11 @@ module typus_dov::rfq {
         let bids = vector::empty();
         let index = rfq.index;
         while (index > 0) {
-            let bid = table::borrow(&mut rfq.bids, index - 1);
-            vector::push_back(&mut bids, *bid);
-            index = index - 1;
+            if (table::contains(&rfq.bids, index - 1)) {
+                let bid = table::borrow(&mut rfq.bids, index - 1);
+                vector::push_back(&mut bids, *bid);
+                index = index - 1;
+            }
         };
         selection_sort<Token>(&mut bids);
 
@@ -139,13 +141,14 @@ module typus_dov::rfq {
                 // filled
                 if (bid.size <= size) {
                     balance::join(balance, coin::into_balance(coin));
+                    size = size - bid.size;
                 }
                 // partially filled
                 else {
                     balance::join(balance, balance::split(coin::balance_mut(&mut coin), bid.price * bid.size));
                     transfer::transfer(coin, owner);
+                    size = 0;
                 };
-                size = size - bid.size;
             }
             else {
                 transfer::transfer(coin, owner);
