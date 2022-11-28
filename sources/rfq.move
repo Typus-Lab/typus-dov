@@ -24,8 +24,6 @@ module typus_dov::rfq {
     /// Rfq which is First Price Sealed-Bid Auction style
     struct Rfq<phantom Token> has key, store {
         id: UID,
-        /// available items for sale
-        base_available: u64,
         /// minimum deposit for participating the auction
         min_deposit: u64,
         /// bidders can submit bids only before bid_closing_time
@@ -58,7 +56,6 @@ module typus_dov::rfq {
     /// create a new RFQ for auction
     public fun new<Token>(
         min_deposit: u64,
-        base_available: u64,
         bid_closing_time: u64,
         reveal_closing_time: u64,
         ctx: &mut TxContext
@@ -66,7 +63,6 @@ module typus_dov::rfq {
         Rfq {
             id: object::new(ctx),
             min_deposit,
-            base_available,
             bid_closing_time,
             reveal_closing_time,
             index: 0,
