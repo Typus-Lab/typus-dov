@@ -116,7 +116,7 @@ module typus_dov::rfq {
         table::borrow(&rfq.ownerships, owner)
     }
 
-    public entry fun delivery<Token>(rfq: &mut Rfq<Token>, price: u64, size: u64, balance: &mut Balance<Token>, ctx: &mut TxContext) {
+    public fun delivery<Token>(rfq: &mut Rfq<Token>, price: u64, size: u64, balance: &mut Balance<Token>, ctx: &mut TxContext) {
         // sort the bids
         let bids = vector::empty();
         let index = rfq.index;
