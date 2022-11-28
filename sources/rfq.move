@@ -84,6 +84,7 @@ module typus_dov::rfq {
     ) {
         assert!(tx_context::epoch(ctx) < rfq.bid_closing_time, E_AUCTION_CLOSED);
         let index = rfq.index;
+        // todo - transfer deposit to vault
         table::add(
             &mut rfq.bids,
             index,
@@ -117,7 +118,6 @@ module typus_dov::rfq {
     public fun reveal_bid<Token>(
         rfq: &mut Rfq<Token>,
         bid_index: u64,
-        commitment: vector<u8>,
         price: u64,
         size: u64,
         blinding_factor: u64,
@@ -125,7 +125,7 @@ module typus_dov::rfq {
         _owner: address,
         ctx: &mut TxContext,
     ) {
-        assert!(tx_context::epoch(ctx) >= rfq.bid_closing_time, E_AUCTION_NOT_CLOSED);
+        // assert!(tx_context::epoch(ctx) >= rfq.bid_closing_time, E_AUCTION_NOT_CLOSED);
         assert!(tx_context::epoch(ctx) < rfq.reveal_closing_time, E_REVEAL_CLOSED);
 
         assert!(bid_index < rfq.index, E_BID_NOT_EXISTS);
@@ -139,9 +139,9 @@ module typus_dov::rfq {
         debug::print(&price);
         debug::print(&size);
         debug::print(&blinding_factor);
-        debug::print(&commitment);
+        debug::print(&bid.commitment);
 
-        assert!(verify_bid_commitment(&commitment, price, size, blinding_factor), E_BID_COMMITMENT_MISMATCH);
+        assert!(verify_bid_commitment(&bid.commitment, price, size, blinding_factor), E_BID_COMMITMENT_MISMATCH);
         assert!(price != 0, E_ZERO_PRICE);
         assert!(size != 0, E_ZERO_SIZE);
         // TODO: remove bid if price=0 || size = 0
@@ -163,6 +163,7 @@ module typus_dov::rfq {
         // TODO: 
         // transfer winners' tokens (check if bidded size available - MIN(base_available, bid_size)) 
         // to vault and send Items(amount = MIN(base_available, bid_size)) to winners    
+      
         // refund losing bidder's tokens 
         // refund honest bidders' deposits
         // punish malicious bidders by taking their deposits
@@ -255,82 +256,109 @@ module typus_dov::rfq {
         }
     }
 
-    // #[test]
-    // fun test_rfq_new_bid(): Rfq<sui::sui::SUI> {
-    //     use std::vector;
-    //     use sui::coin;
-    //     use sui::sui::SUI;
-    //     use sui::table;
-    //     use sui::test_scenario;
+    #[test]
+    fun test_rfq_new_bid(): Rfq<sui::sui::SUI> {
+        // use std::vector;
+        use sui::coin;
+        use sui::sui::SUI;
+        // use sui::table;
+        use sui::test_scenario;
+        use std::debug;
 
-    //     let admin = @0xFFFF;
-    //     let user1 = @0xBABE1;
-    //     let user2 = @0xBABE2;
-    //     let admin_scenario = test_scenario::begin(admin);
-    //     let rfq = new(test_scenario::ctx(&mut admin_scenario));
-    //     let coin = coin::mint_for_testing<SUI>(1000000, test_scenario::ctx(&mut admin_scenario));
+        let admin = @0xFFFF;
+        let user1 = @0xBABE1;
+        // let user2 = @0xBABE2;
+        let admin_scenario = test_scenario::begin(admin);
+        // 1669338020
+        // 1669343354
+        // 1669346954
+        let rfq = new(100, 20, 1669338020, 1669346954, test_scenario::ctx(&mut admin_scenario));
+        let coin = coin::mint_for_testing<SUI>(1000000, test_scenario::ctx(&mut admin_scenario));
 
-    //     /*
-    //         bids[0] => bid{100, 1, user1}
-    //         ownerships[user1] => [0]
-    //     */
-    //     new_bid(&mut rfq, 100, 1, user1, &mut coin, test_scenario::ctx(&mut admin_scenario));
-    //     assert!(rfq.index == 1, 1);
-    //     let bid = table::borrow(&rfq.bids, 0);
-    //     assert!(bid.price == 100 && bid.size == 1 && bid.owner == user1, 2);
-    //     let ownership = table::borrow(&rfq.ownerships, user1);
-    //     assert!(vector::length(ownership) == 1, 3);
-    //     let bid_index = vector::borrow(ownership, 0);
-    //     assert!(*bid_index == 0, 4);
+        // /*
+        //     bids[0] => bid{100, 1, user1}
+        //     ownerships[user1] => [0]
+        // */
 
-    //     /*
-    //         bids[1] => bid{200, 2, user2}
-    //         ownerships[user2] => [1]
-    //     */
-    //     new_bid(&mut rfq, 200, 2, user2, &mut coin, test_scenario::ctx(&mut admin_scenario));
-    //     assert!(rfq.index == 2, 5);
-    //     let bid = table::borrow(&rfq.bids, 0);
-    //     assert!(bid.price == 100 && bid.size == 1 && bid.owner == user1, 6);
-    //     let ownership = table::borrow(&rfq.ownerships, user2);
-    //     assert!(vector::length(ownership) == 1, 7);
-    //     let bid_index = vector::borrow(ownership, 0);
-    //     assert!(*bid_index == 1, 8);
+        new_bid(&mut rfq, b"i am user1, my sealed bid is (x,y) with blinding_factor z", user1, test_scenario::ctx(&mut admin_scenario));
+        assert!(rfq.index == 1, 1);
+        let bid = table::borrow(&rfq.bids, 0);
+        debug::print(bid);
+        debug::print(&tx_context::epoch(test_scenario::ctx(&mut admin_scenario)));
+        // rfq: &mut Rfq<Token>,
+        // bid_index: u64,
+        // price: u64,
+        // size: u64,
+        // blinding_factor: u64,
+        // coin: &mut Coin<Token>,
+        // _owner: address,
+        // ctx: &mut TxContext,
 
-    //     /*
-    //         bids[2] => bid{300, 3, user1}
-    //         ownerships[user1] => [0, 2]
-    //     */
-    //     new_bid(&mut rfq, 300, 3, user1, &mut coin, test_scenario::ctx(&mut admin_scenario));
-    //     assert!(rfq.index == 3, 9);
-    //     let bid = table::borrow(&rfq.bids, 0);
-    //     assert!(bid.price == 100 && bid.size == 1 && bid.owner == user1, 10);
-    //     let ownership = table::borrow(&rfq.ownerships, user1);
-    //     assert!(vector::length(ownership) == 2, 11);
-    //     let bid_index = vector::borrow(ownership, 0);
-    //     assert!(*bid_index == 0, 12);
-    //     let bid_index = vector::borrow(ownership, 1);
-    //     assert!(*bid_index == 2, 13);
+        reveal_bid(
+            &mut rfq,
+            0,
+            99,
+            1,
+            12384,
+            &mut coin,
+            user1,
+            test_scenario::ctx(&mut admin_scenario)
+        );
+
+        // assert!(bid.price == 100 && bid.size == 1 && bid.owner == user1, 2);
+        // let ownership = table::borrow(&rfq.ownerships, user1);
+        // assert!(vector::length(ownership) == 1, 3);
+        // let bid_index = vector::borrow(ownership, 0);
+        // assert!(*bid_index == 0, 4);
+
+        // /*
+        //     bids[1] => bid{200, 2, user2}
+        //     ownerships[user2] => [1]
+        // */
+        // new_bid(&mut rfq, 200, 2, user2, &mut coin, test_scenario::ctx(&mut admin_scenario));
+        // assert!(rfq.index == 2, 5);
+        // let bid = table::borrow(&rfq.bids, 0);
+        // assert!(bid.price == 100 && bid.size == 1 && bid.owner == user1, 6);
+        // let ownership = table::borrow(&rfq.ownerships, user2);
+        // assert!(vector::length(ownership) == 1, 7);
+        // let bid_index = vector::borrow(ownership, 0);
+        // assert!(*bid_index == 1, 8);
+
+        // /*
+        //     bids[2] => bid{300, 3, user1}
+        //     ownerships[user1] => [0, 2]
+        // */
+        // new_bid(&mut rfq, 300, 3, user1, &mut coin, test_scenario::ctx(&mut admin_scenario));
+        // assert!(rfq.index == 3, 9);
+        // let bid = table::borrow(&rfq.bids, 0);
+        // assert!(bid.price == 100 && bid.size == 1 && bid.owner == user1, 10);
+        // let ownership = table::borrow(&rfq.ownerships, user1);
+        // assert!(vector::length(ownership) == 2, 11);
+        // let bid_index = vector::borrow(ownership, 0);
+        // assert!(*bid_index == 0, 12);
+        // let bid_index = vector::borrow(ownership, 1);
+        // assert!(*bid_index == 2, 13);
 
 
-    //     /*
-    //         bids[1] => bid{400, 4, user2}
-    //         ownerships[user2] => [1, 3]
-    //     */
-    //     new_bid(&mut rfq, 400, 4, user2, &mut coin, test_scenario::ctx(&mut admin_scenario));
-    //     assert!(rfq.index == 4, 14);
-    //     let bid = table::borrow(&rfq.bids, 0);
-    //     assert!(bid.price == 100 && bid.size == 1 && bid.owner == user1, 15);
-    //     let ownership = table::borrow(&rfq.ownerships, user2);
-    //     assert!(vector::length(ownership) == 2, 16);
-    //     let bid_index = vector::borrow(ownership, 0);
-    //     assert!(*bid_index == 1, 17);
-    //     let bid_index = vector::borrow(ownership, 1);
-    //     assert!(*bid_index == 3, 18);
+        // /*
+        //     bids[1] => bid{400, 4, user2}
+        //     ownerships[user2] => [1, 3]
+        // */
+        // new_bid(&mut rfq, 400, 4, user2, &mut coin, test_scenario::ctx(&mut admin_scenario));
+        // assert!(rfq.index == 4, 14);
+        // let bid = table::borrow(&rfq.bids, 0);
+        // assert!(bid.price == 100 && bid.size == 1 && bid.owner == user1, 15);
+        // let ownership = table::borrow(&rfq.ownerships, user2);
+        // assert!(vector::length(ownership) == 2, 16);
+        // let bid_index = vector::borrow(ownership, 0);
+        // assert!(*bid_index == 1, 17);
+        // let bid_index = vector::borrow(ownership, 1);
+        // assert!(*bid_index == 3, 18);
 
-    //     coin::destroy_for_testing(coin);
-    //     test_scenario::end(admin_scenario);
-    //     rfq
-    // }
+        coin::destroy_for_testing(coin);
+        test_scenario::end(admin_scenario);
+        rfq
+    }
 
     // #[test]
     // fun test_rfq_remove_bid_success(): Rfq<sui::sui::SUI> {
