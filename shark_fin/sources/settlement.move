@@ -18,7 +18,7 @@ module typus_shark_fin::settlement {
         // TODO: check expiration_ts
 
         // get price
-        let price = 1; // need to be replaced by oracle price
+        let price = 95; // need to be replaced by oracle price
         let payoff_config = shark_fin::get_payoff_config(vault::get_config<T, Config>(vault_registry,expired_index));
 
         // calculate settlement roi
@@ -94,12 +94,12 @@ module typus_shark_fin::settlement {
             let contains = table::contains<u64, address>(vault::get_vault_user_map<T, Config>(vault_registry, expired_index, string::utf8(b"rolling")), i);
             if (contains) {
                 let user_address = vault::get_user_address<T, Config>(vault_registry, expired_index, string::utf8(b"rolling"), i);
-                let adjusted_shares_in_expired_pool = *table::borrow<address, u64>(vault::get_vault_users_table<T, Config>(vault_registry, expired_index, string::utf8(b"rolling")), user_address) 
+                let adjusted_shares_in_expired_pool = vault::get_user_share<T, Config>(vault_registry, expired_index, string::utf8(b"rolling"), user_address) 
                     * share_price 
                     / share_price_multiplier;
 
                 if (table::contains<address, u64>(vault::get_mut_vault_users_table<T, Config>(vault_registry, new_index, string::utf8(b"rolling")), user_address)){
-                    let user_share = table::borrow_mut<address, u64>(vault::get_mut_vault_users_table<T, Config>(vault_registry, new_index, string::utf8(b"rolling")), user_address);
+                    let user_share = vault::get_mut_user_share<T, Config>(vault_registry, new_index, string::utf8(b"rolling"), user_address);
                     *user_share = *user_share + adjusted_shares_in_expired_pool;
                 } else {
                     table::add<address, u64>(vault::get_mut_vault_users_table<T, Config>(vault_registry, new_index, string::utf8(b"rolling")), user_address, adjusted_shares_in_expired_pool);
@@ -116,11 +116,12 @@ module typus_shark_fin::settlement {
         // dov_stage = stage;
     // }
 
-    // public entry fun settle_without_roll_over<T>(
-    //     expired_dov: Vault<T, Config>,
-    // ){
-        // settle_internal<T>(&mut expired_dov);
-    // }
+    public entry fun settle_without_roll_over<T>(
+        vault_registry: &mut VaultRegistry<Config>,
+        expired_index: u64,
+    ){
+        settle_internal<T>(vault_registry, expired_index);
+    }
 
     public entry fun settle_with_roll_over<T>(
         vault_registry: &mut VaultRegistry<Config>,

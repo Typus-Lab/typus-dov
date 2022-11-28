@@ -15,7 +15,7 @@ module typus_dov::token {
 
     struct USDC has drop {}
 
-    fun init(ctx: &mut TxContext){
+    public entry fun new(ctx: &mut TxContext){
         let registry =  Registry {
             id: object::new(ctx),
             supply: balance::create_supply(USDC{}),

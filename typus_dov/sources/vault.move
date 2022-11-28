@@ -89,12 +89,15 @@ module typus_dov::vault {
     }
 
     public fun deposit<T, C: store>(
-        sub_vault: &mut SubVault<T> ,
+        vault_registry: &mut VaultRegistry<C>,
+        index: u64,
+        name: String,
         coin: &mut Coin<T>,
         amount: u64,
     ): u64 {
         assert!(amount > 0, EZeroAmount);
 
+        let sub_vault = get_mut_sub_vault<T, C>(vault_registry, index, name);
         let balance = utils::extract_balance_from_coin(coin, amount);
         let amount = balance::join(&mut sub_vault.deposit, balance);
 
@@ -102,11 +105,14 @@ module typus_dov::vault {
     }
 
     public fun add_share<T, C: store>(
-        sub_vault: &mut SubVault<T> ,
+        vault_registry: &mut VaultRegistry<C>,
+        index: u64,
+        name: String,
         value: u64,
         ctx: &mut TxContext
     ) {
         let sender = tx_context::sender(ctx);
+        let sub_vault = get_mut_sub_vault<T, C>(vault_registry, index, name);
 
         sub_vault.share_supply = sub_vault.share_supply + value;
 
@@ -244,7 +250,7 @@ module typus_dov::vault {
     }
 
     public fun get_user_address<T, C: store>(
-        vault_registry: &mut VaultRegistry<C>,
+        vault_registry: & VaultRegistry<C>,
         index: u64,
         name: String,         
         i: u64
@@ -252,6 +258,27 @@ module typus_dov::vault {
         let sub_vault = get_sub_vault<T, C>(vault_registry, index, name);
         *table::borrow<u64, address>(&sub_vault.user_map, i)
     }
+
+    public fun get_user_share<T, C: store>(
+        vault_registry: & VaultRegistry<C>,
+        index: u64,
+        name: String,         
+        user: address
+    ): u64 {
+        let sub_vault = get_sub_vault<T, C>(vault_registry, index, name);
+        *table::borrow<address, u64>(&sub_vault.users_table, user)
+    }
+
+    public fun get_mut_user_share<T, C: store>(
+        vault_registry: &mut VaultRegistry<C>,
+        index: u64,
+        name: String,         
+        user: address
+    ): &mut u64 {
+        let sub_vault = get_mut_sub_vault<T, C>(vault_registry, index, name);
+        table::borrow_mut<address, u64>(&mut sub_vault.users_table, user)
+    }
+
 
     // ======== Events =========
 
@@ -265,4 +292,23 @@ module typus_dov::vault {
     /// For when someone attempts to add more liquidity than u128 Math allows.
     const EVaultFull: u64 = 1;
 
+    // ======== TestFunctions ==
+    #[test_only]
+    public fun test_only_new_vault_registry<C>(
+        ctx: &mut TxContext
+    ): VaultRegistry<C> {
+        let id = object::new(ctx);
+
+        emit(RegistryCreated<C> { id: object::uid_to_inner(&id) });
+
+        let vault = VaultRegistry<C> { id, num_of_vault: 0 };
+        // transfer::share_object(vault);
+       vault
+    }
+    // #[test_only]
+    // public fun test_only_distroy_vault_registry<C>(
+    //     vault_registry: VaultRegistry<C>
+    // ) {
+    //     let _ = vault_registry;
+    // }
 }
