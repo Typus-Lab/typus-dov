@@ -4,6 +4,7 @@
 module typus_dov::utils {
     use sui::balance::{Self, Balance};
     use sui::coin::{Self, Coin};
+    use std::vector;
 
     // decimals
     public fun multiplier(decimal: u64): u64 {
@@ -20,6 +21,19 @@ module typus_dov::utils {
     public fun extract_balance_from_coin<Token>(coin: &mut Coin<Token>, value: u64): Balance<Token> {
         let balance = coin::balance_mut(coin);
         balance::split(balance, value)
+    }
+
+    public fun merge_coins<Token>(coins: vector<Coin<Token>>): Coin<Token> {
+        let len = vector::length(&coins);
+        let merged = vector::pop_back(&mut coins);
+        len = len - 1;
+        while (len > 0) {
+            let removed = vector::pop_back(&mut coins);
+            coin::join(&mut merged, removed);
+            len = len - 1;
+        };
+        vector::destroy_empty(coins);
+        merged
     }
 
     #[test]
