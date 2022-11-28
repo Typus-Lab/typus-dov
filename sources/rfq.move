@@ -264,22 +264,31 @@ module typus_dov::rfq {
         let user1 = @0xBABE1;
         // let user2 = @0xBABE2;
         let admin_scenario = test_scenario::begin(admin);
+
         // 1669338020
         // 1669343354
         // 1669346954
-        let rfq = new(100, 20, 1669338020, 1669346954, test_scenario::ctx(&mut admin_scenario));
+        let rfq = new(20, 1669338020, 1669346954, test_scenario::ctx(&mut admin_scenario));
         let coin = coin::mint_for_testing<SUI>(1000000, test_scenario::ctx(&mut admin_scenario));
+        test_scenario::end(admin_scenario);
 
         // /*
         //     bids[0] => bid{100, 1, user1}
         //     ownerships[user1] => [0]
         // */
+    
+        let user1_scenario = test_scenario::begin(user1);
 
-        new_bid(&mut rfq, b"i am user1, my sealed bid is (x,y) with blinding_factor z", user1, test_scenario::ctx(&mut admin_scenario));
+        new_bid(
+            &mut rfq,
+            b"i am user1, my sealed bid is (x,y) with blinding_factor z",
+            test_scenario::ctx(&mut user1_scenario)
+        );
         assert!(rfq.index == 1, 1);
         let bid = table::borrow(&rfq.bids, 0);
         debug::print(bid);
-        debug::print(&tx_context::epoch(test_scenario::ctx(&mut admin_scenario)));
+        // test_scenario::end(admin_scenario);
+        // debug::print(&tx_context::epoch(test_scenario::ctx(&mut admin_scenario)));
         // rfq: &mut Rfq<Token>,
         // bid_index: u64,
         // price: u64,
@@ -288,7 +297,7 @@ module typus_dov::rfq {
         // coin: &mut Coin<Token>,
         // _owner: address,
         // ctx: &mut TxContext,
-
+        // let user1_scenario = test_scenario::begin(user1);
         reveal_bid(
             &mut rfq,
             0,
@@ -296,8 +305,7 @@ module typus_dov::rfq {
             1,
             12384,
             &mut coin,
-            user1,
-            test_scenario::ctx(&mut admin_scenario)
+            test_scenario::ctx(&mut user1_scenario)
         );
 
         // assert!(bid.price == 100 && bid.size == 1 && bid.owner == user1, 2);
@@ -350,8 +358,9 @@ module typus_dov::rfq {
         // let bid_index = vector::borrow(ownership, 1);
         // assert!(*bid_index == 3, 18);
 
+        test_scenario::end(user1_scenario);
         coin::destroy_for_testing(coin);
-        test_scenario::end(admin_scenario);
+
         rfq
     }
 
