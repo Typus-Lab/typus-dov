@@ -116,7 +116,7 @@ module typus_dov::rfq {
         table::borrow(&rfq.ownerships, owner)
     }
 
-    public fun delivery<Token>(rfq: &mut Rfq<Token>, price: u64, size: u64, balance: &mut Balance<Token>, ctx: &mut TxContext) {
+    public fun delivery<Token>(rfq: &mut Rfq<Token>, price: u64, size: u64, balance: &mut Balance<Token>) {
         // sort the bids
         let bids = vector::empty();
         let index = rfq.index;
@@ -154,96 +154,7 @@ module typus_dov::rfq {
                 transfer::transfer(coin, owner);
             };
         };
-
-        transfer::transfer(
-            TestResult {
-                id: sui::object::new(ctx),
-                result: bids,
-            },
-            tx_context::sender(ctx),
-        );
     }
-
-    struct TestResult has key, store {
-        id: UID,
-        result: vector<Bid>,
-    }
-
-    // public entry fun test_sorting<Token>(rfq: &mut Rfq<Token>, ctx: &mut TxContext) {
-    //     use std::string;
-    //     use typus_dov::convert;
-
-    //     let result = string::utf8(vector::empty());
-    //     let bids = vector::empty();
-    //     let index = rfq.index;
-    //     while (index > 0) {
-    //         let bid = table::remove(&mut rfq.bids, index - 1);
-    //         vector::push_back(&mut bids, bid);
-    //         index = index - 1;
-    //     };
-    //     selection_sort(&mut bids);
-    //     while (!vector::is_empty(&bids)) {
-    //         let Bid {
-    //             index: _,
-    //             price,
-    //             size,
-    //             coin,
-    //             owner: _,
-    //         } = vector::pop_back(&mut bids);
-    //         string::append_utf8(&mut result, b", Price: ");
-    //         string::append(&mut result, convert::u64_to_string(price));
-    //         string::append_utf8(&mut result, b", Size: ");
-    //         string::append(&mut result, convert::u64_to_string(size));
-    //         transfer::transfer(
-    //             coin,
-    //             sui::tx_context::sender(ctx),
-    //         );
-            
-    //         index = index + 1;
-    //     };
-
-    //     transfer::transfer(
-    //         TestResult {
-    //             id: sui::object::new(ctx),
-    //             result,
-    //         },
-    //         sui::tx_context::sender(ctx),
-    //     );
-    //     vector::destroy_empty(bids);
-    // }
-
-    // fun quick_sort<Token>(bids: &mut vector<Bid<Token>>) {
-    //     let length = vector::length(bids);
-    //     quick_sort_(bids, 0, length - 1);
-    // }
-
-    // fun quick_sort_<Token>(bids: &mut vector<Bid<Token>>, l: u64, r: u64) {
-    //     if (l >= r) {
-    //         return
-    //     };
-
-    //     let pivot_price = vector::borrow(bids, l).price;
-    //     let left = l;
-    //     let right = r + 1;
-    //     loop {
-    //         while (left < r && vector::borrow(bids, left + 1).price <= pivot_price) {
-    //             left = left + 1;
-    //         };
-    //         while (right > l && vector::borrow(bids, right - 1).price >= pivot_price) {
-    //             right = right - 1;
-    //         };
-    //         if (left < right) {
-    //             vector::swap(bids, left, right);
-    //         }
-    //         else {
-    //             break
-    //         }
-    //     };
-    //     vector::swap(bids, l, right);
-
-    //     quick_sort_(bids, l, right - 1);
-    //     quick_sort_(bids, left, r);
-    // }
     
     fun selection_sort<Token>(bids: &mut vector<Bid>) {
         let length = vector::length(bids);
