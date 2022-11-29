@@ -1,26 +1,18 @@
-module typus_dov::asset{
-    // use sui::tx_context::TxContext;
+module typus_dov::asset {
     use std::string;
-    // use sui::transfer;
-    // use sui::object::{Self, UID};
 
-    // ======== Structs =========
-    struct Asset has key, store, drop {
-        // id: UID,
+    struct Asset has store, drop {
         name: string::String,
         price: u64,
         price_decimal: u64
     }
 
     public fun new_asset(name: &string::String, price: u64, price_decimal: u64): Asset{
-        // , ctx: &mut TxContext) {
         Asset {
-            // id: object::new(ctx),
             name: *name,
             price: price,
             price_decimal: price_decimal
         }
-        // transfer::share_object(asset);
     }
 
     public fun get_asset_name(asset: &Asset): string::String {
