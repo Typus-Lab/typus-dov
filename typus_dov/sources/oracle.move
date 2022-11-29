@@ -46,6 +46,12 @@ module typus_dov::oracle {
         oracle.epoch = tx_context::epoch(ctx);
     }
 
+    public fun get_oracle<T>(
+        oracle: &Oracle<T>
+    ): (u64, u64, u64) {
+        (oracle.price, oracle.unix_ms, oracle.epoch)
+    }
+
     entry fun emit_epoch(ctx: &mut TxContext){
         emit(EpochEvent { epoch: tx_context::epoch(ctx) });
     }
