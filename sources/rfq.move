@@ -179,6 +179,28 @@ module typus_dov::rfq {
         true
     }
 
+    fun u64_to_u8_vector(num: u64): vector<u8> {
+        let v1 = vector::empty();
+
+        while (num/10 > 0){
+            let rem = num%10;
+            vector::push_back(&mut v1, (rem+48 as u8));
+            num = num/10;
+        };
+
+        vector::push_back(&mut v1, (num+48 as u8));
+        vector::reverse(&mut v1);
+
+        v1
+    }
+
+    #[test]
+    public fun test_u64_to_u8_vector() {
+        use std::debug;
+        let res = u64_to_u8_vector(99);
+        debug::print(&res);
+    }
+
     public fun remove_bid<Token>(
         rfq: &mut Rfq<Token>,
         owner: address,
