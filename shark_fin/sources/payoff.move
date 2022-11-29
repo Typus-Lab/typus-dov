@@ -1,5 +1,6 @@
 module typus_shark_fin::payoff {
     use std::option::{Self, Option};
+    use typus_dov::asset::Asset;
 
     // ======== Friends =========
 
@@ -16,6 +17,7 @@ module typus_shark_fin::payoff {
     // ======== Structs =========
 
     struct PayoffConfig has store, drop {
+        asset: Asset,
         is_bullish: bool,
         low_barrier_price: u64,
         high_barrier_price: u64,
@@ -31,6 +33,7 @@ module typus_shark_fin::payoff {
     }
 
     public(friend) fun new_payoff_config(
+        asset: Asset,
         is_bullish: bool,
         low_barrier_price: u64,
         high_barrier_price: u64,
@@ -39,6 +42,7 @@ module typus_shark_fin::payoff {
         high_roi_constant: Option<u64>,
     ): PayoffConfig {
         PayoffConfig {
+            asset,
             is_bullish,
             low_barrier_price,
             high_barrier_price,

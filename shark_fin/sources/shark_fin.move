@@ -5,6 +5,7 @@ module typus_shark_fin::shark_fin {
     // use sui::event::emit;
     use typus_dov::vault::{Self, VaultRegistry};
     use typus_shark_fin::payoff::{Self, PayoffConfig};
+    use typus_dov::asset::Asset;
     use std::string;
     use sui::coin::Coin;
 
@@ -41,12 +42,14 @@ module typus_shark_fin::shark_fin {
     public entry fun new_shark_fin_vault<T>(
         vault_registry: &mut VaultRegistry<Config>,
         expiration_ts: u64,
+        asset: Asset,
         is_bullish: bool,
         low_barrier_price: u64,
         high_barrier_price: u64,
         ctx: &mut TxContext
     ){
         let payoff_config = payoff::new_payoff_config(
+            asset,
             is_bullish,
             low_barrier_price,
             high_barrier_price,

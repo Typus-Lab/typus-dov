@@ -7,7 +7,9 @@ module typus_shark_fin::test {
     use sui::balance;
     use sui::coin;
     use std::string;
+    // use std::debug;
 
+    use typus_dov::asset;
     use typus_dov::vault::{Self, VaultRegistry};
     use typus_shark_fin::payoff::{Self, PayoffConfig};
     use typus_shark_fin::shark_fin::{Self, Config};
@@ -26,6 +28,7 @@ module typus_shark_fin::test {
             shark_fin::new_shark_fin_vault<SUI>(
                 &mut registry,
                 1,
+                asset::new_asset(&string::utf8(b"BTC"), 100000000, 8),
                 true,
                 1,
                 2,
@@ -71,7 +74,8 @@ module typus_shark_fin::test {
     fun test_get_shark_fin_payoff_by_price(): PayoffConfig {
 
         let payoff_config = payoff::new_payoff_config(
-            false,
+            asset::new_asset(&string::utf8(b"BTC"), 100000000, 8),
+            true,
             5000,
             6000,
             option::none(),
