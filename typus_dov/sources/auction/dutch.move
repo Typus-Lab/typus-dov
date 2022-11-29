@@ -12,11 +12,20 @@ module typus_dov::dutch {
 
     struct Auction<phantom Token> has key {
         id: UID,
+        start_epoch: u64,
+        end_epoch: u64,
         price: u64,
+        price_config: PriceConfig,
         index: u64,
         bids: Table<u64, Bid>,
         funds: Table<u64, Fund<Token>>,
         ownerships: Table<address, vector<u64>>
+    }
+
+    struct PriceConfig has store {
+        decay_speed: u64,
+        initial_price: u64,
+        final_price: u64,
     }
 
     struct Bid has copy, drop, store {
@@ -34,10 +43,25 @@ module typus_dov::dutch {
         size: u64,
     }
 
-    public fun new<Token>(price: u64, ctx: &mut TxContext): Auction<Token> {
+    public fun new<Token>(
+        start_epoch: u64,
+        end_epoch: u64,
+        decay_speed: u64,
+        initial_price: u64,
+        final_price: u64,
+        price: u64,
+        ctx: &mut TxContext,
+    ): Auction<Token> {
         Auction {
             id: object::new(ctx),
+            start_epoch,
+            end_epoch,
             price,
+            price_config: PriceConfig {
+                decay_speed,
+                initial_price,
+                final_price,
+            },
             index: 0,
             bids: table::new(ctx),
             funds: table::new(ctx),
@@ -111,6 +135,53 @@ module typus_dov::dutch {
         table::borrow(&auction.ownerships, owner)
     }
 
+    public fun get_decayed_price<Token>(auction: &Auction<Token>, ctx: &TxContext): u64 {
+        let current_epoch = tx_context::epoch(ctx);
+        decay_formula(
+            auction.price_config.initial_price,
+            auction.price_config.final_price,
+            auction.price_config.decay_speed,
+            auction.start_epoch,
+            auction.end_epoch,
+            current_epoch,
+        )
+    }
+
+    /// decayed_price = 
+    ///     initial_price -
+    ///         (initial_price - final_price) *
+    ///             (1 - remaining_time / auction_duration) ^ decay_speed
+    fun decay_formula(
+        initial_price: u64,
+        final_price: u64,
+        decay_speed: u64,
+        start_epoch: u64,
+        end_epoch: u64,
+        current_epoch: u64,
+    ): u64 {
+        let price_diff = initial_price - final_price;
+        // 1 - remaining_time / auction_duration => 1 - (end - current) / (end - start) => (current - start) / (end - start)
+        let numerator = current_epoch - start_epoch;
+        let denominator = end_epoch - start_epoch;
+        std::debug::print(&numerator);
+        std::debug::print(&denominator);
+
+        let decay_speed = decay_speed;
+        while (decay_speed > 0) {
+            price_diff  = price_diff * numerator;
+            price_diff  = price_diff / denominator;
+            decay_speed = decay_speed - 1;
+        };
+
+        // let decay_speed = decay_speed;
+        // while (decay_speed > 0) {
+        //     price_diff  = price_diff / denominator;
+        //     decay_speed = decay_speed - 1;
+        // };
+        
+        initial_price - price_diff
+    }
+
     public fun delivery<Token>(auction: &mut Auction<Token>, price: u64, size: u64, balance: &mut Balance<Token>): vector<Winner> {
         let winners = vector::empty();
         let index = 0;
@@ -156,5 +227,27 @@ module typus_dov::dutch {
         };
 
         winners
+    }
+
+    #[test]
+    fun test_decay_formula() {
+        use std::debug;
+
+        let initial_price = 5000000;
+        let final_price = 2350000;
+        let decay_speed = 2;
+        let start_epoch = 1669680000;
+        let end_epoch = 1669708800;
+        let current_epoch = 1669694400;
+
+        let price = decay_formula(
+            initial_price,
+            final_price,
+            decay_speed,
+            start_epoch,
+            end_epoch,
+            current_epoch,
+        );
+        debug::print(&price);
     }
 }
