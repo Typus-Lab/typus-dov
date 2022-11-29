@@ -29,6 +29,7 @@ module typus_dov::dutch {
     }
 
     struct Bid has copy, drop, store {
+        price: u64,
         size: u64,
         epoch: u64,
     }
@@ -78,15 +79,16 @@ module typus_dov::dutch {
         assert!(size != 0, E_ZERO_SIZE);
         let index = auction.index;
         let owner = tx_context::sender(ctx);
+        let price = get_decayed_price(auction, ctx);
         table::add(
             &mut auction.bids,
             index,
             Bid {
+                price,
                 size,
                 epoch: tx_context::epoch(ctx),
             }
         );
-        let price = get_decayed_price(auction, ctx);
         table::add(
             &mut auction.funds,
             index,
@@ -176,25 +178,17 @@ module typus_dov::dutch {
 
     public fun delivery<Token>(auction: &mut Auction<Token>, size: u64, balance: &mut Balance<Token>): vector<Winner> {
         // calculate decayed price
-        let epoch = auction.start_epoch;
+        let delivery_price = auction.price_config.initial_price;
         let index = 0;
         let sum = 0;
         while (sum < size && index < auction.index) {
             if (table::contains(&auction.bids, index)) {
                 let bid = table::borrow(&auction.bids, index);
                 sum = sum + bid.size;
-                epoch = bid.epoch;
+                delivery_price = bid.price;
             };
             index = index + 1;
         };
-        let delivery_price = decay_formula(
-            auction.price_config.initial_price,
-            auction.price_config.final_price,
-            auction.price_config.decay_speed,
-            auction.start_epoch,
-            auction.end_epoch,
-            epoch,
-        );
 
         // delivery
         let winners = vector::empty();
