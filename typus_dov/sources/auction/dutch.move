@@ -86,11 +86,12 @@ module typus_dov::dutch {
                 epoch: tx_context::epoch(ctx),
             }
         );
+        let price = get_decayed_price(auction, ctx);
         table::add(
             &mut auction.funds,
             index,
             Fund {
-                coin: coin::split(coin, auction.price * size, ctx),
+                coin: coin::split(coin, price * size, ctx),
                 owner,
             }
         );
@@ -163,21 +164,12 @@ module typus_dov::dutch {
         // 1 - remaining_time / auction_duration => 1 - (end - current) / (end - start) => (current - start) / (end - start)
         let numerator = current_epoch - start_epoch;
         let denominator = end_epoch - start_epoch;
-        std::debug::print(&numerator);
-        std::debug::print(&denominator);
 
-        let decay_speed = decay_speed;
         while (decay_speed > 0) {
             price_diff  = price_diff * numerator;
             price_diff  = price_diff / denominator;
             decay_speed = decay_speed - 1;
         };
-
-        // let decay_speed = decay_speed;
-        // while (decay_speed > 0) {
-        //     price_diff  = price_diff / denominator;
-        //     decay_speed = decay_speed - 1;
-        // };
         
         initial_price - price_diff
     }
@@ -234,8 +226,8 @@ module typus_dov::dutch {
         use std::debug;
 
         let initial_price = 5000000;
-        let final_price = 2350000;
-        let decay_speed = 2;
+        let final_price = 3000000;
+        let decay_speed = 5;
         let start_epoch = 1669680000;
         let end_epoch = 1669708800;
         let current_epoch = 1669694400;
