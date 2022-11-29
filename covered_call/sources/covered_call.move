@@ -7,6 +7,7 @@ module typus_covered_call::covered_call {
     // use sui::event::emit;
 
     use typus_dov::vault::{Self, VaultRegistry};
+    use typus_dov::asset::Asset;
     use typus_covered_call::payoff::{Self, PayoffConfig};
     use typus_dov::dutch::Auction;
 
@@ -19,12 +20,21 @@ module typus_covered_call::covered_call {
 
     // ======== Functions =========
 
-    fun init(ctx: &mut TxContext) {
+    fun init_(ctx: &mut TxContext) {
         let manager_cap = vault::new_manager_cap<Config>(ctx);
 
         transfer::transfer(manager_cap, tx_context::sender(ctx));
 
         vault::new_vault_registry<Config>(ctx);
+    }
+
+    fun init(ctx: &mut TxContext) {
+        init_(ctx);
+    }
+
+    #[test_only]
+    public fun test_init(ctx: &mut TxContext) {
+        init_(ctx);
     }
 
     public fun get_payoff_config(config: &Config): &PayoffConfig {
@@ -34,11 +44,13 @@ module typus_covered_call::covered_call {
     // Entry Functions
     public entry fun new_covered_call_vault<T>(
         vault_registry: &mut VaultRegistry<Config>,
-        strike: u64,
         expiration_ts: u64,
+        asset: Asset,
+        strike: u64,
         ctx: &mut TxContext
     ){
         let payoff_config = payoff::new_payoff_config(
+            asset,
             strike,
             option::none(),
         );
