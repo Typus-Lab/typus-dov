@@ -79,7 +79,7 @@ module typus_shark_fin::settlement {
         let share_price_decimal = 8;
         let share_price_multiplier = utils::multiplier(share_price_decimal);
 
-        let rolling_user_balance_value_at_expired = vault::get_vault_deposit_value<T, Config>(vault_registry, expired_index, string::utf8(b"rolling"));
+        // let rolling_user_balance_value_at_expired = vault::get_vault_deposit_value<T, Config>(vault_registry, expired_index, string::utf8(b"rolling"));
         let rolling_user_share_supply_at_expired = vault::get_vault_share_supply<T, Config>(vault_registry, expired_index, string::utf8(b"rolling"));
 
         // combine share supply: use expired balance value instead of expired share
