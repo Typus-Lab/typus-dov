@@ -4,59 +4,94 @@ module typus_dov::convert{
 
     const E_NON_NUMBER_CHARACTER: u64 = 0;
 
-    public fun u8_to_string(value: u8): String {
-        let result = string::utf8(vector::empty());
+    public fun u8_to_bytes(value: u8): vector<u8> {
+        let bytes = vector::empty();
         while (value > 0) {
             let ascii_byte = ((value % 10 + 48) as u8);
-            string::insert(&mut result, 0, string::utf8(vector::singleton(ascii_byte)));
+            vector::push_back(&mut bytes, ascii_byte);
             value = value / 10;
         };
+        vector::reverse(&mut bytes);
 
-        result
+        bytes
+    }
+
+    public fun u16_to_bytes(value: u16): vector<u8> {
+        let bytes = vector::empty();
+        while (value > 0) {
+            let ascii_byte = ((value % 10 + 48) as u8);
+            vector::push_back(&mut bytes, ascii_byte);
+            value = value / 10;
+        };
+        vector::reverse(&mut bytes);
+
+        bytes
+    }
+
+    public fun u32_to_bytes(value: u32): vector<u8> {
+        let bytes = vector::empty();
+        while (value > 0) {
+            let ascii_byte = ((value % 10 + 48) as u8);
+            vector::push_back(&mut bytes, ascii_byte);
+            value = value / 10;
+        };
+        vector::reverse(&mut bytes);
+
+        bytes
+    }
+
+    public fun u64_to_bytes(value: u64): vector<u8> {
+        let bytes = vector::empty();
+        while (value > 0) {
+            let ascii_byte = ((value % 10 + 48) as u8);
+            vector::push_back(&mut bytes, ascii_byte);
+            value = value / 10;
+        };
+        vector::reverse(&mut bytes);
+
+        bytes
+    }
+
+    public fun u128_to_bytes(value: u128): vector<u8> {
+        let bytes = vector::empty();
+        while (value > 0) {
+            let ascii_byte = ((value % 10 + 48) as u8);
+            vector::push_back(&mut bytes, ascii_byte);
+            value = value / 10;
+        };
+        vector::reverse(&mut bytes);
+
+        bytes
+    }
+
+    public fun u8_to_string(value: u8): String {
+        let bytes = u8_to_bytes(value);
+
+        string::utf8(bytes)
     }
 
     public fun u16_to_string(value: u16): String {
-        let result = string::utf8(vector::empty());
-        while (value > 0) {
-            let ascii_byte = ((value % 10 + 48) as u8);
-            string::insert(&mut result, 0, string::utf8(vector::singleton(ascii_byte)));
-            value = value / 10;
-        };
+        let bytes = u16_to_bytes(value);
 
-        result
+        string::utf8(bytes)
     }
 
     public fun u32_to_string(value: u32): String {
-        let result = string::utf8(vector::empty());
-        while (value > 0) {
-            let ascii_byte = ((value % 10 + 48) as u8);
-            string::insert(&mut result, 0, string::utf8(vector::singleton(ascii_byte)));
-            value = value / 10;
-        };
+        let bytes = u32_to_bytes(value);
 
-        result
+        string::utf8(bytes)
     }
 
     public fun u64_to_string(value: u64): String {
-        let result = string::utf8(vector::empty());
-        while (value > 0) {
-            let ascii_byte = ((value % 10 + 48) as u8);
-            string::insert(&mut result, 0, string::utf8(vector::singleton(ascii_byte)));
-            value = value / 10;
-        };
+        let bytes = u64_to_bytes(value);
 
-        result
+        string::utf8(bytes)
     }
 
     public fun u128_to_string(value: u128): String {
-        let result = string::utf8(vector::empty());
-        while (value > 0) {
-            let ascii_byte = ((value % 10 + 48) as u8);
-            string::insert(&mut result, 0, string::utf8(vector::singleton(ascii_byte)));
-            value = value / 10;
-        };
+        let bytes = u128_to_bytes(value);
 
-        result
+        string::utf8(bytes)
     }
 
     public fun string_to_u8(value: String): u8 {
