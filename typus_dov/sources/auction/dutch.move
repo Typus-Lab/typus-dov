@@ -174,46 +174,71 @@ module typus_dov::dutch {
         initial_price - price_diff
     }
 
-    public fun delivery<Token>(auction: &mut Auction<Token>, price: u64, size: u64, balance: &mut Balance<Token>): vector<Winner> {
+    public fun delivery<Token>(auction: &mut Auction<Token>, size: u64, balance: &mut Balance<Token>): vector<Winner> {
+        // calculate decayed price
+        let epoch = auction.start_epoch;
+        let index = 0;
+        let sum = 0;
+        while (sum < size && index < auction.index) {
+            if (table::contains(&auction.bids, index)) {
+                let bid = table::borrow(&auction.bids, index);
+                sum = sum + bid.size;
+                epoch = bid.epoch;
+            };
+            index = index + 1;
+        };
+        let delivery_price = decay_formula(
+            auction.price_config.initial_price,
+            auction.price_config.final_price,
+            auction.price_config.decay_speed,
+            auction.start_epoch,
+            auction.end_epoch,
+            epoch,
+        );
+
+        // delivery
         let winners = vector::empty();
         let index = 0;
         while (!table::is_empty(&auction.bids)) {
-            // get market maker bid and fund
-            let bid = table::remove(&mut auction.bids, index);
-            let Fund {
-                coin,
-                owner
-            } = table::remove(&mut auction.funds, index);
-            if (size > 0) {
-                balance::join(balance, balance::split(coin::balance_mut(&mut coin), price * bid.size));
-                // filled
-                if (bid.size <= size) {
-                    size = size - bid.size;
-                    vector::push_back(
-                        &mut winners,
-                        Winner {
-                            owner,
-                            size: bid.size,
-                        },
-                    );
-                }
-                // partially filled
-                else {
-                    vector::push_back(
-                        &mut winners,
-                        Winner {
-                            owner,
-                            size,
-                        },
-                    );
-                    size = 0;
+            if (table::contains(&auction.bids, index)) {
+                // get market maker bid and fund
+                let bid = table::remove(&mut auction.bids, index);
+                let Fund {
+                    coin,
+                    owner
+                } = table::remove(&mut auction.funds, index);
+                if (size > 0) {
+                    balance::join(balance, balance::split(coin::balance_mut(&mut coin), delivery_price * bid.size));
+                    // filled
+                    if (bid.size <= size) {
+                        size = size - bid.size;
+                        vector::push_back(
+                            &mut winners,
+                            Winner {
+                                owner,
+                                size: bid.size,
+                            },
+                        );
+                    }
+                    // partially filled
+                    else {
+                        vector::push_back(
+                            &mut winners,
+                            Winner {
+                                owner,
+                                size,
+                            },
+                        );
+                        size = 0;
+                    };
+
                 };
-            };
-            if (coin::value(&coin) != 0) {
-                transfer::transfer(coin, owner);
-            }
-            else {
-                coin::destroy_zero(coin);
+                if (coin::value(&coin) != 0) {
+                    transfer::transfer(coin, owner);
+                }
+                else {
+                    coin::destroy_zero(coin);
+                };
             };
             index = index + 1;
         };
