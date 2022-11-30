@@ -93,6 +93,14 @@ module typus_covered_call::covered_call {
         // TODO: emit deposit event
     }
 
+    public entry fun unsubscribe<T>(
+        vault_registry: &mut VaultRegistry<Config>,
+        index: u64,
+        ctx: &mut TxContext
+    ){
+        vault::unsubscribe_user<T, Config, Auction<T>>(vault_registry, index, ctx);
+    }
+
 
     // ======== Events =========
 

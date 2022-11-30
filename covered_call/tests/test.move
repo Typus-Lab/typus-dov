@@ -45,7 +45,7 @@ module typus_covered_call::test {
             test_scenario::return_shared(registry)
         };
         test_scenario::next_tx(scenario, admin);
-        debug::print(&string::utf8(b"done"));
+        debug::print(&string::utf8(b"vault created"));
         scenario_val
     }
 
@@ -179,5 +179,67 @@ module typus_covered_call::test {
         test_scenario::end(scenario_val); 
 
         // scenario_val
+    }
+
+    #[test]
+    fun test_unsubscribe(){
+        let scenario_val = test_new_vault();
+        let scenario = &mut scenario_val;
+
+        let user1 = @0xBABE1;
+        let user2 = @0xBABE2;
+        let user1_scenario = test_scenario::begin(user1);
+        let user2_scenario = test_scenario::begin(user2);
+        
+        let registry = test_scenario::take_shared<VaultRegistry<Config>>(scenario);
+        let manager_cap = test_scenario::take_from_sender<ManagerCap<Config>>(scenario);
+
+        let ctx = test_scenario::ctx(scenario);
+        let user1_ctx = test_scenario::ctx(&mut user1_scenario);
+        let user2_ctx = test_scenario::ctx(&mut user2_scenario);
+
+        // init covered call vault 1
+        covered_call::new_covered_call_vault<SUI>(
+            &manager_cap,
+            &mut registry,
+            1,
+            b"BTC",
+            105,
+            ctx
+        );
+
+        // user deposit
+        let test_coin = coin::mint_for_testing<SUI>(1000000, user1_ctx);
+        let coin_amount = coin::value<SUI>(&test_coin);
+        covered_call::deposit<SUI>(&mut registry, 1, true, &mut test_coin, coin_amount, user1_ctx);
+        let test_coin_2 = coin::mint_for_testing<SUI>(500000, user2_ctx);
+        let coin_amount = coin::value<SUI>(&test_coin_2);
+        covered_call::deposit<SUI>(&mut registry, 1, false, &mut test_coin_2, coin_amount, user2_ctx);
+
+        debug::print(&string::utf8(b"after deposit"));
+        let deposit_value_1 = covered_call::get_sub_vault_deposit<SUI>(&mut registry, 1);
+        let share_supply_1 = covered_call::get_sub_vault_share_supply<SUI>(&mut registry, 1);
+        debug::print(&deposit_value_1);
+        debug::print(&share_supply_1);
+
+        covered_call::unsubscribe<SUI>(
+            &mut registry,
+            1,
+            user1_ctx
+        );
+
+        debug::print(&string::utf8(b"after unsubscribe"));
+        let deposit_value_1 = covered_call::get_sub_vault_deposit<SUI>(&mut registry, 1);
+        let share_supply_1 = covered_call::get_sub_vault_share_supply<SUI>(&mut registry, 1);
+        debug::print(&deposit_value_1);
+        debug::print(&share_supply_1);
+
+        coin::destroy_for_testing(test_coin);
+        coin::destroy_for_testing(test_coin_2);
+        test_scenario::return_shared(registry); 
+        test_scenario::return_to_sender<ManagerCap<Config>>(scenario, manager_cap);
+        test_scenario::end(scenario_val); 
+        test_scenario::end(user1_scenario); 
+        test_scenario::end(user2_scenario); 
     }
 }

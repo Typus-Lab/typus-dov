@@ -1,6 +1,6 @@
 module typus_dov::vault {
     use std::option::{Self, Option};
-    use std::string::String;
+    use std::string::{Self, String};
     use sui::balance::{Self, Balance};
     use sui::coin::Coin;
     use sui::dynamic_field;
@@ -11,6 +11,10 @@ module typus_dov::vault {
     use sui::tx_context::{Self, TxContext};
 
     use typus_dov::utils;
+
+    const E_USER_NOT_EXISTS: u64 = 777;
+    const E_USER_ALREADY_EXISTS: u64 = 778;
+    const E_SHARE_INSUFFICIENT : u64 = 888;
 
     // ======== Structs =========
 
@@ -118,6 +122,17 @@ module typus_dov::vault {
         amount
     }
 
+    public fun withdraw<T, C: store, A: store>(
+        vault_registry: &mut VaultRegistry<C>,
+        index: u64,
+        name: String,
+        amount: u64,
+    ): Balance<T> {
+        assert!(amount > 0, EZeroAmount);
+        let sub_vault = get_mut_sub_vault<T, C, A>(vault_registry, index, name);
+        balance::split<T>(&mut sub_vault.deposit, amount)
+    }
+
     public fun add_share<T, C: store, A: store>(
         vault_registry: &mut VaultRegistry<C>,
         index: u64,
@@ -137,6 +152,96 @@ module typus_dov::vault {
         } else {
             table::add(&mut sub_vault.users_table, sender, value);
         };
+    }
+
+    public fun remove_share<T, C: store, A: store>(
+        vault_registry: &mut VaultRegistry<C>,
+        index: u64,
+        name: String,
+        value: u64,
+        ctx: &mut TxContext
+    ) {
+        let sender = tx_context::sender(ctx);
+        let sub_vault = get_mut_sub_vault<T, C, A>(vault_registry, index, name);
+
+        sub_vault.share_supply = sub_vault.share_supply - value;
+
+        // check exist
+        assert!(table::contains(& sub_vault.users_table, sender), E_USER_NOT_EXISTS);
+        assert!(
+            *table::borrow(&mut sub_vault.users_table, sender) >= value,
+            E_SHARE_INSUFFICIENT
+        );
+        let v = table::borrow_mut(&mut sub_vault.users_table, sender);
+        *v = *v - value;
+        if (*v == 0) {
+            table::remove<address, u64>(&mut sub_vault.users_table, sender);
+        } 
+    }
+
+    public fun unsubscribe_user<T, C: store, A: store>(
+        vault_registry: &mut VaultRegistry<C>,
+        index: u64,
+        ctx: &mut TxContext
+    ){
+        let sender = tx_context::sender(ctx);
+        let contains_in_rolling = table::contains<address, u64>(
+            get_vault_users_table<T, C, A>(
+                vault_registry,
+                index,
+                string::utf8(b"rolling")
+            ),
+            sender
+        );
+        assert!(contains_in_rolling == true, E_USER_NOT_EXISTS);
+
+        let contains_in_regular = table::contains<address, u64>(
+            get_vault_users_table<T, C, A>(
+                vault_registry,
+                index,
+                string::utf8(b"regular")
+            ),
+            sender
+        );
+        assert!(contains_in_regular == false, E_USER_ALREADY_EXISTS);
+
+        let sub_vault = get_mut_sub_vault<T, C, A>(
+            vault_registry,
+            index,
+            string::utf8(b"rolling")
+        );
+        let user_share = table::borrow<address, u64>(
+            &sub_vault.users_table,
+            sender
+        );
+        // remove from rolling
+        let extracted_balance = balance::split<T>(
+            &mut sub_vault.deposit,
+            *user_share
+        );
+        let extracted_balance_value = balance::value<T>(&extracted_balance);
+        remove_share<T, C, A>(
+            vault_registry,
+            index,
+            string::utf8(b"rolling"),
+            extracted_balance_value,
+            ctx
+        );
+
+        // deposit into regular
+        let sub_vault = get_mut_sub_vault<T, C, A>(
+            vault_registry,
+            index,
+            string::utf8(b"regular")
+        );
+        balance::join(&mut sub_vault.deposit, extracted_balance);
+        add_share<T, C, A>(
+            vault_registry,
+            index,
+            string::utf8(b"regular"),
+            extracted_balance_value,
+            ctx
+        );
     }
 
     fun get_mut_vault<T, C: store, A: store>(
