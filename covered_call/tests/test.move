@@ -17,9 +17,6 @@ module typus_covered_call::test {
         let admin = @0x1;
         let scenario_val = test_scenario::begin(admin);
         let scenario = &mut scenario_val;
-        {
-            covered_call::test_init(test_scenario::ctx(scenario));
-        };
         test_scenario::next_tx(scenario, admin);
         {
             let registry = test_scenario::take_shared<VaultRegistry<Config>>(scenario);

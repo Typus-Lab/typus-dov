@@ -20,21 +20,12 @@ module typus_covered_call::covered_call {
 
     // ======== Functions =========
 
-    fun init_(ctx: &mut TxContext) {
+    fun init(ctx: &mut TxContext) {
         let manager_cap = vault::new_manager_cap<Config>(ctx);
 
         transfer::transfer(manager_cap, tx_context::sender(ctx));
 
         vault::new_vault_registry<Config>(ctx);
-    }
-
-    fun init(ctx: &mut TxContext) {
-        init_(ctx);
-    }
-
-    #[test_only]
-    public fun test_init(ctx: &mut TxContext) {
-        init_(ctx);
     }
 
     public fun get_payoff_config(config: &Config): &PayoffConfig {
