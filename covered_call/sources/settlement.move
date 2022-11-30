@@ -2,9 +2,12 @@ module typus_covered_call::settlement {
     use std::string;
     use std::debug;
     use sui::table;
+    
     use typus_dov::utils;
     use typus_dov::i64;
     use typus_dov::vault::{Self, VaultRegistry};
+    use typus_dov::dutch::Auction;
+
     use typus_covered_call::payoff;
     use typus_covered_call::covered_call::{Self, Config};
 
@@ -20,7 +23,7 @@ module typus_covered_call::settlement {
         // TODO: check expiration_ts
 
         let payoff_config = covered_call::get_payoff_config(
-            vault::get_config<T, Config>(vault_registry, expired_index)
+            vault::get_config<T, Config, Auction<T>>(vault_registry, expired_index)
         );
 
         debug::print(payoff_config);
@@ -34,21 +37,21 @@ module typus_covered_call::settlement {
 
         // calculate payoff for vault user
         // -> mm payoff = - user total payoff
-        let user_balance_value = vault::get_vault_deposit_value<T, Config>(
+        let user_balance_value = vault::get_vault_deposit_value<T, Config, Auction<T>>(
             vault_registry,
             expired_index,
             string::utf8(b"rolling")
-        ) + vault::get_vault_deposit_value<T, Config>(
+        ) + vault::get_vault_deposit_value<T, Config, Auction<T>>(
             vault_registry,
             expired_index,
             string::utf8(b"regular")
         );
-        let rolling_share_supply = vault::get_vault_share_supply<T, Config>(
+        let rolling_share_supply = vault::get_vault_share_supply<T, Config, Auction<T>>(
             vault_registry,
             expired_index,
             string::utf8(b"rolling")
         );
-        let regular_share_supply = vault::get_vault_share_supply<T, Config>(
+        let regular_share_supply = vault::get_vault_share_supply<T, Config, Auction<T>>(
             vault_registry,
             expired_index,
             string::utf8(b"regular")
@@ -90,26 +93,26 @@ module typus_covered_call::settlement {
                 // Also rolling_user_payoff & regular_user_payoff are negative
                 // split user payoff and transfer to mm
                 let payoff_u64 = i64::as_u64(&i64::abs(&rolling_user_payoff));
-                let coin = vault::extract_subvault_deposit<T, Config>(
+                let coin = vault::extract_subvault_deposit<T, Config, Auction<T>>(
                     vault_registry,
                     expired_index,
                     string::utf8(b"rolling"),
                     payoff_u64
                 );
-                vault::join_subvault_deposit<T, Config>(
+                vault::join_subvault_deposit<T, Config, Auction<T>>(
                     vault_registry,
                     expired_index,
                     string::utf8(b"maker"),
                     coin
                 );
                 let payoff_u64 = i64::as_u64(&i64::abs(&regular_user_payoff));
-                let coin = vault::extract_subvault_deposit<T, Config>(
+                let coin = vault::extract_subvault_deposit<T, Config, Auction<T>>(
                     vault_registry,
                     expired_index,
                     string::utf8(b"regular"),
                     payoff_u64
                 );
-                vault::join_subvault_deposit<T, Config>(
+                vault::join_subvault_deposit<T, Config, Auction<T>>(
                     vault_registry,
                     expired_index,
                     string::utf8(b"maker"),
@@ -118,25 +121,25 @@ module typus_covered_call::settlement {
             } else if (!i64::is_neg(&user_total_payoff)){
                 // Also rolling_user_payoff & regular_user_payoff are positive
                 // split mm payoff and transfer to users
-                let coin = vault::extract_subvault_deposit<T, Config>(
+                let coin = vault::extract_subvault_deposit<T, Config, Auction<T>>(
                     vault_registry,
                     expired_index,
                     string::utf8(b"maker"),
                     i64::as_u64(&rolling_user_payoff)
                 );
-                vault::join_subvault_deposit<T, Config>(
+                vault::join_subvault_deposit<T, Config, Auction<T>>(
                     vault_registry,
                     expired_index,
                     string::utf8(b"rolling"),
                     coin
                 );
-                let coin = vault::extract_subvault_deposit<T, Config>(
+                let coin = vault::extract_subvault_deposit<T, Config, Auction<T>>(
                     vault_registry,
                     expired_index,
                     string::utf8(b"maker"),
                     i64::as_u64(&regular_user_payoff)
                 );
-                vault::join_subvault_deposit<T, Config>(
+                vault::join_subvault_deposit<T, Config, Auction<T>>(
                     vault_registry,
                     expired_index,
                     string::utf8(b"regular"),
@@ -153,28 +156,28 @@ module typus_covered_call::settlement {
         new_index: u64,
     ){
         // transfer deposit to new vault
-        let rolling_user_balance_value_at_expired = vault::get_vault_deposit_value<T, Config>(
+        let rolling_user_balance_value_at_expired = vault::get_vault_deposit_value<T, Config, Auction<T>>(
             vault_registry,
             expired_index,
             string::utf8(b"rolling")
         );
-        let coin = vault::extract_subvault_deposit<T, Config>(
+        let coin = vault::extract_subvault_deposit<T, Config, Auction<T>>(
             vault_registry, expired_index, string::utf8(b"rolling"),
             rolling_user_balance_value_at_expired
         );
-        vault::join_subvault_deposit<T, Config>(vault_registry, new_index, string::utf8(b"rolling"), coin);
+        vault::join_subvault_deposit<T, Config, Auction<T>>(vault_registry, new_index, string::utf8(b"rolling"), coin);
 
         // transfer shares to new vault
         // adjust the shares for new coming users and combine with table of old users
 
-        let rolling_user_share_supply_at_expired = vault::get_vault_share_supply<T, Config>(
+        let rolling_user_share_supply_at_expired = vault::get_vault_share_supply<T, Config, Auction<T>>(
             vault_registry,
             expired_index,
             string::utf8(b"rolling")
         );
 
         // combine share supply: use expired balance value instead of expired share
-        vault::add_share_supply<T, Config>(
+        vault::add_share_supply<T, Config, Auction<T>>(
             vault_registry,
             new_index,
             string::utf8(b"rolling"),
@@ -184,20 +187,20 @@ module typus_covered_call::settlement {
         // adjust user share
 
         let i = 0;
-        let n = vault::get_vault_num_user<T, Config>(vault_registry, expired_index, string::utf8(b"rolling"));
+        let n = vault::get_vault_num_user<T, Config, Auction<T>>(vault_registry, expired_index, string::utf8(b"rolling"));
         while (i < n) {
             let contains = table::contains<u64, address>(
-                vault::get_vault_user_map<T, Config>(vault_registry, expired_index, string::utf8(b"rolling")),
+                vault::get_vault_user_map<T, Config, Auction<T>>(vault_registry, expired_index, string::utf8(b"rolling")),
                 i
             );
             if (contains) {
-                let user_address = vault::get_user_address<T, Config>(
+                let user_address = vault::get_user_address<T, Config, Auction<T>>(
                     vault_registry,
                     expired_index,
                     string::utf8(b"rolling"),
                     i
                 );
-                let old_shares_at_expired = vault::get_user_share<T, Config>(
+                let old_shares_at_expired = vault::get_user_share<T, Config, Auction<T>>(
                     vault_registry,
                     expired_index,
                     string::utf8(b"rolling"),
@@ -211,11 +214,11 @@ module typus_covered_call::settlement {
                 // if this user also deposit in new vault
                 if (
                     table::contains<address, u64>(
-                        vault::get_mut_vault_users_table<T, Config>(vault_registry, new_index, string::utf8(b"rolling")),
+                        vault::get_mut_vault_users_table<T, Config, Auction<T>>(vault_registry, new_index, string::utf8(b"rolling")),
                         user_address
                     )
                 ){
-                    let user_share = vault::get_mut_user_share<T, Config>(
+                    let user_share = vault::get_mut_user_share<T, Config, Auction<T>>(
                         vault_registry,
                         new_index,
                         string::utf8(b"rolling"),
@@ -225,7 +228,7 @@ module typus_covered_call::settlement {
                 } else {
                     // if this user didn't deposit in new vault
                     table::add<address, u64>(
-                        vault::get_mut_vault_users_table<T, Config>(vault_registry, new_index, string::utf8(b"rolling")),
+                        vault::get_mut_vault_users_table<T, Config, Auction<T>>(vault_registry, new_index, string::utf8(b"rolling")),
                         user_address,
                         user_balance_value_at_expired
                     );

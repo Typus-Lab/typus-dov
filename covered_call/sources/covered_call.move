@@ -36,7 +36,7 @@ module typus_covered_call::covered_call {
     }
 
     public fun set_premium_roi<T>(manager_cap: &ManagerCap<Config>, vault_registry: &mut VaultRegistry<Config>, index: u64, premium_roi: u64) {
-        let config = vault::get_mut_config<T, Config>(manager_cap, vault_registry, index);
+        let config = vault::get_mut_config<T, Config, Auction<T>>(manager_cap, vault_registry, index);
         payoff::set_premium_roi(&mut config.payoff_config, premium_roi);
     }
 
@@ -86,9 +86,9 @@ module typus_covered_call::covered_call {
             string::utf8(b"regular")
         };
 
-        let value = vault::deposit<T, Config>(vault_registry, index, name, coin, amount);
+        let value = vault::deposit<T, Config, Auction<T>>(vault_registry, index, name, coin, amount);
 
-        vault::add_share<T, Config>(vault_registry, index, name, value, ctx);
+        vault::add_share<T, Config, Auction<T>>(vault_registry, index, name, value, ctx);
 
         // TODO: emit deposit event
     }
@@ -112,9 +112,9 @@ module typus_covered_call::covered_call {
     #[test_only]
     public fun get_sub_vault_deposit<T>(vault_registry: &mut VaultRegistry<Config>, index: u64): vector<u64> {
         use std::vector;
-        let deposit_value_rolling = vault::get_vault_deposit_value<T, Config>(vault_registry, index, string::utf8(b"rolling"));
-        let deposit_value_regular = vault::get_vault_deposit_value<T, Config>(vault_registry, index, string::utf8(b"regular"));
-        let deposit_value_mm = vault::get_vault_deposit_value<T, Config>(vault_registry, index, string::utf8(b"maker"));
+        let deposit_value_rolling = vault::get_vault_deposit_value<T, Config, Auction<T>>(vault_registry, index, string::utf8(b"rolling"));
+        let deposit_value_regular = vault::get_vault_deposit_value<T, Config, Auction<T>>(vault_registry, index, string::utf8(b"regular"));
+        let deposit_value_mm = vault::get_vault_deposit_value<T, Config, Auction<T>>(vault_registry, index, string::utf8(b"maker"));
         let vec = vector::empty<u64>();
         vector::push_back<u64>(&mut vec, deposit_value_rolling);
         vector::push_back<u64>(&mut vec, deposit_value_regular);
@@ -124,9 +124,9 @@ module typus_covered_call::covered_call {
     #[test_only]
     public fun get_sub_vault_share_supply<T>(vault_registry: &mut VaultRegistry<Config>, index: u64): vector<u64> {
         use std::vector;
-        let share_supply_rolling = vault::get_vault_share_supply<T, Config>(vault_registry, index, string::utf8(b"rolling"));
-        let share_supply_regular = vault::get_vault_share_supply<T, Config>(vault_registry, index, string::utf8(b"regular"));
-        let share_supply_mm = vault::get_vault_share_supply<T, Config>(vault_registry, index, string::utf8(b"maker"));
+        let share_supply_rolling = vault::get_vault_share_supply<T, Config, Auction<T>>(vault_registry, index, string::utf8(b"rolling"));
+        let share_supply_regular = vault::get_vault_share_supply<T, Config, Auction<T>>(vault_registry, index, string::utf8(b"regular"));
+        let share_supply_mm = vault::get_vault_share_supply<T, Config, Auction<T>>(vault_registry, index, string::utf8(b"maker"));
         let vec = vector::empty<u64>();
         vector::push_back<u64>(&mut vec, share_supply_rolling);
         vector::push_back<u64>(&mut vec, share_supply_regular);

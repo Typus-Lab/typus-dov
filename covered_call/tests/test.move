@@ -12,6 +12,7 @@ module typus_covered_call::test {
 
     use typus_dov::i64;
     use typus_dov::asset;
+    use typus_dov::dutch::Auction;
     use typus_dov::vault::{Self, VaultRegistry, ManagerCap};
 
     use typus_covered_call::covered_call::{Self, Config};
@@ -38,7 +39,7 @@ module typus_covered_call::test {
                 105,
                 test_scenario::ctx(scenario)
             );
-            vault::get_vault<SUI, Config>(&registry, 0);     
+            vault::get_vault<SUI, Config, Auction<SUI>>(&registry, 0);     
 
             test_scenario::return_to_sender<ManagerCap<Config>>(scenario, manager_cap);
             test_scenario::return_shared(registry)
@@ -66,7 +67,7 @@ module typus_covered_call::test {
 
         test_scenario::next_tx(scenario, admin);
 
-        let share = vault::get_user_share<SUI, Config>(&mut registry, 0, string::utf8(b"rolling"), admin);
+        let share = vault::get_user_share<SUI, Config, Auction<SUI>>(&mut registry, 0, string::utf8(b"rolling"), admin);
 
         assert!(share == 1000, 0);
 
@@ -137,14 +138,14 @@ module typus_covered_call::test {
         // mm deposit
         let mm_test_coin = coin::mint_for_testing<SUI>(10000, ctx);
         let mm_coin_amount = coin::value<SUI>(&mm_test_coin);
-        let value = vault::deposit<SUI, Config>(
+        let value = vault::deposit<SUI, Config, Auction<SUI>>(
             &mut registry,
             1, 
             string::utf8(b"maker"),
             &mut mm_test_coin,
             mm_coin_amount
         );
-        vault::add_share<SUI, Config>(&mut registry, 1, string::utf8(b"maker"), value, ctx);
+        vault::add_share<SUI, Config, Auction<SUI>>(&mut registry, 1, string::utf8(b"maker"), value, ctx);
 
         debug::print(&string::utf8(b"before settle"));
         let deposit_value_1 = covered_call::get_sub_vault_deposit<SUI>(&mut registry, 1);
