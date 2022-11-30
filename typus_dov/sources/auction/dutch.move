@@ -6,15 +6,15 @@ module typus_dov::dutch {
     use sui::table::{Self, Table};
     use sui::transfer;
     use sui::tx_context::{Self, TxContext};
+    use typus_dov::unix_time::{Self, Time};
 
     const E_ZERO_SIZE: u64 = 0;
     const E_BID_NOT_EXISTS: u64 = 1;
 
     struct Auction<phantom Token> has key {
         id: UID,
-        start_ts: u64,
-        end_ts: u64,
-        price: u64,
+        start_ts_ms: u64,
+        end_ts_ms: u64,
         price_config: PriceConfig,
         index: u64,
         bids: Table<u64, Bid>,
@@ -31,7 +31,7 @@ module typus_dov::dutch {
     struct Bid has copy, drop, store {
         price: u64,
         size: u64,
-        ts: u64,
+        ts_ms: u64,
     }
 
     struct Fund<phantom Token> has store {
@@ -45,19 +45,17 @@ module typus_dov::dutch {
     }
 
     public fun new<Token>(
-        start_ts: u64,
-        end_ts: u64,
+        start_ts_ms: u64,
+        end_ts_ms: u64,
         decay_speed: u64,
         initial_price: u64,
         final_price: u64,
-        price: u64,
         ctx: &mut TxContext,
     ): Auction<Token> {
         Auction {
             id: object::new(ctx),
-            start_ts,
-            end_ts,
-            price,
+            start_ts_ms,
+            end_ts_ms,
             price_config: PriceConfig {
                 decay_speed,
                 initial_price,
@@ -86,7 +84,7 @@ module typus_dov::dutch {
             Bid {
                 price,
                 size,
-                ts: tx_context::epoch(ctx),
+                ts_ms: tx_context::epoch(ctx),
             }
         );
         table::add(
@@ -139,14 +137,14 @@ module typus_dov::dutch {
     }
 
     public fun get_decayed_price<Token>(auction: &Auction<Token>, ctx: &TxContext): u64 {
-        let current_ts = tx_context::epoch(ctx);
+        let current_ts_ms = tx_context::epoch(ctx);
         decay_formula(
             auction.price_config.initial_price,
             auction.price_config.final_price,
             auction.price_config.decay_speed,
-            auction.start_ts,
-            auction.end_ts,
-            current_ts,
+            auction.start_ts_ms,
+            auction.end_ts_ms,
+            current_ts_ms,
         )
     }
 
@@ -158,14 +156,14 @@ module typus_dov::dutch {
         initial_price: u64,
         final_price: u64,
         decay_speed: u64,
-        start_ts: u64,
-        end_ts: u64,
-        current_ts: u64,
+        start_ts_ms: u64,
+        end_ts_ms: u64,
+        current_ts_ms: u64,
     ): u64 {
         let price_diff = initial_price - final_price;
         // 1 - remaining_time / auction_duration => 1 - (end - current) / (end - start) => (current - start) / (end - start)
-        let numerator = current_ts - start_ts;
-        let denominator = end_ts - start_ts;
+        let numerator = current_ts_ms - start_ts_ms;
+        let denominator = end_ts_ms - start_ts_ms;
 
         while (decay_speed > 0) {
             price_diff  = price_diff * numerator / denominator;
@@ -247,17 +245,17 @@ module typus_dov::dutch {
         let initial_price = 5000000;
         let final_price = 3000000;
         let decay_speed = 5;
-        let start_ts = 1669680000;
-        let end_ts = 1669708800;
-        let current_ts = 1669694400;
+        let start_ts_ms = 1669680000;
+        let end_ts_ms = 1669708800;
+        let current_ts_ms = 1669694400;
 
         let price = decay_formula(
             initial_price,
             final_price,
             decay_speed,
-            start_ts,
-            end_ts,
-            current_ts,
+            start_ts_ms,
+            end_ts_ms,
+            current_ts_ms,
         );
         debug::print(&price);
     }

@@ -10,7 +10,7 @@ module typus_dov::unix_time {
 
     struct Time has key {
         id: UID,
-        unix_ms: u64,
+        ts_ms: u64,
         epoch: u64,
     }
 
@@ -21,7 +21,7 @@ module typus_dov::unix_time {
     ) {
         let time = Time { 
             id: object::new(ctx),
-            unix_ms: 0,
+            ts_ms: 0,
             epoch: tx_context::epoch(ctx)
         };
 
@@ -34,20 +34,20 @@ module typus_dov::unix_time {
 
     public entry fun update(
         time: &mut Time,
-        _: &ManagerCap,
-        unix_ms: u64,
+        _manager_cap: &ManagerCap,
+        ts_ms: u64,
         ctx: &mut TxContext
     ) {
-        time.unix_ms = unix_ms;
+        time.ts_ms = ts_ms;
         time.epoch = tx_context::epoch(ctx);
-        emit(TimeEvent { unix_ms, epoch: tx_context::epoch(ctx) });
+        emit(TimeEvent { ts_ms, epoch: tx_context::epoch(ctx) });
     }
 
     public fun get_time(
         time: &Time
     ): (u64, u64) {
-        (time.unix_ms , time.epoch)
+        (time.ts_ms , time.epoch)
     }
 
-    struct TimeEvent has copy, drop { unix_ms: u64, epoch: u64 }
+    struct TimeEvent has copy, drop { ts_ms: u64, epoch: u64 }
 }

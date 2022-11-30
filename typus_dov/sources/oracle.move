@@ -36,7 +36,7 @@ module typus_dov::oracle {
 
     public entry fun update<T>(
         oracle: &mut Oracle<T>,
-        _: &ManagerCap<T>,
+        _manager_cap: &ManagerCap<T>,
         price: u64,
         unix_ms: u64,
         ctx: &mut TxContext
