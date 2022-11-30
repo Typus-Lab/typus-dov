@@ -11,14 +11,14 @@ module typus_dov::dutch {
     const E_ZERO_SIZE: u64 = 0;
     const E_BID_NOT_EXISTS: u64 = 1;
 
-    struct Auction<phantom Token> has key {
+    struct Auction<phantom T> has key {
         id: UID,
         start_ts_ms: u64,
         end_ts_ms: u64,
         price_config: PriceConfig,
         index: u64,
         bids: Table<u64, Bid>,
-        funds: Table<u64, Fund<Token>>,
+        funds: Table<u64, Fund<T>>,
         ownerships: Table<address, vector<u64>>
     }
 
@@ -34,8 +34,8 @@ module typus_dov::dutch {
         ts_ms: u64,
     }
 
-    struct Fund<phantom Token> has store {
-        coin: Coin<Token>,
+    struct Fund<phantom T> has store {
+        coin: Coin<T>,
         owner: address,
     }
 
@@ -44,14 +44,14 @@ module typus_dov::dutch {
         size: u64,
     }
 
-    public fun new<Token>(
+    public fun new<T>(
         start_ts_ms: u64,
         end_ts_ms: u64,
         decay_speed: u64,
         initial_price: u64,
         final_price: u64,
         ctx: &mut TxContext,
-    ): Auction<Token> {
+    ): Auction<T> {
         Auction {
             id: object::new(ctx),
             start_ts_ms,
@@ -68,10 +68,10 @@ module typus_dov::dutch {
         }
     }
 
-    public fun new_bid<Token>(
-        auction: &mut Auction<Token>,
+    public fun new_bid<T>(
+        auction: &mut Auction<T>,
         size: u64,
-        coin: &mut Coin<Token>,
+        coin: &mut Coin<T>,
         time: &Time,
         ctx: &mut TxContext,
     ) {
@@ -112,8 +112,8 @@ module typus_dov::dutch {
         }
     }
 
-    public fun remove_bid<Token>(
-        auction: &mut Auction<Token>,
+    public fun remove_bid<T>(
+        auction: &mut Auction<T>,
         owner: address,
         bid_index: u64,
     ) {
@@ -129,15 +129,15 @@ module typus_dov::dutch {
         transfer::transfer(coin, owner);
     }
 
-    public fun get_bid_by_index<Token>(auction: &Auction<Token>, index: u64): &Bid {
+    public fun get_bid_by_index<T>(auction: &Auction<T>, index: u64): &Bid {
         table::borrow(&auction.bids, index)
     }
 
-    public fun get_bids_index_by_address<Token>(auction: &Auction<Token>, owner: address): &vector<u64> {
+    public fun get_bids_index_by_address<T>(auction: &Auction<T>, owner: address): &vector<u64> {
         table::borrow(&auction.ownerships, owner)
     }
 
-    public fun get_decayed_price<Token>(auction: &Auction<Token>, time: &Time): u64 {
+    public fun get_decayed_price<T>(auction: &Auction<T>, time: &Time): u64 {
         decay_formula(
             auction.price_config.initial_price,
             auction.price_config.final_price,
@@ -173,7 +173,7 @@ module typus_dov::dutch {
         initial_price - price_diff
     }
 
-    public fun delivery<Token>(auction: &mut Auction<Token>, size: u64, balance: &mut Balance<Token>): vector<Winner> {
+    public fun delivery<T>(auction: &mut Auction<T>, size: u64, balance: &mut Balance<T>): vector<Winner> {
         // calculate decayed price
         let delivery_price = auction.price_config.initial_price;
         let index = 0;
