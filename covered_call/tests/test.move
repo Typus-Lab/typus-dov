@@ -5,12 +5,18 @@ module typus_covered_call::test {
     use sui::sui::SUI;
     use sui::balance;
     use sui::coin;
+
     use std::string;
     use std::debug;
+    use std::option;
 
+    use typus_dov::i64;
     use typus_dov::asset;
-    use typus_dov::vault::{Self, VaultRegistry};
+    use typus_dov::vault::{Self, VaultRegistry, ManagerCap};
+
     use typus_covered_call::covered_call::{Self, Config};
+    use typus_covered_call::settlement;
+    use typus_covered_call::payoff;
 
     #[test]
     fun test_new_vault(): Scenario {
@@ -22,8 +28,10 @@ module typus_covered_call::test {
         };
         test_scenario::next_tx(scenario, admin);
         {
+            let manager_cap = test_scenario::take_from_sender<ManagerCap<Config>>(scenario);
             let registry = test_scenario::take_shared<VaultRegistry<Config>>(scenario);
             covered_call::new_covered_call_vault<SUI>(
+                &manager_cap,
                 &mut registry,
                 1,
                 b"BTC",
@@ -32,6 +40,7 @@ module typus_covered_call::test {
             );
             vault::get_vault<SUI, Config>(&registry, 0);     
 
+            test_scenario::return_to_sender<ManagerCap<Config>>(scenario, manager_cap);
             test_scenario::return_shared(registry)
         };
         test_scenario::next_tx(scenario, admin);
@@ -69,11 +78,6 @@ module typus_covered_call::test {
 
     #[test]
     fun test_get_covered_call_payoff_by_price() {
-        use std::debug;
-        use std::option;
-        use typus_covered_call::payoff;
-        use typus_dov::i64;
-        
         let payoff_config = payoff::new_payoff_config(
             asset::new_asset(string::utf8(b"BTC"), 5000, 8),
             5500,
@@ -88,19 +92,10 @@ module typus_covered_call::test {
         if (i64::is_neg(&aa)){
             debug::print(&i64::neg(&aa));
         };
-
     }
 
     #[test]
     fun test_settle(){
-        use std::debug;
-        use sui::test_scenario;
-        use sui::sui::SUI;
-        use sui::coin;
-        use typus_covered_call::covered_call::{Self, Config};
-        use typus_covered_call::settlement;
-        use typus_dov::vault::{Self, ManagerCap};
-
         let scenario_val = test_new_vault();
         let scenario = &mut scenario_val;
         
@@ -111,6 +106,7 @@ module typus_covered_call::test {
 
         // init covered call vault 1
         covered_call::new_covered_call_vault<SUI>(
+            &manager_cap,
             &mut registry,
             1,
             b"BTC",
@@ -120,6 +116,7 @@ module typus_covered_call::test {
 
         // init covered call vault 2
         covered_call::new_covered_call_vault<SUI>(
+            &manager_cap,
             &mut registry,
             2,
             b"BTC",
