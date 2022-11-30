@@ -11,7 +11,7 @@ module typus_dov::sealed {
     use sui::tx_context::{Self, TxContext};
     use std::option::{Self, Option};
     use sui::ecdsa::{Self};
-    use std::debug;
+    // use std::debug;
 
     const E_ZERO_PRICE: u64 = 0;
     const E_ZERO_SIZE: u64 = 1;
@@ -148,7 +148,6 @@ module typus_dov::sealed {
         size: u64,
         blinding_factor: u64,
         coin: &mut Coin<Token>,
-        pubkey: &vector<u8>,
         ctx: &mut TxContext,
     ) {
         // assert!(tx_context::epoch(ctx) >= rfq.bid_closing_time, E_AUCTION_NOT_CLOSED);
@@ -166,26 +165,15 @@ module typus_dov::sealed {
         };
         let user_fund = table::borrow_mut(&mut auction.funds, bid_index);
     
-       // TODO - transfer quote coins for the trade
-        // table::add(
-        //     &mut auction.funds,
-        //     index,
-        //     Fund {
-        //         coin: coin::split(coin, auction.min_deposite, ctx),
-        //         owner,
-        //     }
-        // );
-
-        // let balance = balance::join(&mut coin::into_balance(user_fund.coin), coin::into_balance(&mut coin::split(coin, transfer_amount, ctx)));
-        // user_fund.coin = coin::from_balance(balance, ctx);
+        // transfer quote coins for the trade
         coin::join(&mut user_fund.coin, coin::split(coin, transfer_amount, ctx));
 
-        debug::print(&price);
-        debug::print(&size);
-        debug::print(&blinding_factor);
-        debug::print(&bid.commitment);
+        // debug::print(&price);
+        // debug::print(&size);
+        // debug::print(&blinding_factor);
+        // debug::print(&bid.commitment);
 
-        assert!(verify_bid_commitment(&bid.commitment, pubkey, price, size, blinding_factor), E_BID_COMMITMENT_MISMATCH);
+        assert!(verify_bid_commitment(&bid.commitment, price, size, blinding_factor), E_BID_COMMITMENT_MISMATCH);
         assert!(price != 0, E_ZERO_PRICE);
         assert!(size != 0, E_ZERO_SIZE);
         // TODO: remove bid if price=0 || size = 0
@@ -215,7 +203,6 @@ module typus_dov::sealed {
 
     fun verify_bid_commitment(
         commitment: &vector<u8>,
-        pubkey: &vector<u8>,
         price: u64,
         size: u64,
         blinding_factor: u64,
@@ -251,7 +238,9 @@ module typus_dov::sealed {
 
         // vector::destroy_empty(contents);
 
-        ecdsa::secp256k1_verify(commitment, pubkey, &msg_to_verify)
+        // recover pubkey from signature
+        let pubkey = ecdsa::ecrecover(commitment, &msg_to_verify);
+        ecdsa::secp256k1_verify(commitment, &pubkey, &msg_to_verify)
 
         // compare::cmp_bcs_bytes(&hash_to_verify, hash) == 0
     }
