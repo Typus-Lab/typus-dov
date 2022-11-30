@@ -10,6 +10,7 @@ module typus_dov::sealed {
     use sui::transfer;
     use sui::tx_context::{Self, TxContext};
     use std::option::{Self, Option};
+    use sui::ecdsa::{Self};
     use std::debug;
 
     const E_ZERO_PRICE: u64 = 0;
@@ -147,6 +148,7 @@ module typus_dov::sealed {
         size: u64,
         blinding_factor: u64,
         coin: &mut Coin<Token>,
+        pubkey: &vector<u8>,
         ctx: &mut TxContext,
     ) {
         // assert!(tx_context::epoch(ctx) >= rfq.bid_closing_time, E_AUCTION_NOT_CLOSED);
@@ -183,7 +185,7 @@ module typus_dov::sealed {
         debug::print(&blinding_factor);
         debug::print(&bid.commitment);
 
-        assert!(verify_bid_commitment(&bid.commitment, price, size, blinding_factor), E_BID_COMMITMENT_MISMATCH);
+        assert!(verify_bid_commitment(&bid.commitment, pubkey, price, size, blinding_factor), E_BID_COMMITMENT_MISMATCH);
         assert!(price != 0, E_ZERO_PRICE);
         assert!(size != 0, E_ZERO_SIZE);
         // TODO: remove bid if price=0 || size = 0
@@ -196,7 +198,7 @@ module typus_dov::sealed {
         
     }
 
-        /// auction winners to pay - anyone can call?
+    /// auction winners to pay
     public fun finalize_auction<Token>(
         auction: &mut Auction<Token>,
         ctx: &mut TxContext,
@@ -211,14 +213,47 @@ module typus_dov::sealed {
         // punish malicious bidders by taking their deposits
     }
 
-    /// TODO
     fun verify_bid_commitment(
-        _commitment: &vector<u8>,
-        _price: u64,
-        _size: u64,
-        _blinding_factor: u64
+        commitment: &vector<u8>,
+        pubkey: &vector<u8>,
+        price: u64,
+        size: u64,
+        blinding_factor: u64,
     ): bool {
-        true
+        let msg_to_verify = vector::empty();
+        let price_vec = u64_to_u8_vector(price);
+        let size_vec = u64_to_u8_vector(size);
+        let blinding_factor_vec = u64_to_u8_vector(blinding_factor);
+        
+        let i = 0;
+        let price_vec_len = vector::length(&price_vec);
+        while (i < price_vec_len) {
+            let elem: u8 = *vector::borrow(&price_vec, i);
+            vector::push_back(&mut msg_to_verify, elem);
+            i = i + 1;
+        };
+
+        let j = 0;
+        let size_vec_len = vector::length(&size_vec);
+        while (j < size_vec_len) {
+            let elem: u8 = *vector::borrow(&size_vec, j);
+            vector::push_back(&mut msg_to_verify, elem);
+            j = j + 1;
+        };
+
+        let k = 0;
+        let blinding_factor_vec_len = vector::length(&blinding_factor_vec);
+        while (j < blinding_factor_vec_len) {
+            let elem: u8 = *vector::borrow(&blinding_factor_vec, k);
+            vector::push_back(&mut msg_to_verify, elem);
+            k = k + 1;
+        };
+
+        // vector::destroy_empty(contents);
+
+        ecdsa::secp256k1_verify(commitment, pubkey, &msg_to_verify)
+
+        // compare::cmp_bcs_bytes(&hash_to_verify, hash) == 0
     }
 
     fun u64_to_u8_vector(num: u64): vector<u8> {
