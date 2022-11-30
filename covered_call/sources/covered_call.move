@@ -8,6 +8,7 @@ module typus_covered_call::covered_call {
 
     use typus_dov::vault::{Self, VaultRegistry};
     use typus_covered_call::payoff::{Self, PayoffConfig};
+    use typus_dov::dutch::Auction;
 
     // ======== Structs =========
 
@@ -47,13 +48,13 @@ module typus_covered_call::covered_call {
             expiration_ts
         };
 
-        let n = vault::new_vault<T, Config>(vault_registry, config, ctx);
+        let n = vault::new_vault<T, Config, Auction<T>>(vault_registry, config, ctx);
 
-        vault::new_sub_vault<T, Config>(vault_registry, n, string::utf8(b"rolling"), ctx);
+        vault::new_sub_vault<T, Config, Auction<T>>(vault_registry, n, string::utf8(b"rolling"), ctx);
 
-        vault::new_sub_vault<T, Config>(vault_registry, n, string::utf8(b"regular"), ctx);
+        vault::new_sub_vault<T, Config, Auction<T>>(vault_registry, n, string::utf8(b"regular"), ctx);
 
-        vault::new_sub_vault<T, Config>(vault_registry, n, string::utf8(b"maker"), ctx);
+        vault::new_sub_vault<T, Config, Auction<T>>(vault_registry, n, string::utf8(b"maker"), ctx);
     }
 
 

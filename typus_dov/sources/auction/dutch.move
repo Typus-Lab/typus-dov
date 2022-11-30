@@ -2,7 +2,6 @@ module typus_dov::dutch {
     use std::vector;
     use sui::balance::{Self, Balance};
     use sui::coin::{Self, Coin};
-    use sui::object::{Self, UID};
     use sui::table::{Self, Table};
     use sui::transfer;
     use sui::tx_context::{Self, TxContext};
@@ -11,8 +10,7 @@ module typus_dov::dutch {
     const E_ZERO_SIZE: u64 = 0;
     const E_BID_NOT_EXISTS: u64 = 1;
 
-    struct Auction<phantom T> has key {
-        id: UID,
+    struct Auction<phantom T> has store {
         start_ts_ms: u64,
         end_ts_ms: u64,
         price_config: PriceConfig,
@@ -53,7 +51,6 @@ module typus_dov::dutch {
         ctx: &mut TxContext,
     ): Auction<T> {
         Auction {
-            id: object::new(ctx),
             start_ts_ms,
             end_ts_ms,
             price_config: PriceConfig {
