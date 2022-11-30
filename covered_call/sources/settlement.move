@@ -265,14 +265,10 @@ module typus_covered_call::settlement {
         // stage: 0 = warmup, 1 = auction, 2 = on-going, 3 = expired, 4 = settled
     }
 
-
-
     // ======== Events =========
 
-    struct VaultCreated has copy, drop {
-        expired_date: u64,
-        fee_percent: u64,
-        deposit_limit: u64,
-        strike: u64,
+    // TODO: emit settle event
+    struct Settle has copy, drop {
+        settle_price: u64
     }
 }

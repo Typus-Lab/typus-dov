@@ -1,10 +1,11 @@
 module typus_covered_call::covered_call {
     use std::option;
-    use std::string;
+    use std::string::{Self, String};
 
     use sui::tx_context::{Self, TxContext};
     use sui::transfer;
     use sui::coin::Coin;
+    use sui::event::emit;
 
     use typus_dov::vault::{Self, ManagerCap, VaultRegistry};
     use typus_dov::asset;
@@ -22,18 +23,11 @@ module typus_covered_call::covered_call {
 
     fun init_(ctx: &mut TxContext) {
         let manager_cap = vault::new_manager_cap<Config>(ctx);
-
         transfer::transfer(manager_cap, tx_context::sender(ctx));
-
         vault::new_vault_registry<Config>(ctx);
     }
 
     fun init(ctx: &mut TxContext) {
-        init_(ctx);
-    }
-
-    #[test_only]
-    public fun test_init(ctx: &mut TxContext) {
         init_(ctx);
     }
 
@@ -46,34 +40,36 @@ module typus_covered_call::covered_call {
         payoff::set_premium_roi(&mut config.payoff_config, premium_roi);
     }
 
-    // Entry Functions
     public entry fun new_covered_call_vault<T>(
+        _: &ManagerCap<Config>,
         vault_registry: &mut VaultRegistry<Config>,
         expiration_ts: u64,
         asset_name: vector<u8>,
         strike: u64,
         ctx: &mut TxContext
     ){
+        // TODO:
         let price = 100;
         let price_decimal = 8;
+
+        let asset = string::utf8(asset_name);
         let payoff_config = payoff::new_payoff_config(
-            asset::new_asset(string::utf8(asset_name), price, price_decimal),
+            asset::new_asset(asset, price, price_decimal),
             strike,
             option::none(),
         );
-
-        let config = Config {
-            payoff_config,
-            expiration_ts
-        };
+        let config = Config { payoff_config, expiration_ts };
 
         let n = vault::new_vault<T, Config, Auction<T>>(vault_registry, config, ctx);
-
         vault::new_sub_vault<T, Config, Auction<T>>(vault_registry, n, string::utf8(b"rolling"), ctx);
-
         vault::new_sub_vault<T, Config, Auction<T>>(vault_registry, n, string::utf8(b"regular"), ctx);
-
         vault::new_sub_vault<T, Config, Auction<T>>(vault_registry, n, string::utf8(b"maker"), ctx);
+
+        emit(VaultCreated{
+            asset,
+            expiration_ts,
+            strike,
+        });
     }
 
     public entry fun deposit<T>(
@@ -93,8 +89,25 @@ module typus_covered_call::covered_call {
         let value = vault::deposit<T, Config>(vault_registry, index, name, coin, amount);
 
         vault::add_share<T, Config>(vault_registry, index, name, value, ctx);
+
+        // TODO: emit deposit event
     }
 
+
+    // ======== Events =========
+
+    struct VaultCreated has copy, drop {
+        asset: String,
+        expiration_ts: u64,
+        strike: u64,
+    }
+
+    // ======== Test =========
+
+    #[test_only]
+    public fun test_init(ctx: &mut TxContext) {
+        init_(ctx);
+    }
 
     #[test_only]
     public fun get_sub_vault_deposit<T>(vault_registry: &mut VaultRegistry<Config>, index: u64): vector<u64> {
@@ -120,48 +133,4 @@ module typus_covered_call::covered_call {
         vector::push_back<u64>(&mut vec, share_supply_mm);
         vec
     }
-
-
-
-    // ======== Events =========
-
-    struct VaultCreated has copy, drop {
-        expired_date: u64,
-        fee_percent: u64,
-        deposit_limit: u64,
-        strike: u64,
-    }
-
-    // Tests
-
-    // #[test]
-    // fun test_new_vault() {
-    //     use sui::test_scenario;
-    //     use std::debug;
-    //     use sui::sui::SUI;
-
-    //     let admin = @0x1;
-    //     let scenario_val = test_scenario::begin(admin);
-    //     let scenario = &mut scenario_val;
-    //     {
-    //         test_init(test_scenario::ctx(scenario));
-    //     };
-    //     test_scenario::next_tx(scenario, admin);
-    //     {
-    //         let registry = test_scenario::take_shared<VaultRegistry<Config>>(scenario);
-    //         new_covered_call_vault<SUI>(
-    //             &mut registry,
-    //             1,
-    //             b"BTC",
-    //             105,
-    //             test_scenario::ctx(scenario)
-    //         );
-    //         vault::get_vault<SUI, Config>(&registry, 0);     
-
-    //         test_scenario::return_shared(registry)
-    //     };
-    //     test_scenario::next_tx(scenario, admin);
-    //     debug::print(&string::utf8(b"done"));
-    //     test_scenario::end(scenario_val); 
-    // }
 }

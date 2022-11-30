@@ -60,8 +60,6 @@ module typus_covered_call::payoff {
         let strike = payoff_config.strike;
         let premium_roi = payoff_config.premium_roi;
 
-        
-        
         assert!(option::is_some(&premium_roi), E_NO_CONFIG_CONTAINS_NONE);
 
         let premium_roi = option::borrow<u64>(&premium_roi);
