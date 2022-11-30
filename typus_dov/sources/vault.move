@@ -93,6 +93,15 @@ module typus_dov::vault {
         table::add(&mut vault.sub_vaults, name, sub_vault);
     }
 
+    public fun new_auction<T, C: store, A: store>(
+        vault_registry: &mut VaultRegistry<C>,
+        index: u64, 
+        auction: A,
+    ) {
+        let vault = get_mut_vault<T, C, A>(vault_registry, index);
+        option::fill(&mut vault.auction, auction);
+    }
+
     public fun deposit<T, C: store, A: store>(
         vault_registry: &mut VaultRegistry<C>,
         index: u64,
