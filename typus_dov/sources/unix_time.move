@@ -49,5 +49,17 @@ module typus_dov::unix_time {
         (time.ts_ms , time.epoch)
     }
 
+    public fun get_ts_ms(
+        time: &Time
+    ): u64 {
+        time.ts_ms
+    }
+
+    public fun get_epoch(
+        time: &Time
+    ): u64 {
+        time.epoch
+    }
+
     struct TimeEvent has copy, drop { ts_ms: u64, epoch: u64 }
 }

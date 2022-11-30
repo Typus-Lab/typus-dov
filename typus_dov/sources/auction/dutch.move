@@ -72,19 +72,20 @@ module typus_dov::dutch {
         auction: &mut Auction<Token>,
         size: u64,
         coin: &mut Coin<Token>,
+        time: &Time,
         ctx: &mut TxContext,
     ) {
         assert!(size != 0, E_ZERO_SIZE);
         let index = auction.index;
         let owner = tx_context::sender(ctx);
-        let price = get_decayed_price(auction, ctx);
+        let price = get_decayed_price(auction, time);
         table::add(
             &mut auction.bids,
             index,
             Bid {
                 price,
                 size,
-                ts_ms: tx_context::epoch(ctx),
+                ts_ms: unix_time::get_ts_ms(time),
             }
         );
         table::add(
@@ -136,15 +137,14 @@ module typus_dov::dutch {
         table::borrow(&auction.ownerships, owner)
     }
 
-    public fun get_decayed_price<Token>(auction: &Auction<Token>, ctx: &TxContext): u64 {
-        let current_ts_ms = tx_context::epoch(ctx);
+    public fun get_decayed_price<Token>(auction: &Auction<Token>, time: &Time): u64 {
         decay_formula(
             auction.price_config.initial_price,
             auction.price_config.final_price,
             auction.price_config.decay_speed,
             auction.start_ts_ms,
             auction.end_ts_ms,
-            current_ts_ms,
+            unix_time::get_ts_ms(time) / 1000,
         )
     }
 
