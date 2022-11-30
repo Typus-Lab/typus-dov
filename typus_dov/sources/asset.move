@@ -7,9 +7,9 @@ module typus_dov::asset {
         price_decimal: u64
     }
 
-    public fun new_asset(name: &string::String, price: u64, price_decimal: u64): Asset{
+    public fun new_asset(name: string::String, price: u64, price_decimal: u64): Asset{
         Asset {
-            name: *name,
+            name: name,
             price: price,
             price_decimal: price_decimal
         }
@@ -21,5 +21,9 @@ module typus_dov::asset {
 
     public fun set_asset_price(asset: &mut Asset, price: u64) {
         asset.price = price;
+    }
+
+    public fun set_asset_price_decimal(asset: &mut Asset, price_decimal: u64) {
+        asset.price_decimal = price_decimal;
     }
 }

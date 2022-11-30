@@ -170,6 +170,15 @@ module typus_dov::vault {
         &vault.config
     }
 
+    public fun get_mut_config<T, C: store, A: store>(
+        _: &ManagerCap<C>,
+        vault_registry: &mut VaultRegistry<C>,
+        index: u64,
+    ): &mut C {
+        let vault = get_mut_vault<T, C, A>(vault_registry, index);
+        &mut vault.config
+    }
+
     public fun get_vault_deposit_value<T, C: store, A: store>(
         vault_registry: &VaultRegistry<C>,
         index: u64,

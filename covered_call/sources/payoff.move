@@ -2,9 +2,13 @@ module typus_covered_call::payoff {
     use std::option::{Self, Option};
     use typus_dov::i64::{Self, I64};
     use typus_dov::utils;
+    use typus_dov::asset::Asset;
 
     friend typus_covered_call::covered_call;
     friend typus_covered_call::settlement;
+
+    #[test_only]
+    friend typus_covered_call::test;
 
     // ======== Constants =========
 
@@ -17,6 +21,7 @@ module typus_covered_call::payoff {
     // ======== Structs =========
 
     struct PayoffConfig has store, drop {
+        asset: Asset,
         strike: u64,
         premium_roi: Option<u64>,
     }
@@ -28,14 +33,20 @@ module typus_covered_call::payoff {
     }
 
     public(friend) fun new_payoff_config(
+        asset: Asset,
         strike: u64,
         premium_roi: Option<u64>,
     ): PayoffConfig {
         PayoffConfig {
+            asset,
             strike,
             premium_roi,
         }
     }
+
+    public(friend) fun set_premium_roi(payoff_config: &mut PayoffConfig, premium_roi: u64) {
+        option::fill(&mut payoff_config.premium_roi, premium_roi);
+    } 
 
     // payoff represents the RoI per week
     /// e.g. a covered call vault:
@@ -43,42 +54,32 @@ module typus_covered_call::payoff {
     /// 1. given price = 4000, payoff return = premium = 1000
     /// 2. given price = 5500, payoff return = 1000 - ROI_DECIMAL * (5500 - 5000) / 5000 = -4000 = -999_000
     public fun get_covered_call_payoff_by_price(price: u64, payoff_config: &PayoffConfig): I64{
+        use std::debug;
+        use std::string;
         // get values from PayoffConfig
         let strike = payoff_config.strike;
         let premium_roi = payoff_config.premium_roi;
-        
+
         assert!(option::is_some(&premium_roi), E_NO_CONFIG_CONTAINS_NONE);
 
         let premium_roi = option::borrow<u64>(&premium_roi);
 
+        debug::print(&strike);
+        debug::print(premium_roi);
+        debug::print(&string::utf8(b"payoff:"));
+
         if (price < strike) {
+            debug::print(premium_roi);
             i64::from(*premium_roi)
         } else {
+            debug::print(&i64::sub(
+                &i64::from(*premium_roi),
+                &i64::from(utils::multiplier(ROI_DECIMAL) * (price - strike) / strike)
+            ));
             i64::sub(
                 &i64::from(*premium_roi),
                 &i64::from(utils::multiplier(ROI_DECIMAL) * (price - strike) / strike)
             )
         }
-    }
-
-    #[test]
-    fun test_get_covered_call_payoff_by_price() {
-        use std::debug;
-        use std::option;
-        
-        let payoff_config = new_payoff_config(
-            5000,
-            option::some<u64>(1000),
-        );
-        let aa = get_covered_call_payoff_by_price(
-            6000,
-            &payoff_config
-        );
-        debug::print(&i64::is_neg(&aa));
-        debug::print(&i64::abs(&aa));
-        if (i64::is_neg(&aa)){
-            debug::print(&i64::neg(&aa));
-        };
-
-    }
+    }    
 }
