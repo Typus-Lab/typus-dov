@@ -11,7 +11,6 @@ module typus_dov::sealed {
     use sui::tx_context::{Self, TxContext};
     use std::option::{Self, Option};
     use sui::ecdsa::{Self};
-    // use std::debug;
 
     const E_ZERO_PRICE: u64 = 0;
     const E_ZERO_SIZE: u64 = 1;
@@ -46,7 +45,10 @@ module typus_dov::sealed {
         index: u64,
         /// encrypted (price+size+blinding_factor) with zk proof function
         /// ==> or just using a hash function? or RSA function?
-        commitment: vector<u8>,
+        /// hash of the bid
+        bid_hash: vector<u8>,
+        /// encrypted bid info
+        encrypted_bid: vector<u8>,
         /// real price after revealing
         price: Option<u64>,
         /// real size after revealing
@@ -94,7 +96,8 @@ module typus_dov::sealed {
     /// submit a bid for auction - for bidders to call
     public entry fun new_bid<Token>(
         auction: &mut Auction<Token>,
-        commitment: vector<u8>,
+        bid_hash: vector<u8>,
+        encrypted_bid: vector<u8>,
         coin: &mut Coin<Token>, 
         ctx: &mut TxContext,
     ) {
@@ -106,7 +109,8 @@ module typus_dov::sealed {
             index,
             Bid {
                 index,
-                commitment,
+                bid_hash,
+                encrypted_bid,
                 price: option::none(),
                 size: option::none(),
                 blinding_factor: option::none(),
@@ -173,7 +177,7 @@ module typus_dov::sealed {
         // debug::print(&blinding_factor);
         // debug::print(&bid.commitment);
 
-        assert!(verify_bid_commitment(&bid.commitment, price, size, blinding_factor), E_BID_COMMITMENT_MISMATCH);
+        assert!(verify_bid_hash(&bid.bid_hash, price, size, blinding_factor), E_BID_COMMITMENT_MISMATCH);
         assert!(price != 0, E_ZERO_PRICE);
         assert!(size != 0, E_ZERO_SIZE);
         
@@ -184,14 +188,13 @@ module typus_dov::sealed {
        // TODO: sorting the bids
         
     }
-    
-    fun verify_bid_commitment(
-        commitment: &vector<u8>,
+
+    fun serialize_bid_info(
         price: u64,
         size: u64,
         blinding_factor: u64,
-    ): bool {
-        let msg_to_verify = vector::empty();
+    ): vector<u8> {
+        let serialized_bid_info = vector::empty();
         let price_vec = u64_to_u8_vector(price);
         let size_vec = u64_to_u8_vector(size);
         let blinding_factor_vec = u64_to_u8_vector(blinding_factor);
@@ -200,7 +203,7 @@ module typus_dov::sealed {
         let price_vec_len = vector::length(&price_vec);
         while (i < price_vec_len) {
             let elem: u8 = *vector::borrow(&price_vec, i);
-            vector::push_back(&mut msg_to_verify, elem);
+            vector::push_back(&mut serialized_bid_info, elem);
             i = i + 1;
         };
 
@@ -208,7 +211,7 @@ module typus_dov::sealed {
         let size_vec_len = vector::length(&size_vec);
         while (j < size_vec_len) {
             let elem: u8 = *vector::borrow(&size_vec, j);
-            vector::push_back(&mut msg_to_verify, elem);
+            vector::push_back(&mut serialized_bid_info, elem);
             j = j + 1;
         };
 
@@ -216,17 +219,27 @@ module typus_dov::sealed {
         let blinding_factor_vec_len = vector::length(&blinding_factor_vec);
         while (k < blinding_factor_vec_len) {
             let elem: u8 = *vector::borrow(&blinding_factor_vec, k);
-            vector::push_back(&mut msg_to_verify, elem);
+            vector::push_back(&mut serialized_bid_info, elem);
             k = k + 1;
         };
 
         // vector::destroy_empty(contents);
-
-        // recover pubkey from signature
-        let pubkey = ecdsa::ecrecover(commitment, &msg_to_verify);
-        ecdsa::secp256k1_verify(commitment, &pubkey, &msg_to_verify)
-
         // compare::cmp_bcs_bytes(&hash_to_verify, hash) == 0
+
+        serialized_bid_info
+    }
+
+    fun verify_bid_hash(
+        hash: &vector<u8>,
+        price: u64,
+        size: u64,
+        blinding_factor: u64,
+    ): bool {
+        // serialize bid info
+        let serialize_bid_info = serialize_bid_info(price, size, blinding_factor);
+        // compare with previous hash
+        let hash_to_verify = ecdsa::keccak256(&serialize_bid_info);
+        hash_to_verify == *hash
     }
 
     fun u64_to_u8_vector(num: u64): vector<u8> {
@@ -262,7 +275,8 @@ module typus_dov::sealed {
         vector::swap_remove(ownership, index);
         let Bid {
             index: _,
-            commitment: _,
+            bid_hash: _,
+            encrypted_bid: _,
             price: _,
             size: _,
             blinding_factor: _,
@@ -384,10 +398,17 @@ module typus_dov::sealed {
         // 1669346954
         let coin = coin::mint_for_testing<SUI>(1000000, test_scenario::ctx(&mut admin_scenario));
         let auction = new(20, 1669338020, 1669346954, test_scenario::ctx(&mut admin_scenario));
-
+        let serialize_bid_info = serialize_bid_info(10, 1, 124930);
+        debug::print(&serialize_bid_info);
+        let bid_hash = ecdsa::keccak256(&serialize_bid_info);
+        debug::print(&bid_hash);
+        
+        // the encryption should be done in sdk
+        let encrypted_bid = b"encrypted - i am user1, my sealed bid is (x,y) with blinding_factor z";
         new_bid(
             &mut auction,
-            b"i am user1, my sealed bid is (x,y) with blinding_factor z",
+            bid_hash,
+            encrypted_bid,
             &mut coin,
             test_scenario::ctx(&mut user1_scenario)
         );
@@ -395,15 +416,15 @@ module typus_dov::sealed {
         let bid = table::borrow(&auction.bids, 0);
         debug::print(bid);
 
-        // reveal_bid(
-        //     &mut auction,
-        //     0,
-        //     99,
-        //     1,
-        //     12384,
-        //     &mut coin,
-        //     test_scenario::ctx(&mut user1_scenario)
-        // );
+        reveal_bid(
+            &mut auction,
+            0,
+            10,
+            1,
+            124930,
+            &mut coin,
+            test_scenario::ctx(&mut user1_scenario)
+        );
 
 
         // /*
