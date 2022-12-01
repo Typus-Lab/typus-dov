@@ -211,7 +211,12 @@ module typus_covered_call::test {
         // user deposit
         let test_coin = coin::mint_for_testing<SUI>(1000000, user1_ctx);
         let coin_amount = coin::value<SUI>(&test_coin);
+        debug::print(&test_coin);
         covered_call::deposit<SUI>(&mut registry, 1, true, &mut test_coin, coin_amount, user1_ctx);
+        let test_coin_1 = coin::mint_for_testing<SUI>(300000, user1_ctx);
+        let coin_amount = coin::value<SUI>(&test_coin_1);
+        debug::print(&test_coin_1);
+        covered_call::deposit<SUI>(&mut registry, 1, false, &mut test_coin_1, coin_amount, user1_ctx);
         let test_coin_2 = coin::mint_for_testing<SUI>(500000, user2_ctx);
         let coin_amount = coin::value<SUI>(&test_coin_2);
         covered_call::deposit<SUI>(&mut registry, 1, false, &mut test_coin_2, coin_amount, user2_ctx);
@@ -235,6 +240,7 @@ module typus_covered_call::test {
         debug::print(&share_supply_1);
 
         coin::destroy_for_testing(test_coin);
+        coin::destroy_for_testing(test_coin_1);
         coin::destroy_for_testing(test_coin_2);
         test_scenario::return_shared(registry); 
         test_scenario::return_to_sender<ManagerCap<Config>>(scenario, manager_cap);

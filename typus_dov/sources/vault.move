@@ -112,14 +112,12 @@ module typus_dov::vault {
         name: String,
         coin: &mut Coin<T>,
         amount: u64,
-    ): u64 {
+    ) {
         assert!(amount > 0, EZeroAmount);
 
         let sub_vault = get_mut_sub_vault<T, C, A>(vault_registry, index, name);
         let balance = utils::extract_balance_from_coin(coin, amount);
-        let amount = balance::join(&mut sub_vault.deposit, balance);
-
-        amount
+        balance::join(&mut sub_vault.deposit, balance);
     }
 
     public fun withdraw<T, C: store, A: store>(
@@ -194,16 +192,6 @@ module typus_dov::vault {
             sender
         );
         assert!(contains_in_rolling == true, E_USER_NOT_EXISTS);
-
-        let contains_in_regular = table::contains<address, u64>(
-            get_vault_users_table<T, C, A>(
-                vault_registry,
-                index,
-                string::utf8(b"regular")
-            ),
-            sender
-        );
-        assert!(contains_in_regular == false, E_USER_ALREADY_EXISTS);
 
         let sub_vault = get_mut_sub_vault<T, C, A>(
             vault_registry,
