@@ -19,8 +19,7 @@ module typus_dov::utils {
 
     // extract balance from coin
     public fun extract_balance_from_coin<Token>(coin: &mut Coin<Token>, value: u64): Balance<Token> {
-        let balance = coin::balance_mut(coin);
-        balance::split(balance, value)
+        balance::split(coin::balance_mut(coin), value)
     }
 
     public fun merge_coins<Token>(coins: vector<Coin<Token>>): Coin<Token> {
