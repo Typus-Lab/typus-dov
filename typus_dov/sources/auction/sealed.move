@@ -343,14 +343,13 @@ module typus_dov::sealed {
         };
 
         // punish bidders with unrevealed bid
-        let sender = tx_context::sender(ctx);
         while (!vector::is_empty(&unrevealed_bids)) {
             let bid = vector::pop_back(&mut unrevealed_bids);
             let Fund {
                 coin,
                 owner: _,
             } = table::remove(&mut auction.funds, bid.index);
-            transfer::transfer(coin, sender);
+            balance::join(balance, coin::into_balance(coin));
         }
     }
     
