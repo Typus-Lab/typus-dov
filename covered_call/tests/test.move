@@ -138,14 +138,14 @@ module typus_covered_call::test {
         // mm deposit
         let mm_test_coin = coin::mint_for_testing<SUI>(10000, ctx);
         let mm_coin_amount = coin::value<SUI>(&mm_test_coin);
-        let value = vault::deposit<SUI, Config, Auction<SUI>>(
+        vault::deposit<SUI, Config, Auction<SUI>>(
             &mut registry,
             1, 
             string::utf8(b"maker"),
             &mut mm_test_coin,
             mm_coin_amount
         );
-        vault::add_share<SUI, Config, Auction<SUI>>(&mut registry, 1, string::utf8(b"maker"), value, ctx);
+        vault::add_share<SUI, Config, Auction<SUI>>(&mut registry, 1, string::utf8(b"maker"), mm_coin_amount, ctx);
 
         debug::print(&string::utf8(b"before settle"));
         let deposit_value_1 = covered_call::get_sub_vault_deposit<SUI>(&mut registry, 1);
