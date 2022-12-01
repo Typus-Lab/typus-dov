@@ -176,7 +176,6 @@ module typus_dov::sealed {
         assert!(verify_bid_commitment(&bid.commitment, price, size, blinding_factor), E_BID_COMMITMENT_MISMATCH);
         assert!(price != 0, E_ZERO_PRICE);
         assert!(size != 0, E_ZERO_SIZE);
-        // TODO: remove bid if price=0 || size = 0
         
         bid.price = option::some(price);
         bid.size = option::some(size);
@@ -185,22 +184,7 @@ module typus_dov::sealed {
        // TODO: sorting the bids
         
     }
-
-    /// auction winners to pay
-    public fun finalize_auction<Token>(
-        auction: &mut Auction<Token>,
-        ctx: &mut TxContext,
-    ) {
-        assert!(tx_context::epoch(ctx) >= auction.reveal_closing_time, E_REVEAL_NOT_CLOSED);
-        // TODO: 
-        // transfer winners' tokens (check if bidded size available - MIN(base_available, bid_size)) 
-        // to vault and send Items(amount = MIN(base_available, bid_size)) to winners    
-      
-        // refund losing bidder's tokens 
-        // refund honest bidders' deposits
-        // punish malicious bidders by taking their deposits
-    }
-
+    
     fun verify_bid_commitment(
         commitment: &vector<u8>,
         price: u64,
@@ -294,17 +278,26 @@ module typus_dov::sealed {
         table::borrow(&auction.ownerships, owner)
     }
 
-    public fun delivery<Token>(auction: &mut Auction<Token>, price: u64, size: u64, balance: &mut Balance<Token>) {
-        // sort the bids
+    public fun delivery<Token>(auction: &mut Auction<Token>, price: u64, size: u64, balance: &mut Balance<Token>, ctx: &mut TxContext) {
+        assert!(tx_context::epoch(ctx) >= auction.reveal_closing_time, E_REVEAL_NOT_CLOSED);
+        
+        // find valid bids and unvealed bids
         let bids = vector::empty();
+        let unrevealed_bids = vector::empty();
         let index = auction.index;
         while (index > 0) {
             if (table::contains(&auction.bids, index - 1)) {
                 let bid = table::borrow(&mut auction.bids, index - 1);
-                vector::push_back(&mut bids, *bid);
+                if (option::is_some(&bid.price) && option::is_some(&bid.size) && option::is_some(&bid.blinding_factor)) {
+                    vector::push_back(&mut bids, *bid);
+                } else {
+                    vector::push_back(&mut unrevealed_bids, *bid);
+                };
                 index = index - 1;
             }
         };
+
+        // sort the bids
         selection_sort<Token>(&mut bids);
 
         // matching
@@ -334,6 +327,17 @@ module typus_dov::sealed {
                 transfer::transfer(coin, owner);
             };
         };
+
+        // punish bidders with unrevealed bid
+        let sender = tx_context::sender(ctx);
+        while (!vector::is_empty(&unrevealed_bids)) {
+            let bid = vector::pop_back(&mut unrevealed_bids);
+            let Fund {
+                coin,
+                owner: _,
+            } = table::remove(&mut auction.funds, bid.index);
+            transfer::transfer(coin, sender);
+        }
     }
     
     fun selection_sort<Token>(bids: &mut vector<Bid>) {
