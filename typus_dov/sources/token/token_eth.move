@@ -1,4 +1,4 @@
-module typus_dov::tokenETH {
+module typus_dov::token_eth {
     use sui::tx_context::{Self, TxContext};
     use sui::transfer;
     use sui::object::{Self, UID};
@@ -15,7 +15,7 @@ module typus_dov::tokenETH {
 
     struct ETH has drop {}
 
-    public entry fun new(ctx: &mut TxContext){
+    fun init(ctx: &mut TxContext){
         let registry =  Registry {
             id: object::new(ctx),
             supply: balance::create_supply(ETH{}),

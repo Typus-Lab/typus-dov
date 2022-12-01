@@ -1,4 +1,4 @@
-module typus_dov::tokenUSDC {
+module typus_dov::token_btc {
     use sui::tx_context::{Self, TxContext};
     use sui::transfer;
     use sui::object::{Self, UID};
@@ -10,15 +10,15 @@ module typus_dov::tokenUSDC {
 
     struct Registry has key{
         id: UID,
-        supply: Supply<USDC>
+        supply: Supply<BTC>
     }
 
-    struct USDC has drop {}
+    struct BTC has drop {}
 
-    public entry fun new(ctx: &mut TxContext){
+    fun init(ctx: &mut TxContext){
         let registry =  Registry {
             id: object::new(ctx),
-            supply: balance::create_supply(USDC{}),
+            supply: balance::create_supply(BTC{}),
         };
 
         transfer::share_object(registry);

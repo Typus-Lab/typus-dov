@@ -1,4 +1,4 @@
-module typus_dov::tokenUSDT {
+module typus_dov::token_sui {
     use sui::tx_context::{Self, TxContext};
     use sui::transfer;
     use sui::object::{Self, UID};
@@ -10,15 +10,15 @@ module typus_dov::tokenUSDT {
 
     struct Registry has key{
         id: UID,
-        supply: Supply<USDT>
+        supply: Supply<SUI>
     }
 
-    struct USDT has drop {}
+    struct SUI has drop {}
 
-    public entry fun new(ctx: &mut TxContext){
+    fun init(ctx: &mut TxContext){
         let registry =  Registry {
             id: object::new(ctx),
-            supply: balance::create_supply(USDT{}),
+            supply: balance::create_supply(SUI{}),
         };
 
         transfer::share_object(registry);
