@@ -10,7 +10,8 @@ module typus_dov::sealed {
     use sui::transfer;
     use sui::tx_context::{Self, TxContext};
     use std::option::{Self, Option};
-    use sui::ecdsa::{Self};
+    use sui::bcs;
+    use std::hash;
 
     const E_ZERO_PRICE: u64 = 0;
     const E_ZERO_SIZE: u64 = 1;
@@ -195,34 +196,13 @@ module typus_dov::sealed {
         blinding_factor: u64,
     ): vector<u8> {
         let serialized_bid_info = vector::empty();
-        let price_vec = u64_to_u8_vector(price);
-        let size_vec = u64_to_u8_vector(size);
-        let blinding_factor_vec = u64_to_u8_vector(blinding_factor);
+        let price_vec = bcs::to_bytes(&price);
+        let size_vec =  bcs::to_bytes(&size);
+        let blinding_factor_vec =  bcs::to_bytes(&blinding_factor);
+        vector::append(&mut serialized_bid_info, size_vec); 
+        vector::append(&mut serialized_bid_info, price_vec); 
+        vector::append(&mut serialized_bid_info, blinding_factor_vec); 
         
-        let i = 0;
-        let price_vec_len = vector::length(&price_vec);
-        while (i < price_vec_len) {
-            let elem: u8 = *vector::borrow(&price_vec, i);
-            vector::push_back(&mut serialized_bid_info, elem);
-            i = i + 1;
-        };
-
-        let j = 0;
-        let size_vec_len = vector::length(&size_vec);
-        while (j < size_vec_len) {
-            let elem: u8 = *vector::borrow(&size_vec, j);
-            vector::push_back(&mut serialized_bid_info, elem);
-            j = j + 1;
-        };
-
-        let k = 0;
-        let blinding_factor_vec_len = vector::length(&blinding_factor_vec);
-        while (k < blinding_factor_vec_len) {
-            let elem: u8 = *vector::borrow(&blinding_factor_vec, k);
-            vector::push_back(&mut serialized_bid_info, elem);
-            k = k + 1;
-        };
-
         // vector::destroy_empty(contents);
         // compare::cmp_bcs_bytes(&hash_to_verify, hash) == 0
 
@@ -238,30 +218,8 @@ module typus_dov::sealed {
         // serialize bid info
         let serialize_bid_info = serialize_bid_info(price, size, blinding_factor);
         // compare with previous hash
-        let hash_to_verify = ecdsa::keccak256(&serialize_bid_info);
+        let hash_to_verify = hash::sha3_256(serialize_bid_info);
         hash_to_verify == *hash
-    }
-
-    fun u64_to_u8_vector(num: u64): vector<u8> {
-        let v1 = vector::empty();
-
-        while (num/10 > 0){
-            let rem = num%10;
-            vector::push_back(&mut v1, (rem+48 as u8));
-            num = num/10;
-        };
-
-        vector::push_back(&mut v1, (num+48 as u8));
-        vector::reverse(&mut v1);
-
-        v1
-    }
-
-    #[test]
-    public fun test_u64_to_u8_vector() {
-        use std::debug;
-        let res = u64_to_u8_vector(99);
-        debug::print(&res);
     }
 
     public fun remove_bid<Token>(
@@ -399,9 +357,10 @@ module typus_dov::sealed {
         let auction = new(20, 1669338020, 1669346954, test_scenario::ctx(&mut admin_scenario));
         let serialize_bid_info = serialize_bid_info(10, 1, 124930);
         debug::print(&serialize_bid_info);
-        let bid_hash = ecdsa::keccak256(&serialize_bid_info);
+        let bid_hash = hash::sha3_256(serialize_bid_info);
+
         debug::print(&bid_hash);
-        
+
         // the encryption should be done in sdk
         let encrypted_bid = b"encrypted - i am user1, my sealed bid is (x,y) with blinding_factor z";
         new_bid(
