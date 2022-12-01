@@ -189,7 +189,7 @@ module typus_dov::sealed {
         
     }
 
-    fun serialize_bid_info(
+    public fun serialize_bid_info(
         price: u64,
         size: u64,
         blinding_factor: u64,
