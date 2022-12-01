@@ -214,7 +214,7 @@ module typus_dov::sealed {
 
         let k = 0;
         let blinding_factor_vec_len = vector::length(&blinding_factor_vec);
-        while (j < blinding_factor_vec_len) {
+        while (k < blinding_factor_vec_len) {
             let elem: u8 = *vector::borrow(&blinding_factor_vec, k);
             vector::push_back(&mut msg_to_verify, elem);
             k = k + 1;
@@ -363,90 +363,116 @@ module typus_dov::sealed {
         }
     }
 
-    // #[test]
-    // fun test_auction_new_bid(): Auction<sui::sui::SUI> {
-    //     use std::vector;
-    //     use sui::coin;
-    //     use sui::sui::SUI;
-    //     use sui::table;
-    //     use sui::test_scenario;
+    #[test]
+    fun test_auction_new_bid(): Auction<sui::sui::SUI> {
+        // use std::vector;
+        use sui::coin;
+        use sui::sui::SUI;
+        use sui::table;
+        use sui::test_scenario;
+        use std::debug;
 
-    //     let admin = @0xFFFF;
-    //     let user1 = @0xBABE1;
-    //     let user2 = @0xBABE2;
-    //     let admin_scenario = test_scenario::begin(admin);
-    //     let user1_scenario = test_scenario::begin(user1);
-    //     let user2_scenario = test_scenario::begin(user2);
-    //     let coin = coin::mint_for_testing<SUI>(1000000, test_scenario::ctx(&mut admin_scenario));
-    //     let auction = new(test_scenario::ctx(&mut admin_scenario));
+        let admin = @0xFFFF;
+        let user1 = @0xBABE1;
+        let user2 = @0xBABE2;
+        let admin_scenario = test_scenario::begin(admin);
+        let user1_scenario = test_scenario::begin(user1);
+        let user2_scenario = test_scenario::begin(user2);
 
-    //     /*
-    //         bids[0] => bid{100, 1, user1}
-    //         ownerships[user1] => [0]
-    //     */
-    //     new_bid(&mut auction, 100, 1, &mut coin, test_scenario::ctx(&mut user1_scenario));
-    //     assert!(auction.index == 1, 1);
-    //     let bid = table::borrow(&auction.bids, 0);
-    //     let fund = table::borrow(&auction.funds, 0);
-    //     assert!(bid.price == 100 && bid.size == 1 && fund.owner == user1, 2);
-    //     let ownership = table::borrow(&auction.ownerships, user1);
-    //     assert!(vector::length(ownership) == 1, 3);
-    //     let bid_index = vector::borrow(ownership, 0);
-    //     assert!(*bid_index == 0, 4);
+        // 1669338020
+        // 1669343354
+        // 1669346954
+        let coin = coin::mint_for_testing<SUI>(1000000, test_scenario::ctx(&mut admin_scenario));
+        let auction = new(20, 1669338020, 1669346954, test_scenario::ctx(&mut admin_scenario));
 
-    //     /*
-    //         bids[1] => bid{200, 2, user2}
-    //         ownerships[user2] => [1]
-    //     */
-    //     new_bid(&mut auction, 200, 2, &mut coin, test_scenario::ctx(&mut user2_scenario));
-    //     assert!(auction.index == 2, 5);
-    //     let bid = table::borrow(&auction.bids, 1);
-    //     let fund = table::borrow(&auction.funds, 1);
-    //     assert!(bid.price == 200 && bid.size == 2 && fund.owner == user2, 6);
-    //     let ownership = table::borrow(&auction.ownerships, user2);
-    //     assert!(vector::length(ownership) == 1, 7);
-    //     let bid_index = vector::borrow(ownership, 0);
-    //     assert!(*bid_index == 1, 8);
+        new_bid(
+            &mut auction,
+            b"i am user1, my sealed bid is (x,y) with blinding_factor z",
+            &mut coin,
+            test_scenario::ctx(&mut user1_scenario)
+        );
+        assert!(auction.index == 1, 1);
+        let bid = table::borrow(&auction.bids, 0);
+        debug::print(bid);
 
-    //     /*
-    //         bids[2] => bid{300, 3, user1}
-    //         ownerships[user1] => [0, 2]
-    //     */
-    //     new_bid(&mut auction, 300, 3, &mut coin, test_scenario::ctx(&mut user1_scenario));
-    //     assert!(auction.index == 3, 9);
-    //     let bid = table::borrow(&auction.bids, 2);
-    //     let fund = table::borrow(&auction.funds, 2);
-    //     assert!(bid.price == 300 && bid.size == 3 && fund.owner == user1, 10);
-    //     let ownership = table::borrow(&auction.ownerships, user1);
-    //     assert!(vector::length(ownership) == 2, 11);
-    //     let bid_index = vector::borrow(ownership, 0);
-    //     assert!(*bid_index == 0, 12);
-    //     let bid_index = vector::borrow(ownership, 1);
-    //     assert!(*bid_index == 2, 13);
+        // reveal_bid(
+        //     &mut auction,
+        //     0,
+        //     99,
+        //     1,
+        //     12384,
+        //     &mut coin,
+        //     test_scenario::ctx(&mut user1_scenario)
+        // );
 
 
-    //     /*
-    //         bids[1] => bid{400, 4, user2}
-    //         ownerships[user2] => [1, 3]
-    //     */
-    //     new_bid(&mut auction, 400, 4, &mut coin, test_scenario::ctx(&mut user2_scenario));
-    //     assert!(auction.index == 4, 14);
-    //     let bid = table::borrow(&auction.bids, 3);
-    //     let fund = table::borrow(&auction.funds, 3);
-    //     assert!(bid.price == 400 && bid.size == 4 && fund.owner == user2, 15);
-    //     let ownership = table::borrow(&auction.ownerships, user2);
-    //     assert!(vector::length(ownership) == 2, 16);
-    //     let bid_index = vector::borrow(ownership, 0);
-    //     assert!(*bid_index == 1, 17);
-    //     let bid_index = vector::borrow(ownership, 1);
-    //     assert!(*bid_index == 3, 18);
+        // /*
+        //     bids[0] => bid{100, 1, user1}
+        //     ownerships[user1] => [0]
+        // */
+        // new_bid(&mut auction, 100, 1, &mut coin, test_scenario::ctx(&mut user1_scenario));
+        // assert!(auction.index == 1, 1);
+        // let bid = table::borrow(&auction.bids, 0);
+        // let fund = table::borrow(&auction.funds, 0);
+        // assert!(bid.price == 100 && bid.size == 1 && fund.owner == user1, 2);
+        // let ownership = table::borrow(&auction.ownerships, user1);
+        // assert!(vector::length(ownership) == 1, 3);
+        // let bid_index = vector::borrow(ownership, 0);
+        // assert!(*bid_index == 0, 4);
 
-    //     coin::destroy_for_testing(coin);
-    //     test_scenario::end(admin_scenario);
-    //     test_scenario::end(user1_scenario);
-    //     test_scenario::end(user2_scenario);
-    //     auction
-    // }
+        // /*
+        //     bids[1] => bid{200, 2, user2}
+        //     ownerships[user2] => [1]
+        // */
+        // new_bid(&mut auction, 200, 2, &mut coin, test_scenario::ctx(&mut user2_scenario));
+        // assert!(auction.index == 2, 5);
+        // let bid = table::borrow(&auction.bids, 1);
+        // let fund = table::borrow(&auction.funds, 1);
+        // assert!(bid.price == 200 && bid.size == 2 && fund.owner == user2, 6);
+        // let ownership = table::borrow(&auction.ownerships, user2);
+        // assert!(vector::length(ownership) == 1, 7);
+        // let bid_index = vector::borrow(ownership, 0);
+        // assert!(*bid_index == 1, 8);
+
+        // /*
+        //     bids[2] => bid{300, 3, user1}
+        //     ownerships[user1] => [0, 2]
+        // */
+        // new_bid(&mut auction, 300, 3, &mut coin, test_scenario::ctx(&mut user1_scenario));
+        // assert!(auction.index == 3, 9);
+        // let bid = table::borrow(&auction.bids, 2);
+        // let fund = table::borrow(&auction.funds, 2);
+        // assert!(bid.price == 300 && bid.size == 3 && fund.owner == user1, 10);
+        // let ownership = table::borrow(&auction.ownerships, user1);
+        // assert!(vector::length(ownership) == 2, 11);
+        // let bid_index = vector::borrow(ownership, 0);
+        // assert!(*bid_index == 0, 12);
+        // let bid_index = vector::borrow(ownership, 1);
+        // assert!(*bid_index == 2, 13);
+
+
+        // /*
+        //     bids[1] => bid{400, 4, user2}
+        //     ownerships[user2] => [1, 3]
+        // */
+        // new_bid(&mut auction, 400, 4, &mut coin, test_scenario::ctx(&mut user2_scenario));
+        // assert!(auction.index == 4, 14);
+        // let bid = table::borrow(&auction.bids, 3);
+        // let fund = table::borrow(&auction.funds, 3);
+        // assert!(bid.price == 400 && bid.size == 4 && fund.owner == user2, 15);
+        // let ownership = table::borrow(&auction.ownerships, user2);
+        // assert!(vector::length(ownership) == 2, 16);
+        // let bid_index = vector::borrow(ownership, 0);
+        // assert!(*bid_index == 1, 17);
+        // let bid_index = vector::borrow(ownership, 1);
+        // assert!(*bid_index == 3, 18);
+
+        coin::destroy_for_testing(coin);
+        test_scenario::end(admin_scenario);
+        test_scenario::end(user1_scenario);
+        test_scenario::end(user2_scenario);
+        auction
+    }
 
     // #[test]
     // fun test_auction_remove_bid_success(): Auction<sui::sui::SUI> {
