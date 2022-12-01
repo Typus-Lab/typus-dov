@@ -86,9 +86,9 @@ module typus_covered_call::covered_call {
             string::utf8(b"regular")
         };
 
-        let value = vault::deposit<T, Config, Auction<T>>(vault_registry, index, name, coin, amount);
+        vault::deposit<T, Config, Auction<T>>(vault_registry, index, name, coin, amount);
 
-        vault::add_share<T, Config, Auction<T>>(vault_registry, index, name, value, ctx);
+        vault::add_share<T, Config, Auction<T>>(vault_registry, index, name, amount, ctx);
 
         // TODO: emit deposit event
     }
