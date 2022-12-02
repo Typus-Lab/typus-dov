@@ -18,13 +18,10 @@ module typus_dov::vault {
     // ======== Errors ========
 
     const E_ZERO_AMOUNT: u64 = 0;
-    const E_USER_NOT_EXISTS: u64 = 1;
-    const E_USER_ALREADY_EXISTS: u64 = 2;
-    const E_SHARE_INSUFFICIENT : u64 = 3;
-    const E_DEPOSIT_DISABLED: u64 = 4;
-    const E_WITHDRAW_DISABLED: u64 = 5;
-    const E_SUBSCRIBE_DISABLED: u64 = 6;
-    const E_UNSUBSCRIBE_DISABLED: u64 = 7;
+    const E_DEPOSIT_DISABLED: u64 = 1;
+    const E_WITHDRAW_DISABLED: u64 = 2;
+    const E_SUBSCRIBE_DISABLED: u64 = 3;
+    const E_UNSUBSCRIBE_DISABLED: u64 = 4;
 
     // ======== Structs ========
 
