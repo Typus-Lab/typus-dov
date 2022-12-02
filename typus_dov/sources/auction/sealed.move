@@ -12,6 +12,7 @@ module typus_dov::sealed {
     use std::option::{Self, Option};
     use sui::bcs;
     use std::hash;
+    use typus_dov::unix_time::{Self, Time};
 
     const E_ZERO_PRICE: u64 = 0;
     const E_ZERO_SIZE: u64 = 1;
@@ -65,12 +66,13 @@ module typus_dov::sealed {
     }
 
     fun init(
+        time: &Time,
         ctx: &mut TxContext
     ) {
         transfer::share_object(new<sui::sui::SUI>(
             1000,
-            tx_context::epoch(ctx) + 60*60*24, // t+1
-            tx_context::epoch(ctx) + 60*60*24*2, // t+2
+            unix_time::get_ts_ms(time) + 60*60*24*1000, // t+1
+            unix_time::get_ts_ms(time) + 60*60*24*2*1000, // t+2
             ctx
         ));
     }
@@ -100,9 +102,10 @@ module typus_dov::sealed {
         bid_hash: vector<u8>,
         encrypted_bid: vector<u8>,
         coin: &mut Coin<Token>, 
+        time: &Time,
         ctx: &mut TxContext,
     ) {
-        assert!(tx_context::epoch(ctx) < auction.bid_closing_time, E_AUCTION_CLOSED);
+        assert!(unix_time::get_ts_ms(time) < auction.bid_closing_time, E_AUCTION_CLOSED);
         let index = auction.index;
         let owner = tx_context::sender(ctx);
         table::add(
@@ -153,11 +156,12 @@ module typus_dov::sealed {
         size: u64,
         blinding_factor: u64,
         coin: &mut Coin<Token>,
+        time: &Time,
         ctx: &mut TxContext,
     ) {
-        // assert!(tx_context::epoch(ctx) >= rfq.bid_closing_time, E_AUCTION_NOT_CLOSED);
-        assert!(tx_context::epoch(ctx) < auction.reveal_closing_time, E_REVEAL_CLOSED);
-
+        let current_timestamp = unix_time::get_ts_ms(time);
+        assert!(current_timestamp >= auction.bid_closing_time, E_AUCTION_NOT_CLOSED);
+        assert!(current_timestamp < auction.reveal_closing_time, E_REVEAL_CLOSED);
         assert!(bid_index < auction.index, E_BID_NOT_EXISTS);
         let bid = table::borrow_mut(&mut auction.bids, bid_index);
         let owner = tx_context::sender(ctx);
@@ -173,11 +177,6 @@ module typus_dov::sealed {
         // transfer quote coins for the trade
         coin::join(&mut user_fund.coin, coin::split(coin, transfer_amount, ctx));
 
-        // debug::print(&price);
-        // debug::print(&size);
-        // debug::print(&blinding_factor);
-        // debug::print(&bid.commitment);
-
         assert!(verify_bid_hash(&bid.bid_hash, price, size, blinding_factor), E_BID_COMMITMENT_MISMATCH);
         assert!(price != 0, E_ZERO_PRICE);
         assert!(size != 0, E_ZERO_SIZE);
@@ -186,8 +185,6 @@ module typus_dov::sealed {
         bid.size = option::some(size);
         bid.blinding_factor = option::some(blinding_factor);
 
-       // TODO: sorting the bids
-        
     }
 
     public fun serialize_bid_info(
@@ -247,8 +244,14 @@ module typus_dov::sealed {
         table::borrow(&auction.ownerships, owner)
     }
 
-    public fun delivery<Token>(auction: &mut Auction<Token>, price: u64, size: u64, balance: &mut Balance<Token>, ctx: &mut TxContext) {
-        assert!(tx_context::epoch(ctx) >= auction.reveal_closing_time, E_REVEAL_NOT_CLOSED);
+    public fun delivery<Token>(
+        auction: &mut Auction<Token>,
+        price: u64,
+        size: u64,
+        balance: &mut Balance<Token>,
+        time: &Time,
+    ) {
+        assert!(unix_time::get_ts_ms(time) >= auction.reveal_closing_time, E_REVEAL_NOT_CLOSED);
         
         // find valid bids and unvealed bids
         let bids = vector::empty();
