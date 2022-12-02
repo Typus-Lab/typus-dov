@@ -294,7 +294,7 @@ module typus_dov::vault {
     ) {
         let sub_vault = get_mut_sub_vault<MANAGER, TOKEN, CONFIG, AUCTION>(vault_registry, vault_index, sub_vault_type);
         let amount = balance::value(&balance);
-        // charge coin
+        // join balance
         balance::join(&mut sub_vault.balance, balance);
         // add share
         sub_vault.share_supply = sub_vault.share_supply + amount;
@@ -314,7 +314,7 @@ module typus_dov::vault {
         user: address,
     ): Balance<TOKEN> {
         let sub_vault = get_mut_sub_vault<MANAGER, TOKEN, CONFIG, AUCTION>(vault_registry, vault_index, sub_vault_type);
-        // update user share
+        // remove share
         let amount = if (option::is_some(&amount)) {
             let amount = option::extract(&mut amount);
             if (amount < *table::borrow(&mut sub_vault.shares, user)) {
@@ -329,7 +329,7 @@ module typus_dov::vault {
         else {
             table::remove(&mut sub_vault.shares, user)
         };
-        // extract the balance
+        // extract balance
         balance::split<TOKEN>(&mut sub_vault.balance, amount)
     }
 
