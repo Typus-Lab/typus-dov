@@ -23,6 +23,8 @@ module typus_dov::vault {
     const E_WITHDRAW_DISABLED: u64 = 2;
     const E_SUBSCRIBE_DISABLED: u64 = 3;
     const E_UNSUBSCRIBE_DISABLED: u64 = 4;
+    const E_NEXT_VAULT_NOT_EXISTS: u64 = 5;
+    const E_NOT_YET_SETTLED: u64 = 6;
 
     // ======== Structs ========
 
@@ -150,6 +152,17 @@ module typus_dov::vault {
         vault_registry: &mut VaultRegistry<MANAGER, CONFIG>,
         vault_index: u64,
     ) {
+        let Vault {
+            config: _,
+            auction: _,
+            next_vault_index,
+            sub_vaults: _,
+            able_to_deposit: atd,
+            able_to_withdraw: atw,
+        } = get_vault<MANAGER, TOKEN, CONFIG, AUCTION>(vault_registry, vault_index);
+        assert!(option::is_some(next_vault_index), E_NEXT_VAULT_NOT_EXISTS);
+        assert!((!*atd && *atw), E_NOT_YET_SETTLED);
+
         // scale user shares
         let SubVault {
             balance,
@@ -186,7 +199,6 @@ module typus_dov::vault {
             let (user, share) = vec_map::pop(&mut scaled_shares);
             add_share(sub_vault, user, share);
         }
-
     }
 
     public fun deposit<MANAGER, TOKEN, CONFIG: store, AUCTION: store>(
