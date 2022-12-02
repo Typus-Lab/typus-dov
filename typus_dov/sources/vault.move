@@ -24,6 +24,8 @@ module typus_dov::vault {
     const E_USER_NOT_EXISTS: u64 = 1;
     const E_USER_ALREADY_EXISTS: u64 = 2;
     const E_SHARE_INSUFFICIENT : u64 = 3;
+    const E_DEPOSIT_DISABLED: u64 = 4;
+    const E_WITHDRAW_DISABLED: u64 = 5;
 
     // ======== Structs ========
 
@@ -36,7 +38,9 @@ module typus_dov::vault {
         config: CONFIG,
         auction: Option<AUCTION>,
         next_vault_index: Option<u64>,
-        sub_vaults: Table<vector<u8>, SubVault<TOKEN>>
+        sub_vaults: Table<vector<u8>, SubVault<TOKEN>>,
+        able_to_deposit: bool,
+        able_to_withdraw: bool,
     }
 
     struct SubVault<phantom TOKEN> has store {
@@ -77,6 +81,8 @@ module typus_dov::vault {
             auction: option::none(),
             next_vault_index: option::none(),
             sub_vaults: table::new(ctx),
+            able_to_deposit: true,
+            able_to_withdraw: true,
         };
         
         let rolling_vault = SubVault<TOKEN> {
@@ -155,11 +161,27 @@ module typus_dov::vault {
 
     // ======== Private Functions ========
 
+    fun get_vault<MANAGER, TOKEN, CONFIG: store, AUCTION: store>(
+        vault_registry: &VaultRegistry<MANAGER, CONFIG>,
+        vault_index: u64,
+    ): &Vault<MANAGER, TOKEN, CONFIG, AUCTION> {
+        dynamic_field::borrow<u64, Vault<MANAGER, TOKEN, CONFIG, AUCTION>>(&vault_registry.id, vault_index)
+    }
+
     fun get_mut_vault<MANAGER, TOKEN, CONFIG: store, AUCTION: store>(
         vault_registry: &mut VaultRegistry<MANAGER, CONFIG>,
         vault_index: u64,
     ): &mut Vault<MANAGER, TOKEN, CONFIG, AUCTION> {
         dynamic_field::borrow_mut<u64, Vault<MANAGER, TOKEN, CONFIG, AUCTION>>(&mut vault_registry.id, vault_index)
+    }
+
+    fun get_sub_vault<MANAGER, TOKEN, CONFIG: store, AUCTION: store>(
+        vault_registry: &VaultRegistry<MANAGER, CONFIG>,
+        vault_index: u64,
+        sub_vault_type: vector<u8>
+    ): &SubVault<TOKEN> {
+        let vault = get_vault<MANAGER, TOKEN, CONFIG, AUCTION>(vault_registry, vault_index);
+        table::borrow(&vault.sub_vaults, sub_vault_type)
     }
 
     fun get_mut_sub_vault<MANAGER, TOKEN, CONFIG: store, AUCTION: store>(
@@ -173,15 +195,16 @@ module typus_dov::vault {
 
     fun deposit_<MANAGER, TOKEN, CONFIG: store, AUCTION: store>(
         vault_registry: &mut VaultRegistry<MANAGER, CONFIG>,
-        index: u64,
+        vault_index: u64,
         sub_vault_type: vector<u8>,
         coin: &mut Coin<TOKEN>,
         amount: u64,
         ctx: &mut TxContext,
     ) {
+        assert!(get_vault<MANAGER, TOKEN, CONFIG, AUCTION>(vault_registry, vault_index).able_to_deposit, E_DEPOSIT_DISABLED);
         assert!(amount > 0, E_ZERO_AMOUNT);
 
-        let sub_vault = get_mut_sub_vault<MANAGER, TOKEN, CONFIG, AUCTION>(vault_registry, index, sub_vault_type);
+        let sub_vault = get_mut_sub_vault<MANAGER, TOKEN, CONFIG, AUCTION>(vault_registry, vault_index, sub_vault_type);
         // charge coin
         balance::join(&mut sub_vault.balance, balance::split(coin::balance_mut(coin), amount));
         // add share
@@ -195,16 +218,37 @@ module typus_dov::vault {
         };
     }
 
-    // public fun withdraw<MANAGER, TOKEN, CONFIG: store, AUCTION: store>(
-    //     vault_registry: &mut VaultRegistry<MANAGER, CONFIG>,
-    //     index: u64,
-    //     name: String,
-    //     amount: u64,
-    // ): Balance<T> {
-    //     assert!(amount > 0, E_ZERO_AMOUNT);
-    //     let sub_vault = get_mut_sub_vault<T, C, A>(vault_registry, index, name);
-    //     balance::split<T>(&mut sub_vault.deposit, amount)
-    // }
+    fun withdraw<MANAGER, TOKEN, CONFIG: store, AUCTION: store>(
+        vault_registry: &mut VaultRegistry<MANAGER, CONFIG>,
+        vault_index: u64,
+        sub_vault_type: vector<u8>,
+        amount: Option<u64>,
+        ctx: &mut TxContext,
+    ) {
+        assert!(get_vault<MANAGER, TOKEN, CONFIG, AUCTION>(vault_registry, vault_index).able_to_withdraw, E_WITHDRAW_DISABLED);
+
+        let sub_vault = get_mut_sub_vault<MANAGER, TOKEN, CONFIG, AUCTION>(vault_registry, vault_index, sub_vault_type);
+        let user = tx_context::sender(ctx);
+        // update user share
+        let amount = if (option::is_some(&amount)) {
+            let amount = option::extract(&mut amount);
+            if (amount < *table::borrow(&mut sub_vault.shares, user)) {
+                let user_share = table::borrow_mut(&mut sub_vault.shares, user);
+                *user_share = *user_share - amount;
+                amount
+            }
+            else {
+                table::remove(&mut sub_vault.shares, user)
+            }
+        }
+        else {
+            table::remove(&mut sub_vault.shares, user)
+        };
+        // refund to user
+        let balance = balance::split<TOKEN>(&mut sub_vault.balance, amount);
+        transfer::transfer(coin::from_balance(balance, ctx), user);
+        
+    }
 
     // public fun remove_share<MANAGER, TOKEN, CONFIG: store, AUCTION: store>(
     //     vault_registry: &mut VaultRegistry<MANAGER, CONFIG>,
