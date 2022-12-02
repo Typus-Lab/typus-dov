@@ -41,7 +41,7 @@ module typus_covered_call::test {
                 &mut price_oracle,
                 &oracle_key,
                 98,
-                1,
+                10000000,
                 test_scenario::ctx(scenario)
             );
 
@@ -125,7 +125,7 @@ module typus_covered_call::test {
             &mut price_oracle,
             &oracle_key,
             98,
-            1,
+            10000000,
             test_scenario::ctx(scenario)
         );
 
@@ -234,7 +234,7 @@ module typus_covered_call::test {
             &mut price_oracle,
             &oracle_key,
             98,
-            1,
+            10000000,
             test_scenario::ctx(scenario)
         );
 

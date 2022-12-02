@@ -36,6 +36,10 @@ module typus_covered_call::covered_call {
         &config.payoff_config
     }
 
+    public fun get_expiration_ts(config: &Config): &u64 {
+        &config.expiration_ts
+    }
+
     public fun set_premium_roi<T>(manager_cap: &ManagerCap<Config>, vault_registry: &mut VaultRegistry<Config>, index: u64, premium_roi: u64) {
         let config = vault::get_mut_config<T, Config, Auction<T>>(manager_cap, vault_registry, index);
         payoff::set_premium_roi(&mut config.payoff_config, premium_roi);
