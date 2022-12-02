@@ -23,6 +23,8 @@ module typus_dov::vault {
     const E_SHARE_INSUFFICIENT : u64 = 3;
     const E_DEPOSIT_DISABLED: u64 = 4;
     const E_WITHDRAW_DISABLED: u64 = 5;
+    const E_SUBSCRIBE_DISABLED: u64 = 6;
+    const E_UNSUBSCRIBE_DISABLED: u64 = 7;
 
     // ======== Structs ========
 
@@ -134,6 +136,7 @@ module typus_dov::vault {
         is_rolling: bool,
         ctx: &mut TxContext,
     ) {
+        assert!(get_vault<MANAGER, TOKEN, CONFIG, AUCTION>(vault_registry, vault_index).able_to_deposit, E_DEPOSIT_DISABLED);
         assert!(amount > 0, E_ZERO_AMOUNT);
 
         let user = tx_context::sender(ctx);
@@ -164,6 +167,7 @@ module typus_dov::vault {
         is_rolling: bool,
         ctx: &mut TxContext,
     ) {
+        assert!(get_vault<MANAGER, TOKEN, CONFIG, AUCTION>(vault_registry, vault_index).able_to_withdraw, E_WITHDRAW_DISABLED);
         let user = tx_context::sender(ctx);
         let balance = if (is_rolling) {
             withdraw_<MANAGER, TOKEN, CONFIG, AUCTION>(
@@ -186,33 +190,21 @@ module typus_dov::vault {
         transfer::transfer(coin::from_balance(balance, ctx), user);
     }
 
-    public fun unsubscribe<MANAGER, TOKEN, CONFIG: store, AUCTION: store>(
-        vault_registry: &mut VaultRegistry<MANAGER, CONFIG>,
-        vault_index: u64,
-        ctx: &mut TxContext
-    ) {
-        let user = tx_context::sender(ctx);
-        let balance = withdraw_<MANAGER, TOKEN, CONFIG, AUCTION>(
-            vault_registry,
-            vault_index,
-            C_VAULT_ROLLING,
-            option::none(),
-            user,
-        );
-        deposit_<MANAGER, TOKEN, CONFIG, AUCTION>(
-            vault_registry,
-            vault_index,
-            C_VAULT_REGULAR,
-            balance,
-            user,
-        );
-    }
-
     public fun subscribe<MANAGER, TOKEN, CONFIG: store, AUCTION: store>(
         vault_registry: &mut VaultRegistry<MANAGER, CONFIG>,
         vault_index: u64,
         ctx: &mut TxContext
     ) {
+        let Vault {
+            config: _,
+            auction: _,
+            next_vault_index: _,
+            sub_vaults: _,
+            able_to_deposit: atd,
+            able_to_withdraw: atw,
+        } = get_vault<MANAGER, TOKEN, CONFIG, AUCTION>(vault_registry, vault_index);
+        assert!((*atd && *atw) || (!*atd && !*atw), E_SUBSCRIBE_DISABLED);
+
         let user = tx_context::sender(ctx);
         let balance = withdraw_<MANAGER, TOKEN, CONFIG, AUCTION>(
             vault_registry,
@@ -225,6 +217,38 @@ module typus_dov::vault {
             vault_registry,
             vault_index,
             C_VAULT_ROLLING,
+            balance,
+            user,
+        );
+    }
+
+    public fun unsubscribe<MANAGER, TOKEN, CONFIG: store, AUCTION: store>(
+        vault_registry: &mut VaultRegistry<MANAGER, CONFIG>,
+        vault_index: u64,
+        ctx: &mut TxContext
+    ) {
+        let Vault {
+            config: _,
+            auction: _,
+            next_vault_index: _,
+            sub_vaults: _,
+            able_to_deposit: atd,
+            able_to_withdraw: atw,
+        } = get_vault<MANAGER, TOKEN, CONFIG, AUCTION>(vault_registry, vault_index);
+        assert!((*atd && *atw) || (!*atd && !*atw), E_UNSUBSCRIBE_DISABLED);
+
+        let user = tx_context::sender(ctx);
+        let balance = withdraw_<MANAGER, TOKEN, CONFIG, AUCTION>(
+            vault_registry,
+            vault_index,
+            C_VAULT_ROLLING,
+            option::none(),
+            user,
+        );
+        deposit_<MANAGER, TOKEN, CONFIG, AUCTION>(
+            vault_registry,
+            vault_index,
+            C_VAULT_REGULAR,
             balance,
             user,
         );
@@ -271,8 +295,6 @@ module typus_dov::vault {
         balance: Balance<TOKEN>,
         user: address,
     ) {
-        assert!(get_vault<MANAGER, TOKEN, CONFIG, AUCTION>(vault_registry, vault_index).able_to_deposit, E_DEPOSIT_DISABLED);
-
         let sub_vault = get_mut_sub_vault<MANAGER, TOKEN, CONFIG, AUCTION>(vault_registry, vault_index, sub_vault_type);
         let amount = balance::value(&balance);
         // charge coin
@@ -294,8 +316,6 @@ module typus_dov::vault {
         amount: Option<u64>,
         user: address,
     ): Balance<TOKEN> {
-        assert!(get_vault<MANAGER, TOKEN, CONFIG, AUCTION>(vault_registry, vault_index).able_to_withdraw, E_WITHDRAW_DISABLED);
-
         let sub_vault = get_mut_sub_vault<MANAGER, TOKEN, CONFIG, AUCTION>(vault_registry, vault_index, sub_vault_type);
         // update user share
         let amount = if (option::is_some(&amount)) {
