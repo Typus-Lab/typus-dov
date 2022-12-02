@@ -231,15 +231,12 @@ module typus_dov::sealed {
         let (bid_exist, index) = vector::index_of(ownership, &bid_index);
         assert!(bid_exist, E_BID_NOT_EXISTS);
         vector::swap_remove(ownership, index);
-        let Bid {
-            index: _,
-            bid_hash: _,
-            encrypted_bid: _,
-            price: _,
-            size: _,
-            blinding_factor: _,
-            owner: _,
-        } = table::remove(&mut auction.bids, bid_index);
+        table::remove(&mut auction.bids, bid_index);
+        let Fund {
+            coin,
+            owner,
+        } = table::remove(&mut auction.funds, bid_index);
+        transfer::transfer(coin, owner);
     }
 
     public fun get_bid_by_index<Token>(auction: &Auction<Token>, index: u64): &Bid {
