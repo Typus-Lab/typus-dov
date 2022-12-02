@@ -115,6 +115,25 @@ module typus_dov::vault {
         vault_index
     }
 
+    public fun new_next_vault<MANAGER, TOKEN, CONFIG: store, AUCTION: store>(
+        _manager_cap: &MANAGER,
+        vault_registry: &mut VaultRegistry<MANAGER, CONFIG>,
+        vault_index: u64,
+        config: CONFIG,
+        ctx: &mut TxContext
+    ): u64 {
+        let next_vault_index = new_vault<MANAGER, TOKEN, CONFIG, AUCTION>(
+            _manager_cap,
+            vault_registry,
+            config,
+            ctx,
+        );
+        let vault = get_mut_vault<MANAGER, TOKEN, CONFIG, AUCTION>(vault_registry, vault_index);
+        option::fill(&mut vault.next_vault_index, next_vault_index);
+        
+        next_vault_index
+    }
+
     public fun new_auction<MANAGER, TOKEN, CONFIG: store, AUCTION: store>(
         _manager_cap: &MANAGER,
         vault_registry: &mut VaultRegistry<MANAGER, CONFIG>,
