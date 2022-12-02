@@ -355,12 +355,9 @@ module typus_dov::sealed {
         // 1669346954
         let coin = coin::mint_for_testing<SUI>(1000000, test_scenario::ctx(&mut admin_scenario));
         let auction = new(20, 1669338020, 1669346954, test_scenario::ctx(&mut admin_scenario));
+       
         let serialize_bid_info = serialize_bid_info(10, 1, 124930);
-        debug::print(&serialize_bid_info);
         let bid_hash = hash::sha3_256(serialize_bid_info);
-
-        debug::print(&bid_hash);
-
         // the encryption should be done in sdk
         let encrypted_bid = b"encrypted - i am user1, my sealed bid is (x,y) with blinding_factor z";
         new_bid(
@@ -384,6 +381,37 @@ module typus_dov::sealed {
             test_scenario::ctx(&mut user1_scenario)
         );
 
+        let bid = table::borrow(&auction.bids, 0);
+        debug::print(bid);
+
+        // bid 2
+        let serialize_bid_info = serialize_bid_info(12, 3, 11112222);
+        let bid_hash = hash::sha3_256(serialize_bid_info);
+        // the encryption should be done in sdk
+        let encrypted_bid = b"encrypted - i am user1, my sealed bid is (x,y) with blinding_factor z";
+        new_bid(
+            &mut auction,
+            bid_hash,
+            encrypted_bid,
+            &mut coin,
+            test_scenario::ctx(&mut user2_scenario)
+        );
+        assert!(auction.index == 2, 1);
+        let bid = table::borrow(&auction.bids, 0);
+        debug::print(bid);
+
+        reveal_bid(
+            &mut auction,
+            1,
+            12,
+            3,
+            11112222,
+            &mut coin,
+            test_scenario::ctx(&mut user2_scenario)
+        );
+
+        let bid = table::borrow(&auction.bids, 1);
+        debug::print(bid);
 
         // /*
         //     bids[0] => bid{100, 1, user1}
@@ -453,30 +481,30 @@ module typus_dov::sealed {
         auction
     }
 
-    // #[test]
-    // fun test_auction_remove_bid_success(): Auction<sui::sui::SUI> {
-    //     let auction = test_auction_new_bid();
+    #[test]
+    fun test_auction_remove_bid_success(): Auction<sui::sui::SUI> {
+        let auction = test_auction_new_bid();
 
-    //     let user1 = @0xBABE1;
-    //     let user2 = @0xBABE2;
-    //     remove_bid(&mut auction, user1, 0);
-    //     remove_bid(&mut auction, user1, 2);
-    //     remove_bid(&mut auction, user2, 1);
-    //     remove_bid(&mut auction, user2, 3);
+        let user1 = @0xBABE1;
+        let user2 = @0xBABE2;
+        remove_bid(&mut auction, user1, 0);
+        // remove_bid(&mut auction, user1, 2);
+        remove_bid(&mut auction, user2, 1);
+        // remove_bid(&mut auction, user2, 3);
 
-    //     auction
-    // }
+        auction
+    }
 
-    // #[test]
-    // #[expected_failure]
-    // fun test_auction_remove_bid_failure(): Auction<sui::sui::SUI> {
-    //     let auction = test_auction_new_bid();
+    #[test]
+    #[expected_failure]
+    fun test_auction_remove_bid_failure(): Auction<sui::sui::SUI> {
+        let auction = test_auction_new_bid();
 
-    //     let monkey = @0x8787;
-    //     remove_bid(&mut auction, monkey, 0);
+        let monkey = @0x8787;
+        remove_bid(&mut auction, monkey, 0);
 
-    //     auction
-    // }
+        auction
+    }
 
     // #[test]
     // fun test_auction_sorting(): vector<Bid<sui::sui::SUI>> {
