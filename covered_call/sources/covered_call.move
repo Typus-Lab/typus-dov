@@ -11,7 +11,7 @@ module typus_covered_call::covered_call {
     use typus_dov::asset;
     use typus_covered_call::payoff::{Self, PayoffConfig};
     use typus_dov::dutch::Auction;
-    use typus_dov::oracle::{Self, Oracle};
+    use typus_oracle::oracle::{Self, Oracle};
 
     // ======== Structs =========
 

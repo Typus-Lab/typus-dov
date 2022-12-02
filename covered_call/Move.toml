@@ -5,6 +5,7 @@ version = "0.0.1"
 [dependencies]
 Sui = { git = "https://github.com/MystenLabs/sui.git", subdir = "crates/sui-framework", rev = "devnet" }
 typus_dov = { local = "../typus_dov"}
+typus_oracle = { local = "../../typus-oracle"}
 
 [addresses]
 typus_covered_call =  "0x0"

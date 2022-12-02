@@ -11,7 +11,7 @@ module typus_covered_call::settlement {
     use typus_covered_call::payoff;
     use typus_covered_call::covered_call::{Self, Config};
 
-    use typus_dov::oracle::{Self, Oracle};
+    use typus_oracle::oracle::{Self, Oracle};
 
     const E_VAULT_HAS_BEEN_SETTLED: u64 = 666;
 

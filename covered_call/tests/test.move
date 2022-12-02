@@ -15,7 +15,8 @@ module typus_covered_call::test {
     use typus_dov::asset;
     use typus_dov::dutch::Auction;
     use typus_dov::vault::{Self, VaultRegistry, ManagerCap};
-    use typus_dov::oracle;
+    // use typus_dov::oracle;
+    use typus_oracle::oracle;
 
     use typus_covered_call::covered_call::{Self, Config};
     use typus_covered_call::settlement;
@@ -34,13 +35,12 @@ module typus_covered_call::test {
         {
             let manager_cap = test_scenario::take_from_sender<ManagerCap<Config>>(scenario);
             let registry = test_scenario::take_shared<VaultRegistry<Config>>(scenario);
-            let (price_oracle, oracle_manager_cap) = oracle::test_new_oracle<SUI>(test_scenario::ctx(scenario));
+            let (price_oracle, oracle_key) = oracle::test_new_oracle<SUI>(8, test_scenario::ctx(scenario));
 
             oracle::update(
                 &mut price_oracle,
-                &oracle_manager_cap,
+                &oracle_key,
                 98,
-                8,
                 1,
                 test_scenario::ctx(scenario)
             );
@@ -58,7 +58,7 @@ module typus_covered_call::test {
 
             test_scenario::return_to_sender<ManagerCap<Config>>(scenario, manager_cap);
             test_scenario::return_shared(registry);
-            transfer::transfer(oracle_manager_cap, admin);
+            transfer::transfer(oracle_key, admin);
             transfer::transfer(price_oracle, admin);
         };
         test_scenario::next_tx(scenario, admin);
@@ -120,12 +120,11 @@ module typus_covered_call::test {
         let registry = test_scenario::take_shared<VaultRegistry<Config>>(scenario);
         let manager_cap = test_scenario::take_from_sender<ManagerCap<Config>>(scenario);
 
-        let (price_oracle, oracle_manager_cap) = oracle::test_new_oracle<SUI>(test_scenario::ctx(scenario));
+        let (price_oracle, oracle_key) = oracle::test_new_oracle<SUI>(8, test_scenario::ctx(scenario));
         oracle::update(
             &mut price_oracle,
-            &oracle_manager_cap,
+            &oracle_key,
             98,
-            8,
             1,
             test_scenario::ctx(scenario)
         );
@@ -209,7 +208,7 @@ module typus_covered_call::test {
         coin::destroy_for_testing(mm_test_coin);
         test_scenario::return_shared(registry); 
         test_scenario::return_to_sender<ManagerCap<Config>>(scenario, manager_cap);
-        transfer::transfer(oracle_manager_cap, tx_context::sender(test_scenario::ctx(scenario)));
+        transfer::transfer(oracle_key, tx_context::sender(test_scenario::ctx(scenario)));
         transfer::transfer(price_oracle, tx_context::sender(test_scenario::ctx(scenario)));
         test_scenario::end(scenario_val); 
     }
@@ -230,15 +229,15 @@ module typus_covered_call::test {
         let user1_ctx = test_scenario::ctx(&mut user1_scenario);
         let user2_ctx = test_scenario::ctx(&mut user2_scenario);
 
-        let (price_oracle, oracle_manager_cap) = oracle::test_new_oracle<SUI>(test_scenario::ctx(scenario));
+        let (price_oracle, oracle_key) = oracle::test_new_oracle<SUI>(8, test_scenario::ctx(scenario));
         oracle::update(
             &mut price_oracle,
-            &oracle_manager_cap,
+            &oracle_key,
             98,
-            8,
             1,
             test_scenario::ctx(scenario)
         );
+
 
         // init covered call vault 1
         covered_call::new_covered_call_vault<SUI>(
@@ -288,7 +287,7 @@ module typus_covered_call::test {
         test_scenario::return_shared(registry); 
         test_scenario::return_shared(price_oracle); 
         test_scenario::return_to_sender<ManagerCap<Config>>(scenario, manager_cap);
-        test_scenario::return_to_sender<oracle::ManagerCap<SUI>>(scenario, oracle_manager_cap);
+        test_scenario::return_to_sender<oracle::Key<SUI>>(scenario, oracle_key);
         test_scenario::end(scenario_val); 
         test_scenario::end(user1_scenario); 
         test_scenario::end(user2_scenario); 
