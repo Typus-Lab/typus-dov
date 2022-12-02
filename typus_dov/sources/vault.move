@@ -1,5 +1,6 @@
 module typus_dov::vault {
     use std::option::{Self, Option};
+    use sui::vec_map;
     use sui::balance::{Self, Balance};
     use sui::coin::{Self, Coin};
     use sui::dynamic_field;
@@ -142,6 +143,50 @@ module typus_dov::vault {
     ) {
         let vault = get_mut_vault<MANAGER, TOKEN, CONFIG, AUCTION>(vault_registry, vault_index);
         option::fill(&mut vault.auction, auction);
+    }
+
+    public fun rock_n_roll<MANAGER, TOKEN, CONFIG: store, AUCTION: store>(
+        _manager_cap: &MANAGER,
+        vault_registry: &mut VaultRegistry<MANAGER, CONFIG>,
+        vault_index: u64,
+    ) {
+        // scale user shares
+        let SubVault {
+            balance,
+            share_supply,
+            user_index,
+            users,
+            shares,
+        } = get_mut_sub_vault<MANAGER, TOKEN, CONFIG, AUCTION>(vault_registry, vault_index, C_VAULT_ROLLING);
+        let index = 0;
+        let total_balance = balance::value(balance);
+        let scaled_shares = vec_map::empty();
+        while (index < *user_index) {
+            if (table::contains(users, index)) {
+                let user = table::borrow(users, index);
+                if (table::contains(shares, *user)) {
+                    vec_map::insert(
+                        &mut scaled_shares,
+                        *user,
+                        *table::borrow(shares, *user) * total_balance / *share_supply
+                    );
+                }
+            };
+            index = index + 1;
+        };
+
+        // transfer balance to next vault
+        let balance = balance::split(balance, total_balance);
+        let next_vault_index = *option::borrow(&get_vault<MANAGER, TOKEN, CONFIG, AUCTION>(vault_registry, vault_index).next_vault_index);
+        let sub_vault = get_mut_sub_vault<MANAGER, TOKEN, CONFIG, AUCTION>(vault_registry, next_vault_index, C_VAULT_ROLLING);
+        balance::join(&mut sub_vault.balance, balance);
+
+        // add user shares to next vault
+        while (!vec_map::is_empty(&scaled_shares)) {
+            let (user, share) = vec_map::pop(&mut scaled_shares);
+            add_share(sub_vault, user, share);
+        }
+
     }
 
     public fun deposit<MANAGER, TOKEN, CONFIG: store, AUCTION: store>(
@@ -312,34 +357,47 @@ module typus_dov::vault {
         user: address,
     ) {
         let sub_vault = get_mut_sub_vault<MANAGER, TOKEN, CONFIG, AUCTION>(vault_registry, vault_index, sub_vault_type);
-        let amount = balance::value(&balance);
+        let share = balance::value(&balance);
         // join balance
         balance::join(&mut sub_vault.balance, balance);
         // add share
-        sub_vault.share_supply = sub_vault.share_supply + amount;
-        if (table::contains(&sub_vault.shares, user)){
-            let user_share = table::borrow_mut(&mut sub_vault.shares, user);
-            *user_share = *user_share + amount;
-        } else {
-            table::add(&mut sub_vault.shares, user, amount);
-        };
+        add_share(sub_vault, user, share);
     }
 
     fun withdraw_<MANAGER, TOKEN, CONFIG: store, AUCTION: store>(
         vault_registry: &mut VaultRegistry<MANAGER, CONFIG>,
         vault_index: u64,
         sub_vault_type: vector<u8>,
-        amount: Option<u64>,
+        share: Option<u64>,
         user: address,
     ): Balance<TOKEN> {
         let sub_vault = get_mut_sub_vault<MANAGER, TOKEN, CONFIG, AUCTION>(vault_registry, vault_index, sub_vault_type);
         // remove share
-        let amount = if (option::is_some(&amount)) {
-            let amount = option::extract(&mut amount);
-            if (amount < *table::borrow(&mut sub_vault.shares, user)) {
+        let share = remove_share(sub_vault, user , share);
+        // extract balance
+        let balance_amount = balance::value(&sub_vault.balance) * share / sub_vault.share_supply;
+        balance::split<TOKEN>(&mut sub_vault.balance, balance_amount)
+    }
+
+    fun add_share<TOKEN>(sub_vault: &mut SubVault<TOKEN>, user: address, share: u64) {
+        sub_vault.share_supply = sub_vault.share_supply + share;
+        if (table::contains(&sub_vault.shares, user)){
+            let user_share = table::borrow_mut(&mut sub_vault.shares, user);
+            *user_share = *user_share + share;
+        } else {
+            table::add(&mut sub_vault.users, sub_vault.user_index, user);
+            table::add(&mut sub_vault.shares, user, share);
+            sub_vault.user_index = sub_vault.user_index + 1;
+        };
+    }
+
+    fun remove_share<TOKEN>(sub_vault: &mut SubVault<TOKEN>, user: address, share: Option<u64>): u64 {
+        if (option::is_some(&share)) {
+            let share = option::extract(&mut share);
+            if (share < *table::borrow(&mut sub_vault.shares, user)) {
                 let user_share = table::borrow_mut(&mut sub_vault.shares, user);
-                *user_share = *user_share - amount;
-                amount
+                *user_share = *user_share - share;
+                share
             }
             else {
                 table::remove(&mut sub_vault.shares, user)
@@ -347,10 +405,7 @@ module typus_dov::vault {
         }
         else {
             table::remove(&mut sub_vault.shares, user)
-        };
-        // extract balance
-        let amount = balance::value(&sub_vault.balance) * amount / sub_vault.share_supply;
-        balance::split<TOKEN>(&mut sub_vault.balance, amount)
+        }
     }
 
 
