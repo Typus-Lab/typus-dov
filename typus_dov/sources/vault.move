@@ -130,7 +130,7 @@ module typus_dov::vault {
         );
         let vault = get_mut_vault<MANAGER, TOKEN, CONFIG, AUCTION>(vault_registry, vault_index);
         option::fill(&mut vault.next_vault_index, next_vault_index);
-        
+
         next_vault_index
     }
 
@@ -349,6 +349,7 @@ module typus_dov::vault {
             table::remove(&mut sub_vault.shares, user)
         };
         // extract balance
+        let amount = balance::value(&sub_vault.balance) * amount / sub_vault.share_supply;
         balance::split<TOKEN>(&mut sub_vault.balance, amount)
     }
 
