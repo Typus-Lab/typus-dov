@@ -11,6 +11,7 @@ module typus_dov::oracle {
     struct Oracle<phantom T> has key {
         id: UID,
         price: u64,
+        price_decimal: u64,
         unix_ms: u64,
         epoch: u64,
     }
@@ -23,6 +24,7 @@ module typus_dov::oracle {
         let oracle = Oracle<T> { 
             id: object::new(ctx),
             price: 0,
+            price_decimal: 0,
             unix_ms: 0,
             epoch: tx_context::epoch(ctx)
         };
@@ -38,18 +40,20 @@ module typus_dov::oracle {
         oracle: &mut Oracle<T>,
         _manager_cap: &ManagerCap<T>,
         price: u64,
+        price_decimal: u64,
         unix_ms: u64,
         ctx: &mut TxContext
     ) {
         oracle.price = price;
+        oracle.price_decimal = price_decimal;
         oracle.unix_ms = unix_ms;
         oracle.epoch = tx_context::epoch(ctx);
     }
 
     public fun get_oracle<T>(
         oracle: &Oracle<T>
-    ): (u64, u64, u64) {
-        (oracle.price, oracle.unix_ms, oracle.epoch)
+    ): (u64, u64, u64, u64) {
+        (oracle.price, oracle.price_decimal, oracle.unix_ms, oracle.epoch)
     }
 
     entry fun emit_epoch(ctx: &mut TxContext){
@@ -57,4 +61,19 @@ module typus_dov::oracle {
     }
 
     struct EpochEvent has copy, drop { epoch: u64 }
+
+    #[test_only]
+    public fun test_new_oracle<T>(
+        ctx: &mut TxContext
+    ): (Oracle<T>, ManagerCap<T>) {
+        let oracle = Oracle<T> { 
+            id: object::new(ctx),
+            price: 0,
+            price_decimal: 0,
+            unix_ms: 0,
+            epoch: tx_context::epoch(ctx)
+        };
+        let manager_cap = ManagerCap<T> { id: object::new(ctx) };
+        (oracle, manager_cap)
+    }
 }

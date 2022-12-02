@@ -11,6 +11,8 @@ module typus_covered_call::settlement {
     use typus_covered_call::payoff;
     use typus_covered_call::covered_call::{Self, Config};
 
+    use typus_dov::oracle::{Self, Oracle};
+
     const E_VAULT_HAS_BEEN_SETTLED: u64 = 666;
 
     // ======== Functions =========
@@ -248,9 +250,11 @@ module typus_covered_call::settlement {
     public entry fun settle_without_roll_over<T>(
         vault_registry: &mut VaultRegistry<Config>,
         expired_index: u64,
+        price_oracle: &Oracle<T>
     ){
-        // TODO: change to oracle price
-        let price = 95;
+        let (price, _, _, _) = oracle::get_oracle<T>(
+            price_oracle
+        );
         settle_internal<T>(vault_registry, expired_index, price);
     }
 
@@ -258,14 +262,14 @@ module typus_covered_call::settlement {
         vault_registry: &mut VaultRegistry<Config>,
         expired_index: u64,
         new_index: u64,
+        price_oracle: &Oracle<T>
     ) {
-        // TODO: change to oracle price
-        let price = 100;
+        let (price, _, _, _) = oracle::get_oracle<T>(
+            price_oracle
+        );
         settle_internal<T>(vault_registry, expired_index, price);
+        // TODO: new_index should be removed in the future
         settle_roll_over<T>(vault_registry, expired_index, new_index);
-        // adjust_vault_stage<T>(&mut expired_dov, 4);
-        // adjust_vault_stage<T>(&mut new_dov, 1);
-        // stage: 0 = warmup, 1 = auction, 2 = on-going, 3 = expired, 4 = settled
     }
 
     // ======== Events =========
@@ -274,4 +278,5 @@ module typus_covered_call::settlement {
     struct Settle has copy, drop {
         settle_price: u64
     }
+
 }

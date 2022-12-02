@@ -11,6 +11,7 @@ module typus_covered_call::covered_call {
     use typus_dov::asset;
     use typus_covered_call::payoff::{Self, PayoffConfig};
     use typus_dov::dutch::Auction;
+    use typus_dov::oracle::{Self, Oracle};
 
     // ======== Structs =========
 
@@ -46,11 +47,12 @@ module typus_covered_call::covered_call {
         expiration_ts: u64,
         asset_name: vector<u8>,
         strike: u64,
+        price_oracle: &Oracle<T>,
         ctx: &mut TxContext
     ){
-        // TODO:
-        let price = 100;
-        let price_decimal = 8;
+        let (price, price_decimal, _, _) = oracle::get_oracle<T>(
+            price_oracle
+        );
 
         let asset = string::utf8(asset_name);
         let payoff_config = payoff::new_payoff_config(
