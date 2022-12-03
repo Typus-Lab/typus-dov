@@ -10,6 +10,8 @@ module typus_dov::vault {
     use sui::transfer;
     use sui::tx_context::{Self, TxContext};
 
+    use typus_dov::linked_list::{Self, LinkedList};
+
     // ======== Constants ========
 
     const C_VAULT_ROLLING: vector<u8> = b"rolling";
@@ -45,6 +47,7 @@ module typus_dov::vault {
     struct SubVault<phantom TOKEN> has store {
         balance: Balance<TOKEN>,
         share_supply: u64,
+        user_shares: LinkedList<address, u64>,
         user_index: u64,
         users: Table<u64, address>,
         shares: Table<address, u64>
@@ -87,6 +90,7 @@ module typus_dov::vault {
         let rolling_vault = SubVault<TOKEN> {
             balance: balance::zero<TOKEN>(),
             share_supply: 0,
+            user_shares: linked_list::new(ctx),
             user_index: 0,
             users: table::new<u64, address>(ctx),
             shares: table::new<address, u64>(ctx),
@@ -96,6 +100,7 @@ module typus_dov::vault {
         let regular_vault = SubVault<TOKEN> {
             balance: balance::zero<TOKEN>(),
             share_supply: 0,
+            user_shares: linked_list::new(ctx),
             user_index: 0,
             users: table::new<u64, address>(ctx),
             shares: table::new<address, u64>(ctx),
@@ -105,6 +110,7 @@ module typus_dov::vault {
         let maker_vault = SubVault<TOKEN> {
             balance: balance::zero<TOKEN>(),
             share_supply: 0,
+            user_shares: linked_list::new(ctx),
             user_index: 0,
             users: table::new<u64, address>(ctx),
             shares: table::new<address, u64>(ctx),
@@ -167,6 +173,7 @@ module typus_dov::vault {
         let SubVault {
             balance,
             share_supply,
+            user_shares: _,
             user_index,
             users,
             shares,
