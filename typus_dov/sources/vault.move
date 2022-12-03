@@ -69,7 +69,7 @@ module typus_dov::vault {
     }
 
     /// Add a new Vault to VaultRegistry and return the Vault index
-    public fun new_vault<MANAGER, TOKEN, CONFIG: store, AUCTION: store>(
+    public fun new_vault<MANAGER, TOKEN, CONFIG: copy + drop + store, AUCTION: store>(
         _manager_cap: &MANAGER,
         vault_registry: &mut VaultRegistry<MANAGER, CONFIG>,
         config: CONFIG,
@@ -109,10 +109,12 @@ module typus_dov::vault {
         dynamic_field::add(&mut vault_registry.id, vault_index, vault);
         vault_registry.num_of_vault = vault_registry.num_of_vault + 1;
 
+        emit(VaultCreated<MANAGER, TOKEN, CONFIG, AUCTION> { config });
+
         vault_index
     }
 
-    public fun new_next_vault<MANAGER, TOKEN, CONFIG: store, AUCTION: store>(
+    public fun new_next_vault<MANAGER, TOKEN, CONFIG: copy + drop + store, AUCTION: store>(
         _manager_cap: &MANAGER,
         vault_registry: &mut VaultRegistry<MANAGER, CONFIG>,
         vault_index: u64,
@@ -410,6 +412,7 @@ module typus_dov::vault {
     // ======== Events ========
 
     struct RegistryCreated<phantom MANAGER, phantom CONFIG> has copy, drop { id: ID }
+    struct VaultCreated<phantom MANAGER, phantom TOKEN, CONFIG, phantom AUCTION> has copy, drop { config: CONFIG }
 
     // // ======== Test Functions ========
 
