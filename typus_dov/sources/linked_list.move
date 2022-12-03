@@ -23,6 +23,14 @@ module typus_dov::linked_list {
         }
     }
 
+    public fun first<K: copy + drop + store, V: store>(linked_list: &LinkedList<K, V>): Option<K> {
+        linked_list.first
+    }
+
+    public fun last<K: copy + drop + store, V: store>(linked_list: &LinkedList<K, V>): Option<K> {
+        linked_list.last
+    }
+
     public fun length<K: copy + drop + store, V: store>(linked_list: &LinkedList<K, V>): u64 {
         table::length(&linked_list.nodes)
     }
@@ -127,6 +135,26 @@ module typus_dov::linked_list {
         } = table::borrow_mut(&mut linked_list.nodes, key);
 
         value
+    }
+
+    public fun prev<K: copy + drop + store, V: store>(linked_list: &LinkedList<K, V>, key: K): Option<K> {
+        let Node {
+            value: _,
+            prev,
+            next: _,
+        } = table::borrow(&linked_list.nodes, key);
+
+        *prev
+    }
+
+    public fun next<K: copy + drop + store, V: store>(linked_list: &LinkedList<K, V>, key: K): Option<K> {
+        let Node {
+            value: _,
+            prev: _,
+            next,
+        } = table::borrow(&linked_list.nodes, key);
+
+        *next
     }
 
     #[test_only]
