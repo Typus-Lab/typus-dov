@@ -211,6 +211,8 @@ module typus_dov::vault {
                 balance::split(coin::balance_mut(coin), amount),
                 user,
             );
+
+            emit(UserDeposit<MANAGER, TOKEN, CONFIG, AUCTION> { user, sub_vault_type: C_VAULT_ROLLING, amount });
         }
         else {
             deposit_<MANAGER, TOKEN, CONFIG, AUCTION>(
@@ -220,6 +222,8 @@ module typus_dov::vault {
                 balance::split(coin::balance_mut(coin), amount),
                 user,
             );
+
+            emit(UserDeposit<MANAGER, TOKEN, CONFIG, AUCTION> { user, sub_vault_type: C_VAULT_REGULAR, amount });
         }
     }
 
@@ -233,22 +237,30 @@ module typus_dov::vault {
         assert!(get_vault<MANAGER, TOKEN, CONFIG, AUCTION>(vault_registry, vault_index).able_to_withdraw, E_WITHDRAW_DISABLED);
         let user = tx_context::sender(ctx);
         let balance = if (is_rolling) {
-            withdraw_<MANAGER, TOKEN, CONFIG, AUCTION>(
+            let (share, balance) = withdraw_<MANAGER, TOKEN, CONFIG, AUCTION>(
                 vault_registry,
                 vault_index,
                 C_VAULT_ROLLING,
                 amount,
                 user,
-            )
+            );
+
+            emit(UserWithdraw<MANAGER, TOKEN, CONFIG, AUCTION> { user, sub_vault_type: C_VAULT_ROLLING, share, amount:balance::value(&balance) });
+
+            balance
         }
         else {
-            withdraw_<MANAGER, TOKEN, CONFIG, AUCTION>(
+            let (share, balance) = withdraw_<MANAGER, TOKEN, CONFIG, AUCTION>(
                 vault_registry,
                 vault_index,
                 C_VAULT_REGULAR,
                 amount,
                 user,
-            )
+            );
+
+            emit(UserWithdraw<MANAGER, TOKEN, CONFIG, AUCTION> { user, sub_vault_type: C_VAULT_REGULAR, share, amount:balance::value(&balance) });
+
+            balance
         };
         transfer::transfer(coin::from_balance(balance, ctx), user);
     }
@@ -269,7 +281,7 @@ module typus_dov::vault {
         assert!((*atd && *atw) || (!*atd && !*atw), E_SUBSCRIBE_DISABLED);
 
         let user = tx_context::sender(ctx);
-        let balance = withdraw_<MANAGER, TOKEN, CONFIG, AUCTION>(
+        let (_, balance) = withdraw_<MANAGER, TOKEN, CONFIG, AUCTION>(
             vault_registry,
             vault_index,
             C_VAULT_REGULAR,
@@ -301,7 +313,7 @@ module typus_dov::vault {
         assert!((*atd && *atw) || (!*atd && !*atw), E_UNSUBSCRIBE_DISABLED);
 
         let user = tx_context::sender(ctx);
-        let balance = withdraw_<MANAGER, TOKEN, CONFIG, AUCTION>(
+        let (_, balance) = withdraw_<MANAGER, TOKEN, CONFIG, AUCTION>(
             vault_registry,
             vault_index,
             C_VAULT_ROLLING,
@@ -372,13 +384,13 @@ module typus_dov::vault {
         sub_vault_type: vector<u8>,
         share: Option<u64>,
         user: address,
-    ): Balance<TOKEN> {
+    ): (u64, Balance<TOKEN>) {
         let sub_vault = get_mut_sub_vault<MANAGER, TOKEN, CONFIG, AUCTION>(vault_registry, vault_index, sub_vault_type);
         // remove share
         let share = remove_share(sub_vault, user , share);
         // extract balance
         let balance_amount = balance::value(&sub_vault.balance) * share / sub_vault.share_supply;
-        balance::split<TOKEN>(&mut sub_vault.balance, balance_amount)
+        (share, balance::split<TOKEN>(&mut sub_vault.balance, balance_amount))
     }
 
     fun add_share<TOKEN>(sub_vault: &mut SubVault<TOKEN>, user: address, share: u64) {
@@ -413,6 +425,8 @@ module typus_dov::vault {
 
     struct RegistryCreated<phantom MANAGER, phantom CONFIG> has copy, drop { id: ID }
     struct VaultCreated<phantom MANAGER, phantom TOKEN, CONFIG, phantom AUCTION> has copy, drop { config: CONFIG }
+    struct UserDeposit<phantom MANAGER, phantom TOKEN, phantom CONFIG, phantom AUCTION> has copy, drop { user: address, sub_vault_type: vector<u8>, amount: u64 }
+    struct UserWithdraw<phantom MANAGER, phantom TOKEN, phantom CONFIG, phantom AUCTION> has copy, drop { user: address, sub_vault_type: vector<u8>, share: u64, amount: u64 }
 
     // // ======== Test Functions ========
 
