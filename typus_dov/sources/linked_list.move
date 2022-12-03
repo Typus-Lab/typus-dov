@@ -105,6 +105,10 @@ module typus_dov::linked_list {
         value
     }
 
+    public fun contains<K: copy + drop + store, V: store>(linked_list: &LinkedList<K, V>, key: K): bool {
+        table::contains(&linked_list.nodes, key)
+    }
+
     public fun borrow<K: copy + drop + store, V: store>(linked_list: &LinkedList<K, V>, key: K): &V {
         let Node {
             value,

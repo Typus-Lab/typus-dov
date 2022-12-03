@@ -48,9 +48,6 @@ module typus_dov::vault {
         balance: Balance<TOKEN>,
         share_supply: u64,
         user_shares: LinkedList<address, u64>,
-        user_index: u64,
-        users: Table<u64, address>,
-        shares: Table<address, u64>
     }
 
     // ======== Public Functions ========
@@ -91,9 +88,6 @@ module typus_dov::vault {
             balance: balance::zero<TOKEN>(),
             share_supply: 0,
             user_shares: linked_list::new(ctx),
-            user_index: 0,
-            users: table::new<u64, address>(ctx),
-            shares: table::new<address, u64>(ctx),
         };
         table::add(&mut vault.sub_vaults, C_VAULT_ROLLING, rolling_vault);
         
@@ -101,9 +95,6 @@ module typus_dov::vault {
             balance: balance::zero<TOKEN>(),
             share_supply: 0,
             user_shares: linked_list::new(ctx),
-            user_index: 0,
-            users: table::new<u64, address>(ctx),
-            shares: table::new<address, u64>(ctx),
         };
         table::add(&mut vault.sub_vaults, C_VAULT_REGULAR, regular_vault);
         
@@ -111,9 +102,6 @@ module typus_dov::vault {
             balance: balance::zero<TOKEN>(),
             share_supply: 0,
             user_shares: linked_list::new(ctx),
-            user_index: 0,
-            users: table::new<u64, address>(ctx),
-            shares: table::new<address, u64>(ctx),
         };
         table::add(&mut vault.sub_vaults, C_VAULT_MAKER, maker_vault);
 
@@ -153,60 +141,57 @@ module typus_dov::vault {
         option::fill(&mut vault.auction, auction);
     }
 
-    public fun rock_n_roll<MANAGER, TOKEN, CONFIG: store, AUCTION: store>(
-        _manager_cap: &MANAGER,
-        vault_registry: &mut VaultRegistry<MANAGER, CONFIG>,
-        vault_index: u64,
-    ) {
-        let Vault {
-            config: _,
-            auction: _,
-            next_vault_index,
-            sub_vaults: _,
-            able_to_deposit: atd,
-            able_to_withdraw: atw,
-        } = get_vault<MANAGER, TOKEN, CONFIG, AUCTION>(vault_registry, vault_index);
-        assert!(option::is_some(next_vault_index), E_NEXT_VAULT_NOT_EXISTS);
-        assert!((!*atd && *atw), E_NOT_YET_SETTLED);
+    // public fun rock_n_roll<MANAGER, TOKEN, CONFIG: store, AUCTION: store>(
+    //     _manager_cap: &MANAGER,
+    //     vault_registry: &mut VaultRegistry<MANAGER, CONFIG>,
+    //     vault_index: u64,
+    // ) {
+    //     let Vault {
+    //         config: _,
+    //         auction: _,
+    //         next_vault_index,
+    //         sub_vaults: _,
+    //         able_to_deposit: atd,
+    //         able_to_withdraw: atw,
+    //     } = get_vault<MANAGER, TOKEN, CONFIG, AUCTION>(vault_registry, vault_index);
+    //     assert!(option::is_some(next_vault_index), E_NEXT_VAULT_NOT_EXISTS);
+    //     assert!((!*atd && *atw), E_NOT_YET_SETTLED);
 
-        // scale user shares
-        let SubVault {
-            balance,
-            share_supply,
-            user_shares: _,
-            user_index,
-            users,
-            shares,
-        } = get_mut_sub_vault<MANAGER, TOKEN, CONFIG, AUCTION>(vault_registry, vault_index, C_VAULT_ROLLING);
-        let index = 0;
-        let total_balance = balance::value(balance);
-        let scaled_shares = vec_map::empty();
-        while (index < *user_index) {
-            if (table::contains(users, index)) {
-                let user = table::borrow(users, index);
-                if (table::contains(shares, *user)) {
-                    vec_map::insert(
-                        &mut scaled_shares,
-                        *user,
-                        *table::borrow(shares, *user) * total_balance / *share_supply
-                    );
-                }
-            };
-            index = index + 1;
-        };
+    //     // scale user shares
+    //     let SubVault {
+    //         balance,
+    //         share_supply,
+    //         user_shares,
+    //     } = get_mut_sub_vault<MANAGER, TOKEN, CONFIG, AUCTION>(vault_registry, vault_index, C_VAULT_ROLLING);
+    //     let index = 0;
+    //     let total_balance = balance::value(balance);
+    //     let scaled_shares = vec_map::empty();
+    //     while (index < *user_index) {
+    //         if (table::contains(users, index)) {
+    //             let user = table::borrow(users, index);
+    //             if (table::contains(shares, *user)) {
+    //                 vec_map::insert(
+    //                     &mut scaled_shares,
+    //                     *user,
+    //                     *table::borrow(shares, *user) * total_balance / *share_supply
+    //                 );
+    //             }
+    //         };
+    //         index = index + 1;
+    //     };
 
-        // transfer balance to next vault
-        let balance = balance::split(balance, total_balance);
-        let next_vault_index = *option::borrow(&get_vault<MANAGER, TOKEN, CONFIG, AUCTION>(vault_registry, vault_index).next_vault_index);
-        let sub_vault = get_mut_sub_vault<MANAGER, TOKEN, CONFIG, AUCTION>(vault_registry, next_vault_index, C_VAULT_ROLLING);
-        balance::join(&mut sub_vault.balance, balance);
+    //     // transfer balance to next vault
+    //     let balance = balance::split(balance, total_balance);
+    //     let next_vault_index = *option::borrow(&get_vault<MANAGER, TOKEN, CONFIG, AUCTION>(vault_registry, vault_index).next_vault_index);
+    //     let sub_vault = get_mut_sub_vault<MANAGER, TOKEN, CONFIG, AUCTION>(vault_registry, next_vault_index, C_VAULT_ROLLING);
+    //     balance::join(&mut sub_vault.balance, balance);
 
-        // add user shares to next vault
-        while (!vec_map::is_empty(&scaled_shares)) {
-            let (user, share) = vec_map::pop(&mut scaled_shares);
-            add_share(sub_vault, user, share);
-        }
-    }
+    //     // add user shares to next vault
+    //     while (!vec_map::is_empty(&scaled_shares)) {
+    //         let (user, share) = vec_map::pop(&mut scaled_shares);
+    //         add_share(sub_vault, user, share);
+    //     }
+    // }
 
     public fun deposit<MANAGER, TOKEN, CONFIG: store, AUCTION: store>(
         vault_registry: &mut VaultRegistry<MANAGER, CONFIG>,
@@ -400,30 +385,28 @@ module typus_dov::vault {
 
     fun add_share<TOKEN>(sub_vault: &mut SubVault<TOKEN>, user: address, share: u64) {
         sub_vault.share_supply = sub_vault.share_supply + share;
-        if (table::contains(&sub_vault.shares, user)){
-            let user_share = table::borrow_mut(&mut sub_vault.shares, user);
+        if (linked_list::contains(&sub_vault.user_shares, user)){
+            let user_share = linked_list::borrow_mut(&mut sub_vault.user_shares, user);
             *user_share = *user_share + share;
         } else {
-            table::add(&mut sub_vault.users, sub_vault.user_index, user);
-            table::add(&mut sub_vault.shares, user, share);
-            sub_vault.user_index = sub_vault.user_index + 1;
+            linked_list::push_back(&mut sub_vault.user_shares, user, share);
         };
     }
 
     fun remove_share<TOKEN>(sub_vault: &mut SubVault<TOKEN>, user: address, share: Option<u64>): u64 {
         if (option::is_some(&share)) {
             let share = option::extract(&mut share);
-            if (share < *table::borrow(&mut sub_vault.shares, user)) {
-                let user_share = table::borrow_mut(&mut sub_vault.shares, user);
+            if (share < *linked_list::borrow(&mut sub_vault.user_shares, user)) {
+                let user_share = linked_list::borrow_mut(&mut sub_vault.user_shares, user);
                 *user_share = *user_share - share;
                 share
             }
             else {
-                table::remove(&mut sub_vault.shares, user)
+                linked_list::remove(&mut sub_vault.user_shares, user)
             }
         }
         else {
-            table::remove(&mut sub_vault.shares, user)
+            linked_list::remove(&mut sub_vault.user_shares, user)
         }
     }
 
