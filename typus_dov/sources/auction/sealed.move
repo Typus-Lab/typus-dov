@@ -355,7 +355,8 @@ module typus_dov::sealed {
         // 1669346954
         let coin = coin::mint_for_testing<SUI>(1000000, test_scenario::ctx(&mut admin_scenario));
         let auction = new(20, 1669338020, 1669346954, test_scenario::ctx(&mut admin_scenario));
-       
+        let time = unix_time::new_time_for_testing(test_scenario::ctx(&mut user1_scenario));
+
         let serialize_bid_info = serialize_bid_info(10, 1, 124930);
         let bid_hash = hash::sha3_256(serialize_bid_info);
         // the encryption should be done in sdk
@@ -365,6 +366,7 @@ module typus_dov::sealed {
             bid_hash,
             encrypted_bid,
             &mut coin,
+            &time,
             test_scenario::ctx(&mut user1_scenario)
         );
         assert!(auction.index == 1, 1);
@@ -378,6 +380,7 @@ module typus_dov::sealed {
             1,
             124930,
             &mut coin,
+            &time,
             test_scenario::ctx(&mut user1_scenario)
         );
 
@@ -394,6 +397,7 @@ module typus_dov::sealed {
             bid_hash,
             encrypted_bid,
             &mut coin,
+            &time,
             test_scenario::ctx(&mut user2_scenario)
         );
         assert!(auction.index == 2, 1);
@@ -407,6 +411,7 @@ module typus_dov::sealed {
             3,
             11112222,
             &mut coin,
+            &time,
             test_scenario::ctx(&mut user2_scenario)
         );
 
@@ -475,6 +480,7 @@ module typus_dov::sealed {
         // assert!(*bid_index == 3, 18);
 
         coin::destroy_for_testing(coin);
+        unix_time::destroy_for_testing(time);
         test_scenario::end(admin_scenario);
         test_scenario::end(user1_scenario);
         test_scenario::end(user2_scenario);

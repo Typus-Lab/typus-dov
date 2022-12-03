@@ -61,5 +61,31 @@ module typus_dov::unix_time {
         time.epoch
     }
 
+    #[test_only]
+    public fun new_time_for_testing(
+        ctx: &mut TxContext
+    ): Time {
+        let time = Time { 
+            id: object::new(ctx),
+            ts_ms: 0,
+            epoch: tx_context::epoch(ctx)
+        };
+
+        let manager_cap = ManagerCap { id: object::new(ctx) };
+
+        transfer::transfer(manager_cap, tx_context::sender(ctx));
+        time
+    }
+    
+    #[test_only]
+    public fun destroy_for_testing(self: Time){
+        let Time{
+            id,
+            ts_ms: _,
+            epoch: _,
+        } = self;
+        object::delete(id);
+    }
+
     struct TimeEvent has copy, drop { ts_ms: u64, epoch: u64 }
 }
