@@ -5,7 +5,7 @@ module typus_dov::dutch {
     use sui::table::{Self, Table};
     use sui::transfer;
     use sui::tx_context::{Self, TxContext};
-    use typus_dov::unix_time::{Self, Time};
+    use typus_oracle::unix_time::{Self, Time};
 
     const E_ZERO_SIZE: u64 = 0;
     const E_BID_NOT_EXISTS: u64 = 1;
@@ -82,7 +82,7 @@ module typus_dov::dutch {
             Bid {
                 price,
                 size,
-                ts_ms: unix_time::get_ts_ms(time),
+                ts_ms: unix_time::get_unix_ms(time),
             }
         );
         table::add(
@@ -141,7 +141,7 @@ module typus_dov::dutch {
             auction.price_config.decay_speed,
             auction.start_ts_ms,
             auction.end_ts_ms,
-            unix_time::get_ts_ms(time) / 1000,
+            unix_time::get_unix_ms(time) / 1000,
         )
     }
 

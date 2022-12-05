@@ -12,7 +12,7 @@ module typus_dov::sealed {
     use std::option::{Self, Option};
     use sui::bcs;
     use std::hash;
-    use typus_dov::unix_time::{Self, Time};
+    use typus_oracle::unix_time::{Self, Time};
 
     const E_ZERO_PRICE: u64 = 0;
     const E_ZERO_SIZE: u64 = 1;
@@ -65,18 +65,6 @@ module typus_dov::sealed {
         owner: address,
     }
 
-    fun init(
-        time: &Time,
-        ctx: &mut TxContext
-    ) {
-        transfer::share_object(new<sui::sui::SUI>(
-            1000,
-            unix_time::get_ts_ms(time) + 60*60*24*1000, // t+1
-            unix_time::get_ts_ms(time) + 60*60*24*2*1000, // t+2
-            ctx
-        ));
-    }
-
     /// create a new Sealed-Bid Auction
     public fun new<Token>(
         min_deposit: u64,
@@ -105,7 +93,7 @@ module typus_dov::sealed {
         time: &Time,
         ctx: &mut TxContext,
     ) {
-        assert!(unix_time::get_ts_ms(time) < auction.bid_closing_time, E_AUCTION_CLOSED);
+        assert!(unix_time::get_unix_ms(time) < auction.bid_closing_time, E_AUCTION_CLOSED);
         let index = auction.index;
         let owner = tx_context::sender(ctx);
         table::add(
@@ -159,7 +147,7 @@ module typus_dov::sealed {
         time: &Time,
         ctx: &mut TxContext,
     ) {
-        let current_timestamp = unix_time::get_ts_ms(time);
+        let current_timestamp = unix_time::get_unix_ms(time);
         assert!(current_timestamp >= auction.bid_closing_time, E_AUCTION_NOT_CLOSED);
         assert!(current_timestamp < auction.reveal_closing_time, E_REVEAL_CLOSED);
         assert!(bid_index < auction.index, E_BID_NOT_EXISTS);
@@ -251,7 +239,7 @@ module typus_dov::sealed {
         balance: &mut Balance<Token>,
         time: &Time,
     ) {
-        assert!(unix_time::get_ts_ms(time) >= auction.reveal_closing_time, E_REVEAL_NOT_CLOSED);
+        assert!(unix_time::get_unix_ms(time) >= auction.reveal_closing_time, E_REVEAL_NOT_CLOSED);
         
         // find valid bids and unvealed bids
         let bids = vector::empty();
@@ -355,7 +343,9 @@ module typus_dov::sealed {
         // 1669346954
         let coin = coin::mint_for_testing<SUI>(1000000, test_scenario::ctx(&mut admin_scenario));
         let auction = new(20, 1669338020, 1669346954, test_scenario::ctx(&mut admin_scenario));
-        let time = unix_time::new_time_for_testing(test_scenario::ctx(&mut user1_scenario));
+
+        unix_time::new_time(test_scenario::ctx(&mut user1_scenario));
+        let time = test_scenario::take_shared<Time>(&admin_scenario);
 
         let serialize_bid_info = serialize_bid_info(10, 1, 124930);
         let bid_hash = hash::sha3_256(serialize_bid_info);
@@ -480,7 +470,7 @@ module typus_dov::sealed {
         // assert!(*bid_index == 3, 18);
 
         coin::destroy_for_testing(coin);
-        unix_time::destroy_for_testing(time);
+        test_scenario::return_shared(time); 
         test_scenario::end(admin_scenario);
         test_scenario::end(user1_scenario);
         test_scenario::end(user2_scenario);

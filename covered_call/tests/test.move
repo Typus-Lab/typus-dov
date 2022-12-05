@@ -15,7 +15,6 @@ module typus_covered_call::test {
     use typus_dov::asset;
     use typus_dov::dutch::Auction;
     use typus_dov::vault::{Self, VaultRegistry, ManagerCap};
-    // use typus_dov::oracle;
     use typus_oracle::oracle;
 
     use typus_covered_call::covered_call::{Self, Config};
