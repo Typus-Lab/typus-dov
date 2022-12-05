@@ -11,6 +11,7 @@ module typus_covered_call::covered_call {
     use typus_dov::asset;
     use typus_covered_call::payoff::{Self, PayoffConfig};
     use typus_dov::dutch::Auction;
+    use typus_oracle::oracle::{Self, Oracle};
 
     // ======== Structs =========
 
@@ -35,6 +36,10 @@ module typus_covered_call::covered_call {
         &config.payoff_config
     }
 
+    public fun check_already_expired(config: &Config, unix_ms: u64) {
+        assert!(unix_ms >= config.expiration_ts * 1000, E_VAULT_NOT_EXPIRED_YET);
+    }
+
     public fun set_premium_roi<T>(manager_cap: &ManagerCap<Config>, vault_registry: &mut VaultRegistry<Config>, index: u64, premium_roi: u64) {
         let config = vault::get_mut_config<T, Config, Auction<T>>(manager_cap, vault_registry, index);
         payoff::set_premium_roi(&mut config.payoff_config, premium_roi);
@@ -46,11 +51,12 @@ module typus_covered_call::covered_call {
         expiration_ts: u64,
         asset_name: vector<u8>,
         strike: u64,
+        price_oracle: &Oracle<T>,
         ctx: &mut TxContext
     ){
-        // TODO:
-        let price = 100;
-        let price_decimal = 8;
+        let (price, price_decimal, _, _) = oracle::get_oracle<T>(
+            price_oracle
+        );
 
         let asset = string::utf8(asset_name);
         let payoff_config = payoff::new_payoff_config(
@@ -101,6 +107,7 @@ module typus_covered_call::covered_call {
         vault::unsubscribe_user<T, Config, Auction<T>>(vault_registry, index, ctx);
     }
 
+    const E_VAULT_NOT_EXPIRED_YET: u64 = 777;
 
     // ======== Events =========
 
