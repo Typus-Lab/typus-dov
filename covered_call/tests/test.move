@@ -14,10 +14,10 @@ module typus_covered_call::test {
     use typus_dov::i64;
     use typus_dov::asset;
     use typus_dov::dutch::Auction;
-    use typus_dov::vault::{Self, VaultRegistry, ManagerCap};
+    use typus_dov::vault::{Self, VaultRegistry};
     use typus_oracle::oracle;
 
-    use typus_covered_call::covered_call::{Self, Config};
+    use typus_covered_call::covered_call::{Self, ManagerCap, Config};
     use typus_covered_call::settlement;
     use typus_covered_call::payoff;
 
@@ -33,7 +33,7 @@ module typus_covered_call::test {
         test_scenario::next_tx(scenario, admin);
         {
             let manager_cap = test_scenario::take_from_sender<ManagerCap<Config>>(scenario);
-            let registry = test_scenario::take_shared<VaultRegistry<Config>>(scenario);
+            let registry = test_scenario::take_shared<VaultRegistry<ManagerCap<Config>, Config>>(scenario);
             let (price_oracle, oracle_key) = oracle::test_new_oracle<SUI>(8, test_scenario::ctx(scenario));
 
             oracle::update(
@@ -53,15 +53,13 @@ module typus_covered_call::test {
                 &price_oracle,
                 test_scenario::ctx(scenario)
             );
-            vault::get_vault<SUI, Config, Auction<SUI>>(&registry, 0);     
-
             test_scenario::return_to_sender<ManagerCap<Config>>(scenario, manager_cap);
             test_scenario::return_shared(registry);
             transfer::transfer(oracle_key, admin);
             transfer::transfer(price_oracle, admin);
         };
         test_scenario::next_tx(scenario, admin);
-                debug::print(&string::utf8(b"vault created"));
+        debug::print(&string::utf8(b"vault created"));
         scenario_val
     }
 
@@ -71,7 +69,7 @@ module typus_covered_call::test {
         let scenario_val = test_new_vault();
         let scenario = &mut scenario_val;
         
-        let registry = test_scenario::take_shared<VaultRegistry<Config>>(scenario);
+        let registry = test_scenario::take_shared<VaultRegistry<ManagerCap<Config>, Config>>(scenario);
 
         let balance = balance::create_for_testing<SUI>(1000);
 
@@ -79,13 +77,16 @@ module typus_covered_call::test {
 
         test_scenario::next_tx(scenario, admin);
 
-        covered_call::deposit<SUI>(&mut registry, 0, true, &mut coin, 1000, test_scenario::ctx(scenario));
+        covered_call::deposit<SUI>(&mut registry, 0, &mut coin, 1000, test_scenario::ctx(scenario));
 
         test_scenario::next_tx(scenario, admin);
 
-        let share = vault::get_user_share<SUI, Config, Auction<SUI>>(&mut registry, 0, string::utf8(b"rolling"), admin);
+        let share = vault::test_get_user_share<ManagerCap<Config>, SUI, Config, Auction<SUI>>(&mut registry, 0, true, admin);
 
-        assert!(share == 1000, 0);
+        assert!(*share == 1000, 0);
+
+        debug::print(&string::utf8(b"Share: "));
+        debug::print(share);
 
         test_scenario::return_shared(registry);
         transfer::transfer(coin, admin);
@@ -116,7 +117,7 @@ module typus_covered_call::test {
         let scenario_val = test_new_vault();
         let scenario = &mut scenario_val;
         
-        let registry = test_scenario::take_shared<VaultRegistry<Config>>(scenario);
+        let registry = test_scenario::take_shared<VaultRegistry<ManagerCap<Config>, Config>>(scenario);
         let manager_cap = test_scenario::take_from_sender<ManagerCap<Config>>(scenario);
 
         let (price_oracle, oracle_key) = oracle::test_new_oracle<SUI>(8, test_scenario::ctx(scenario));
@@ -153,54 +154,46 @@ module typus_covered_call::test {
         // user deposit
         let test_coin = coin::mint_for_testing<SUI>(1000000, test_scenario::ctx(scenario));
         let coin_amount = coin::value<SUI>(&test_coin);
-        covered_call::deposit<SUI>(&mut registry, 1, true, &mut test_coin, coin_amount, test_scenario::ctx(scenario));
+        covered_call::deposit<SUI>(&mut registry, 1, &mut test_coin, coin_amount, test_scenario::ctx(scenario));
         let test_coin_2 = coin::mint_for_testing<SUI>(500000, test_scenario::ctx(scenario));
         let coin_amount = coin::value<SUI>(&test_coin_2);
-        covered_call::deposit<SUI>(&mut registry, 2, true, &mut test_coin_2, coin_amount, test_scenario::ctx(scenario));
+        covered_call::deposit<SUI>(&mut registry, 2, &mut test_coin_2, coin_amount, test_scenario::ctx(scenario));
 
         covered_call::set_premium_roi<SUI>(&manager_cap, &mut registry, 1, 100000);
 
         // mm deposit
         let mm_test_coin = coin::mint_for_testing<SUI>(10000, test_scenario::ctx(scenario));
         let mm_coin_amount = coin::value<SUI>(&mm_test_coin);
-        vault::deposit<SUI, Config, Auction<SUI>>(
-            &mut registry,
-            1, 
-            string::utf8(b"maker"),
-            &mut mm_test_coin,
-            mm_coin_amount
-        );
-        vault::add_share<SUI, Config, Auction<SUI>>(
+        covered_call::deposit<SUI>(
             &mut registry,
             1,
-            string::utf8(b"maker"),
+            &mut mm_test_coin,
             mm_coin_amount,
             test_scenario::ctx(scenario)
         );
 
         debug::print(&string::utf8(b"before settle"));
-        let deposit_value_1 = covered_call::get_sub_vault_deposit<SUI>(&mut registry, 1);
-        let deposit_value_2 = covered_call::get_sub_vault_deposit<SUI>(&mut registry, 2);
-        let share_supply_1 = covered_call::get_sub_vault_share_supply<SUI>(&mut registry, 1);
-        let share_supply_2 = covered_call::get_sub_vault_share_supply<SUI>(&mut registry, 2);
-        debug::print(&deposit_value_1);
-        debug::print(&deposit_value_2);
-        debug::print(&share_supply_1);
-        debug::print(&share_supply_2);
-
+        vault::test_get_balance<ManagerCap<Config>, SUI, Config, Auction<SUI>>(&mut registry, 1, true);
+        vault::test_get_share_supply<ManagerCap<Config>, SUI, Config, Auction<SUI>>(&mut registry, 1, true);
+        vault::test_get_balance<ManagerCap<Config>, SUI, Config, Auction<SUI>>(&mut registry, 1, false);
+        vault::test_get_share_supply<ManagerCap<Config>, SUI, Config, Auction<SUI>>(&mut registry, 1, false);
+        vault::test_get_balance<ManagerCap<Config>, SUI, Config, Auction<SUI>>(&mut registry, 2, true);
+        vault::test_get_share_supply<ManagerCap<Config>, SUI, Config, Auction<SUI>>(&mut registry, 2, true);
+        vault::test_get_balance<ManagerCap<Config>, SUI, Config, Auction<SUI>>(&mut registry, 2, false);
+        vault::test_get_share_supply<ManagerCap<Config>, SUI, Config, Auction<SUI>>(&mut registry, 2, false);
         // settle internal
-        settlement::settle_without_roll_over<SUI>(&mut registry, 1, &price_oracle);
-        // settlement::settle_with_roll_over<SUI>(&mut registry, 1, 2);
+        // settlement::settle_without_roll_over<SUI>(&manager_cap,&mut registry, 1, &price_oracle);
+        settlement::settle_with_roll_over<SUI>(&manager_cap, &mut registry, 1, &price_oracle);
 
         debug::print(&string::utf8(b"after settle"));
-        let deposit_value_1 = covered_call::get_sub_vault_deposit<SUI>(&mut registry, 1);
-        let deposit_value_2 = covered_call::get_sub_vault_deposit<SUI>(&mut registry, 2);
-        let share_supply_1 = covered_call::get_sub_vault_share_supply<SUI>(&mut registry, 1);
-        let share_supply_2 = covered_call::get_sub_vault_share_supply<SUI>(&mut registry, 2);
-        debug::print(&deposit_value_1);
-        debug::print(&deposit_value_2);
-        debug::print(&share_supply_1);
-        debug::print(&share_supply_2);
+        vault::test_get_balance<ManagerCap<Config>, SUI, Config, Auction<SUI>>(&mut registry, 1, true);
+        vault::test_get_share_supply<ManagerCap<Config>, SUI, Config, Auction<SUI>>(&mut registry, 1, true);
+        vault::test_get_balance<ManagerCap<Config>, SUI, Config, Auction<SUI>>(&mut registry, 1, false);
+        vault::test_get_share_supply<ManagerCap<Config>, SUI, Config, Auction<SUI>>(&mut registry, 1, false);
+        vault::test_get_balance<ManagerCap<Config>, SUI, Config, Auction<SUI>>(&mut registry, 2, true);
+        vault::test_get_share_supply<ManagerCap<Config>, SUI, Config, Auction<SUI>>(&mut registry, 2, true);
+        vault::test_get_balance<ManagerCap<Config>, SUI, Config, Auction<SUI>>(&mut registry, 2, false);
+        vault::test_get_share_supply<ManagerCap<Config>, SUI, Config, Auction<SUI>>(&mut registry, 2, false);
 
         coin::destroy_for_testing(test_coin);
         coin::destroy_for_testing(test_coin_2);
@@ -222,7 +215,7 @@ module typus_covered_call::test {
         let user1_scenario = test_scenario::begin(user1);
         let user2_scenario = test_scenario::begin(user2);
         
-        let registry = test_scenario::take_shared<VaultRegistry<Config>>(scenario);
+        let registry = test_scenario::take_shared<VaultRegistry<ManagerCap<Config>, Config>>(scenario);
         let manager_cap = test_scenario::take_from_sender<ManagerCap<Config>>(scenario);
 
         let user1_ctx = test_scenario::ctx(&mut user1_scenario);
@@ -250,23 +243,24 @@ module typus_covered_call::test {
         );
 
         // user deposit
-        let test_coin = coin::mint_for_testing<SUI>(1000000, user1_ctx);
+        let test_coin = coin::mint_for_testing<SUI>(300000, user1_ctx);
         let coin_amount = coin::value<SUI>(&test_coin);
-        debug::print(&test_coin);
-        covered_call::deposit<SUI>(&mut registry, 1, true, &mut test_coin, coin_amount, user1_ctx);
-        let test_coin_1 = coin::mint_for_testing<SUI>(300000, user1_ctx);
+
+        covered_call::deposit<SUI>(&mut registry, 1, &mut test_coin, coin_amount, user1_ctx);
+        covered_call::unsubscribe<SUI>(&mut registry, 1, user1_ctx);
+        let test_coin_1 = coin::mint_for_testing<SUI>(1000000, user1_ctx);
         let coin_amount = coin::value<SUI>(&test_coin_1);
-        debug::print(&test_coin_1);
-        covered_call::deposit<SUI>(&mut registry, 1, false, &mut test_coin_1, coin_amount, user1_ctx);
+
+        covered_call::deposit<SUI>(&mut registry, 1, &mut test_coin_1, coin_amount, user1_ctx);
         let test_coin_2 = coin::mint_for_testing<SUI>(500000, user2_ctx);
         let coin_amount = coin::value<SUI>(&test_coin_2);
-        covered_call::deposit<SUI>(&mut registry, 1, false, &mut test_coin_2, coin_amount, user2_ctx);
+        covered_call::deposit<SUI>(&mut registry, 1, &mut test_coin_2, coin_amount, user2_ctx);
 
-        debug::print(&string::utf8(b"after deposit"));
-        let deposit_value_1 = covered_call::get_sub_vault_deposit<SUI>(&mut registry, 1);
-        let share_supply_1 = covered_call::get_sub_vault_share_supply<SUI>(&mut registry, 1);
-        debug::print(&deposit_value_1);
-        debug::print(&share_supply_1);
+        debug::print(&string::utf8(b"A: after deposit"));
+        vault::test_get_balance<ManagerCap<Config>, SUI, Config, Auction<SUI>>(&mut registry, 1, true);
+        vault::test_get_share_supply<ManagerCap<Config>, SUI, Config, Auction<SUI>>(&mut registry, 1, true);
+        vault::test_get_balance<ManagerCap<Config>, SUI, Config, Auction<SUI>>(&mut registry, 1, false);
+        vault::test_get_share_supply<ManagerCap<Config>, SUI, Config, Auction<SUI>>(&mut registry, 1, false);
 
         covered_call::unsubscribe<SUI>(
             &mut registry,
@@ -274,11 +268,11 @@ module typus_covered_call::test {
             user1_ctx
         );
 
-        debug::print(&string::utf8(b"after unsubscribe"));
-        let deposit_value_1 = covered_call::get_sub_vault_deposit<SUI>(&mut registry, 1);
-        let share_supply_1 = covered_call::get_sub_vault_share_supply<SUI>(&mut registry, 1);
-        debug::print(&deposit_value_1);
-        debug::print(&share_supply_1);
+        debug::print(&string::utf8(b"B: user1 unsubscribed"));
+        vault::test_get_balance<ManagerCap<Config>, SUI, Config, Auction<SUI>>(&mut registry, 1, true);
+        vault::test_get_share_supply<ManagerCap<Config>, SUI, Config, Auction<SUI>>(&mut registry, 1, true);
+        vault::test_get_balance<ManagerCap<Config>, SUI, Config, Auction<SUI>>(&mut registry, 1, false);
+        vault::test_get_share_supply<ManagerCap<Config>, SUI, Config, Auction<SUI>>(&mut registry, 1, false);
 
         coin::destroy_for_testing(test_coin);
         coin::destroy_for_testing(test_coin_1);

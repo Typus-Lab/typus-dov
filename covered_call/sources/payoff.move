@@ -20,7 +20,7 @@ module typus_covered_call::payoff {
 
     // ======== Structs =========
 
-    struct PayoffConfig has store, drop {
+    struct PayoffConfig has store, drop, copy {
         asset: Asset,
         strike: u64,
         premium_roi: Option<u64>,

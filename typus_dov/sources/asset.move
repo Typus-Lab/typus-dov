@@ -1,7 +1,7 @@
 module typus_dov::asset {
     use std::string;
 
-    struct Asset has store, drop {
+    struct Asset has store, drop, copy {
         name: string::String,
         price: u64,
         price_decimal: u64

@@ -152,15 +152,17 @@ module typus_dov::vault {
         settled_share_price: u64,
         share_price_decimal: u64
     ) {
+        use std::debug;
         let Vault {
             config: _,
             auction: _,
-            next_vault_index,
+            next_vault_index: _,
             sub_vaults: _,
             able_to_deposit: atd,
             able_to_withdraw: atw,
         } = get_vault<MANAGER, TOKEN, CONFIG, AUCTION>(vault_registry, vault_index);
-        assert!(option::is_some(next_vault_index), E_NEXT_VAULT_NOT_EXISTS);
+        debug::print(atd);
+        debug::print(atw);
         assert!((!*atd && *atw), E_NOT_YET_SETTLED);
 
         let balance = balance::value(
@@ -438,6 +440,25 @@ module typus_dov::vault {
         );
     }
 
+    public fun get_config<MANAGER, TOKEN, CONFIG: store, AUCTION: store>(
+        vault_registry: &mut VaultRegistry<MANAGER, CONFIG>,
+        vault_index: u64,
+    ): &CONFIG {
+        &get_vault<MANAGER, TOKEN, CONFIG, AUCTION>(
+            vault_registry, vault_index
+        ).config
+    }
+
+    public fun get_mut_config<MANAGER, TOKEN, CONFIG: store, AUCTION: store>(
+        _manager_cap: &MANAGER,
+        vault_registry: &mut VaultRegistry<MANAGER, CONFIG>,
+        vault_index: u64,
+    ): &mut CONFIG {
+        &mut get_mut_vault<MANAGER, TOKEN, CONFIG, AUCTION>(
+            vault_registry, vault_index
+        ).config
+    }
+
     // ======== Private Functions ========
 
     fun get_vault<MANAGER, TOKEN, CONFIG: store, AUCTION: store>(
@@ -495,10 +516,11 @@ module typus_dov::vault {
         user: address,
     ): (u64, Balance<TOKEN>) {
         let sub_vault = get_mut_sub_vault<MANAGER, TOKEN, CONFIG, AUCTION>(vault_registry, vault_index, sub_vault_type);
+        let share_supply = sub_vault.share_supply;
         // remove share
-        let share = remove_share(sub_vault, user , share);
+        let share = remove_share(sub_vault, user, share);
         // extract balance
-        let balance_amount = balance::value(&sub_vault.balance) * share / sub_vault.share_supply;
+        let balance_amount = balance::value(&sub_vault.balance) * share / share_supply;
         (share, balance::split<TOKEN>(&mut sub_vault.balance, balance_amount))
     }
 
@@ -518,17 +540,79 @@ module typus_dov::vault {
             if (share < *linked_list::borrow(&mut sub_vault.user_shares, user)) {
                 let user_share = linked_list::borrow_mut(&mut sub_vault.user_shares, user);
                 *user_share = *user_share - share;
+                sub_vault.share_supply = sub_vault.share_supply - share;
                 share
             }
             else {
+                sub_vault.share_supply = sub_vault.share_supply - *linked_list::borrow(&mut sub_vault.user_shares, user);
                 linked_list::remove(&mut sub_vault.user_shares, user)
             }
         }
         else {
+            sub_vault.share_supply = sub_vault.share_supply - *linked_list::borrow(&mut sub_vault.user_shares, user);
             linked_list::remove(&mut sub_vault.user_shares, user)
         }
     }
 
+    #[test_only]
+    public fun test_get_user_share<MANAGER, TOKEN, CONFIG: store, AUCTION: store>(
+        vault_registry: &mut VaultRegistry<MANAGER, CONFIG>,
+        vault_index: u64,
+        is_rolling: bool,
+        user: address
+    ): &u64 {
+        if (is_rolling) {
+            linked_list::borrow<address, u64>(
+                &get_sub_vault<MANAGER, TOKEN, CONFIG, AUCTION>(
+                    vault_registry, vault_index, C_VAULT_ROLLING
+                ).user_shares,
+                user
+            )
+        } else {
+            linked_list::borrow<address, u64>(
+                &get_sub_vault<MANAGER, TOKEN, CONFIG, AUCTION>(
+                    vault_registry, vault_index, C_VAULT_REGULAR
+                ).user_shares,
+                user
+            )
+        }
+    }
+    #[test_only]
+    public fun test_get_balance<MANAGER, TOKEN, CONFIG: store, AUCTION: store>(
+        vault_registry: &mut VaultRegistry<MANAGER, CONFIG>,
+        vault_index: u64,
+        is_rolling: bool,
+    ){
+        use std::debug;
+        let balance = if (is_rolling) {
+            &get_sub_vault<MANAGER, TOKEN, CONFIG, AUCTION>(
+                vault_registry, vault_index, C_VAULT_ROLLING
+            ).balance
+        } else {
+            &get_sub_vault<MANAGER, TOKEN, CONFIG, AUCTION>(
+                vault_registry, vault_index, C_VAULT_REGULAR
+            ).balance
+        };
+        debug::print(balance);
+    }
+    #[test_only]
+    public fun test_get_share_supply<MANAGER, TOKEN, CONFIG: store, AUCTION: store>(
+        vault_registry: &mut VaultRegistry<MANAGER, CONFIG>,
+        vault_index: u64,
+        is_rolling: bool,
+    ){
+        use std::debug;
+        let share_supply = if (is_rolling) {
+            &get_sub_vault<MANAGER, TOKEN, CONFIG, AUCTION>(
+                vault_registry, vault_index, C_VAULT_ROLLING
+            ).share_supply
+        } else {
+            &get_sub_vault<MANAGER, TOKEN, CONFIG, AUCTION>(
+                vault_registry, vault_index, C_VAULT_REGULAR
+            ).share_supply
+        };
+        debug::print(share_supply);
+    }
 
     // ======== Events ========
 
