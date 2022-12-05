@@ -11,6 +11,7 @@ module typus_dov::vault {
     use sui::tx_context::{Self, TxContext};
 
     use typus_dov::linked_list::{Self, LinkedList};
+    use typus_dov::utils;
 
     // ======== Constants ========
 
@@ -27,6 +28,7 @@ module typus_dov::vault {
     const E_UNSUBSCRIBE_DISABLED: u64 = 4;
     const E_NEXT_VAULT_NOT_EXISTS: u64 = 5;
     const E_NOT_YET_SETTLED: u64 = 6;
+    const E_HAS_BEEN_SETTLED: u64 = 7;
 
     // ======== Structs ========
 
@@ -141,6 +143,113 @@ module typus_dov::vault {
     ) {
         let vault = get_mut_vault<MANAGER, TOKEN, CONFIG, AUCTION>(vault_registry, vault_index);
         option::fill(&mut vault.auction, auction);
+    }
+
+    public fun settle_fund<MANAGER, TOKEN, CONFIG: store, AUCTION: store>(
+        _manager_cap: &MANAGER,
+        vault_registry: &mut VaultRegistry<MANAGER, CONFIG>,
+        vault_index: u64,
+        settled_share_price: u64,
+        share_price_decimal: u64
+    ) {
+        let Vault {
+            config: _,
+            auction: _,
+            next_vault_index,
+            sub_vaults: _,
+            able_to_deposit: atd,
+            able_to_withdraw: atw,
+        } = get_vault<MANAGER, TOKEN, CONFIG, AUCTION>(vault_registry, vault_index);
+        assert!(option::is_some(next_vault_index), E_NEXT_VAULT_NOT_EXISTS);
+        assert!((!*atd && *atw), E_NOT_YET_SETTLED);
+
+        let balance = balance::value(
+            &get_sub_vault<MANAGER, TOKEN, CONFIG, AUCTION>(
+                vault_registry, vault_index, C_VAULT_ROLLING
+            ).balance
+        ) + balance::value(
+            &get_sub_vault<MANAGER, TOKEN, CONFIG, AUCTION>(
+                vault_registry, vault_index, C_VAULT_REGULAR
+            ).balance
+        );
+
+        let share_supply = get_sub_vault<MANAGER, TOKEN, CONFIG, AUCTION>(
+            vault_registry, vault_index, C_VAULT_ROLLING
+        ).share_supply + get_sub_vault<MANAGER, TOKEN, CONFIG, AUCTION>(
+            vault_registry, vault_index, C_VAULT_REGULAR
+        ).share_supply;
+
+        assert!(balance == share_supply, E_HAS_BEEN_SETTLED);
+
+        let multiplier = utils::multiplier(share_price_decimal);
+
+        if (settled_share_price > multiplier) {
+            // user receives balance from maker
+            let payoff = balance * (settled_share_price - multiplier) / multiplier;
+            // transfer balance from maker to rolling users
+            let rolling_share_supply = get_sub_vault<MANAGER, TOKEN, CONFIG, AUCTION>(
+                vault_registry, vault_index, C_VAULT_ROLLING
+            ).share_supply;
+            let coin = balance::split<TOKEN>(
+                &mut get_mut_sub_vault<MANAGER, TOKEN, CONFIG, AUCTION>(
+                    vault_registry, vault_index, C_VAULT_MAKER
+                ).balance,
+                payoff * rolling_share_supply / share_supply
+            );
+            balance::join(
+                &mut get_mut_sub_vault<MANAGER, TOKEN, CONFIG, AUCTION>(
+                    vault_registry, vault_index, C_VAULT_ROLLING
+                ).balance,
+                coin
+            );
+            // transfer balance from maker to regular users
+            let coin = balance::split<TOKEN>(
+                &mut get_mut_sub_vault<MANAGER, TOKEN, CONFIG, AUCTION>(
+                    vault_registry, vault_index, C_VAULT_MAKER
+                ).balance,
+                payoff * (share_supply - rolling_share_supply) / share_supply
+            );
+            balance::join(
+                &mut get_mut_sub_vault<MANAGER, TOKEN, CONFIG, AUCTION>(
+                    vault_registry, vault_index, C_VAULT_REGULAR
+                ).balance,
+                coin
+            );
+        }
+        else if (settled_share_price < multiplier) {
+            // maker receives balance from users
+            let payoff = balance * (multiplier - settled_share_price) / multiplier;
+            // transfer balance from rolling users to maker
+            let rolling_share_supply = get_sub_vault<MANAGER, TOKEN, CONFIG, AUCTION>(
+                vault_registry, vault_index, C_VAULT_ROLLING
+            ).share_supply;
+            let coin = balance::split<TOKEN>(
+                &mut get_mut_sub_vault<MANAGER, TOKEN, CONFIG, AUCTION>(
+                    vault_registry, vault_index, C_VAULT_ROLLING
+                ).balance,
+                payoff * rolling_share_supply / share_supply
+            );
+            balance::join(
+                &mut get_mut_sub_vault<MANAGER, TOKEN, CONFIG, AUCTION>(
+                    vault_registry, vault_index, C_VAULT_MAKER
+                ).balance,
+                coin
+            );
+            // transfer balance from regular users to maker
+            let coin = balance::split<TOKEN>(
+                &mut get_mut_sub_vault<MANAGER, TOKEN, CONFIG, AUCTION>(
+                    vault_registry, vault_index, C_VAULT_REGULAR
+                ).balance,
+                payoff * (share_supply - rolling_share_supply) / share_supply
+            );
+            balance::join(
+                &mut get_mut_sub_vault<MANAGER, TOKEN, CONFIG, AUCTION>(
+                    vault_registry, vault_index, C_VAULT_MAKER
+                ).balance,
+                coin
+            );
+        }
+        
     }
 
     public fun rock_n_roll<MANAGER, TOKEN, CONFIG: store, AUCTION: store>(
