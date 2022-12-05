@@ -36,8 +36,8 @@ module typus_covered_call::covered_call {
         &config.payoff_config
     }
 
-    public fun get_expiration_ts(config: &Config): &u64 {
-        &config.expiration_ts
+    public fun check_already_expired(config: &Config, unix_ms: u64) {
+        assert!(unix_ms >= config.expiration_ts * 1000, E_VAULT_NOT_EXPIRED_YET);
     }
 
     public fun set_premium_roi<T>(manager_cap: &ManagerCap<Config>, vault_registry: &mut VaultRegistry<Config>, index: u64, premium_roi: u64) {
@@ -107,6 +107,7 @@ module typus_covered_call::covered_call {
         vault::unsubscribe_user<T, Config, Auction<T>>(vault_registry, index, ctx);
     }
 
+    const E_VAULT_NOT_EXPIRED_YET: u64 = 777;
 
     // ======== Events =========
 

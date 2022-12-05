@@ -209,7 +209,7 @@ module typus_covered_call::test {
         test_scenario::return_shared(registry); 
         test_scenario::return_to_sender<ManagerCap<Config>>(scenario, manager_cap);
         transfer::transfer(oracle_key, tx_context::sender(test_scenario::ctx(scenario)));
-        transfer::transfer(price_oracle, tx_context::sender(test_scenario::ctx(scenario)));
+        transfer::share_object(price_oracle);
         test_scenario::end(scenario_val); 
     }
 
@@ -284,10 +284,12 @@ module typus_covered_call::test {
         coin::destroy_for_testing(test_coin);
         coin::destroy_for_testing(test_coin_1);
         coin::destroy_for_testing(test_coin_2);
+        
         test_scenario::return_shared(registry); 
-        test_scenario::return_shared(price_oracle); 
         test_scenario::return_to_sender<ManagerCap<Config>>(scenario, manager_cap);
-        test_scenario::return_to_sender<oracle::Key<SUI>>(scenario, oracle_key);
+        transfer::transfer(oracle_key, tx_context::sender(test_scenario::ctx(scenario)));
+        transfer::share_object(price_oracle);
+
         test_scenario::end(scenario_val); 
         test_scenario::end(user1_scenario); 
         test_scenario::end(user2_scenario); 

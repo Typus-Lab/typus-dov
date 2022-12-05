@@ -14,7 +14,6 @@ module typus_covered_call::settlement {
     use typus_oracle::oracle::{Self, Oracle};
 
     const E_VAULT_HAS_BEEN_SETTLED: u64 = 666;
-    const E_VAULT_NOT_EXPIRED_YET: u64 = 777;
 
     // ======== Functions =========
 
@@ -23,15 +22,13 @@ module typus_covered_call::settlement {
         expired_index: u64,
         price_oracle: &Oracle<T>
     ) {
-        let expiration_ts = covered_call::get_expiration_ts(
-            vault::get_config<T, Config, Auction<T>>(vault_registry, expired_index)
-        );
-        let (price, _decimal, unix_ms, _epoch) = oracle::get_oracle<T>(price_oracle);
-        assert!(unix_ms >= *expiration_ts * 1000, E_VAULT_NOT_EXPIRED_YET);
+        let config = vault::get_config<T, Config, Auction<T>>(vault_registry, expired_index);
 
-        let payoff_config = covered_call::get_payoff_config(
-            vault::get_config<T, Config, Auction<T>>(vault_registry, expired_index)
-        );
+        let (price, _decimal, unix_ms, _epoch) = oracle::get_oracle<T>(price_oracle);
+
+        covered_call::check_already_expired(config, unix_ms);
+
+        let payoff_config = covered_call::get_payoff_config(config);
 
         debug::print(payoff_config);
 
@@ -163,11 +160,12 @@ module typus_covered_call::settlement {
         new_index: u64,
         price_oracle: &Oracle<T>
     ){
-        let expiration_ts = covered_call::get_expiration_ts(
-            vault::get_config<T, Config, Auction<T>>(vault_registry, expired_index)
-        );
+        let config = vault::get_config<T, Config, Auction<T>>(vault_registry, expired_index);
+
         let (_price, _decimal, unix_ms, _epoch) = oracle::get_oracle<T>(price_oracle);
-        assert!(unix_ms >= *expiration_ts * 1000, E_VAULT_NOT_EXPIRED_YET);
+
+        covered_call::check_already_expired(config, unix_ms);
+
         // transfer deposit to new vault
         let rolling_user_balance_value_at_expired = vault::get_vault_deposit_value<T, Config, Auction<T>>(
             vault_registry,
