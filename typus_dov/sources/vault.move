@@ -11,6 +11,7 @@ module typus_dov::vault {
     use typus_dov::linked_list::{Self, LinkedList};
     use typus_dov::utils;
 
+
     // ======== Constants ========
 
     const C_VAULT_ROLLING: vector<u8> = b"rolling";
@@ -417,7 +418,7 @@ module typus_dov::vault {
 
     #[test_only]
     public fun test_get_user_share<MANAGER, TOKEN>(
-        vault: &mut Vault<MANAGER, TOKEN>,
+        vault: &Vault<MANAGER, TOKEN>,
         is_rolling: bool,
         user: address
     ): u64 {
