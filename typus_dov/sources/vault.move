@@ -192,7 +192,7 @@ module typus_dov::vault {
             let rolling_share_supply = get_sub_vault<MANAGER, TOKEN, CONFIG, AUCTION>(
                 vault_registry, vault_index, C_VAULT_ROLLING
             ).share_supply;
-            let coin = balance::split<TOKEN>(
+            let balance = balance::split<TOKEN>(
                 &mut get_mut_sub_vault<MANAGER, TOKEN, CONFIG, AUCTION>(
                     vault_registry, vault_index, C_VAULT_MAKER
                 ).balance,
@@ -202,10 +202,10 @@ module typus_dov::vault {
                 &mut get_mut_sub_vault<MANAGER, TOKEN, CONFIG, AUCTION>(
                     vault_registry, vault_index, C_VAULT_ROLLING
                 ).balance,
-                coin
+                balance
             );
             // transfer balance from maker to regular users
-            let coin = balance::split<TOKEN>(
+            let balance = balance::split<TOKEN>(
                 &mut get_mut_sub_vault<MANAGER, TOKEN, CONFIG, AUCTION>(
                     vault_registry, vault_index, C_VAULT_MAKER
                 ).balance,
@@ -215,7 +215,7 @@ module typus_dov::vault {
                 &mut get_mut_sub_vault<MANAGER, TOKEN, CONFIG, AUCTION>(
                     vault_registry, vault_index, C_VAULT_REGULAR
                 ).balance,
-                coin
+                balance
             );
         }
         else if (settled_share_price < multiplier) {
@@ -544,13 +544,15 @@ module typus_dov::vault {
                 share
             }
             else {
-                sub_vault.share_supply = sub_vault.share_supply - *linked_list::borrow(&mut sub_vault.user_shares, user);
-                linked_list::remove(&mut sub_vault.user_shares, user)
+                let user_share = linked_list::remove(&mut sub_vault.user_shares, user);
+                sub_vault.share_supply = sub_vault.share_supply - user_share;
+                user_share
             }
         }
         else {
-            sub_vault.share_supply = sub_vault.share_supply - *linked_list::borrow(&mut sub_vault.user_shares, user);
-            linked_list::remove(&mut sub_vault.user_shares, user)
+            let user_share = linked_list::remove(&mut sub_vault.user_shares, user);
+            sub_vault.share_supply = sub_vault.share_supply - user_share;
+            user_share
         }
     }
 
