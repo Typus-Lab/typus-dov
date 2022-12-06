@@ -17,7 +17,7 @@ module typus_covered_call::settlement {
 
     fun settle_internal<TOKEN>(
         manager_cap: &ManagerCap<Config>,
-        vault_registry: &mut Registry<ManagerCap<Config>, Config>,
+        vault_registry: &mut Registry<ManagerCap<Config>>,
         expired_index: u64,
         price_oracle: &Oracle<TOKEN>,
     ) {
@@ -62,7 +62,7 @@ module typus_covered_call::settlement {
 
     fun settle_roll_over<TOKEN>(
         manager_cap: &ManagerCap<Config>,
-        vault_registry: &mut Registry<ManagerCap<Config>, Config>,
+        vault_registry: &mut Registry<ManagerCap<Config>>,
         expired_index: u64,
         price_oracle: &Oracle<TOKEN>,
     ){
@@ -97,7 +97,7 @@ module typus_covered_call::settlement {
 
     public entry fun settle_without_roll_over<TOKEN>(
         manager_cap: &ManagerCap<Config>,
-        vault_registry: &mut Registry<ManagerCap<Config>, Config>,
+        vault_registry: &mut Registry<ManagerCap<Config>>,
         expired_index: u64,
         price_oracle: &Oracle<TOKEN>,
     ){
@@ -106,7 +106,7 @@ module typus_covered_call::settlement {
 
     public entry fun settle_with_roll_over<TOKEN>(
         manager_cap: &ManagerCap<Config>,
-        vault_registry: &mut Registry<ManagerCap<Config>, Config>,
+        vault_registry: &mut Registry<ManagerCap<Config>>,
         expired_index: u64,
         price_oracle: &Oracle<TOKEN>,
     ) {

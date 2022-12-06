@@ -30,7 +30,7 @@ module typus_covered_call::covered_call {
         expiration_ts: u64
     }
 
-    struct Registry<phantom MANAGER, phantom CONFIG> has key {
+    struct Registry<phantom MANAGER> has key {
         id: UID,
         num_of_vault: u64,
     }
@@ -49,21 +49,21 @@ module typus_covered_call::covered_call {
             id: object::new(ctx)
         };
         transfer::transfer(manager_cap, tx_context::sender(ctx));
-        new_registry<ManagerCap<Config>, Config>(ctx);
+        new_registry<ManagerCap<Config>>(ctx);
     }
 
     fun init(ctx: &mut TxContext) {
         init_(ctx);
     }
 
-    fun new_registry<MANAGER, CONFIG>(
+    fun new_registry<MANAGER>(
         ctx: &mut TxContext
     ) {
         let id = object::new(ctx);
 
-        // emit(RegistryCreated<MANAGER, CONFIG> { id: object::uid_to_inner(&id) });
+        // emit(RegistryCreated<MANAGER> { id: object::uid_to_inner(&id) });
 
-        let vault = Registry<MANAGER, CONFIG> {
+        let vault = Registry<MANAGER> {
             id,
             num_of_vault: 0
         };
@@ -86,7 +86,7 @@ module typus_covered_call::covered_call {
     }
 
     fun get_vault<MANAGER, TOKEN, CONFIG: store>(
-        vault_registry: &mut Registry<MANAGER, CONFIG>,
+        vault_registry: &mut Registry<MANAGER>,
         vault_index: u64,
     ): &Vault<MANAGER, TOKEN> {
         &dynamic_field::borrow<u64, CoveredCallVault<MANAGER, TOKEN>>(&vault_registry.id, vault_index).vault
@@ -99,14 +99,14 @@ module typus_covered_call::covered_call {
     }
 
     public fun get_config<MANAGER, TOKEN, CONFIG: store>(
-        vault_registry: &mut Registry<MANAGER, CONFIG>,
+        vault_registry: &mut Registry<MANAGER>,
         vault_index: u64,
     ): &Config {
         &dynamic_field::borrow<u64, CoveredCallVault<MANAGER, TOKEN>>(&vault_registry.id, vault_index).config
     }
 
     public fun get_next_index<MANAGER, TOKEN, CONFIG: store>(
-        vault_registry: &mut Registry<MANAGER, CONFIG>,
+        vault_registry: &mut Registry<MANAGER>,
         vault_index: u64,
     ): Option<u64> {
         dynamic_field::borrow<u64, CoveredCallVault<MANAGER, TOKEN>>(&vault_registry.id, vault_index).next_index
@@ -119,7 +119,7 @@ module typus_covered_call::covered_call {
     // ======== Public Friend Functions =========
 
     public(friend) fun get_mut_vault<MANAGER, TOKEN, CONFIG: store>(
-        vault_registry: &mut Registry<MANAGER, CONFIG>,
+        vault_registry: &mut Registry<MANAGER>,
         vault_index: u64,
     ): &mut Vault<MANAGER, TOKEN> {
         &mut dynamic_field::borrow_mut<u64, CoveredCallVault<MANAGER, TOKEN>>(&mut vault_registry.id, vault_index).vault
@@ -127,7 +127,7 @@ module typus_covered_call::covered_call {
 
     public(friend) fun get_mut_config<MANAGER, TOKEN, CONFIG: store>(
         _manager_cap: &MANAGER,
-        vault_registry: &mut Registry<MANAGER, CONFIG>,
+        vault_registry: &mut Registry<MANAGER>,
         vault_index: u64,
     ): &mut Config {
         &mut dynamic_field::borrow_mut<u64, CoveredCallVault<MANAGER, TOKEN>>(&mut vault_registry.id, vault_index).config
@@ -136,7 +136,7 @@ module typus_covered_call::covered_call {
 
     public fun set_strike<MANAGER, TOKEN>(
         manager_cap: &MANAGER,
-        vault_registry: &mut Registry<MANAGER, Config>,
+        vault_registry: &mut Registry<MANAGER>,
         index: u64,
         price: u64
     ){
@@ -150,7 +150,7 @@ module typus_covered_call::covered_call {
 
     public fun set_premium_roi<MANAGER, TOKEN>(
         manager_cap: &MANAGER,
-        vault_registry: &mut Registry<MANAGER, Config>,
+        vault_registry: &mut Registry<MANAGER>,
         index: u64,
         premium_roi: u64
     ){
@@ -166,7 +166,7 @@ module typus_covered_call::covered_call {
 
     public entry fun new_covered_call_vault<TOKEN>(
         _manager_cap: &ManagerCap<Config>,
-        vault_registry: &mut Registry<ManagerCap<Config>, Config>,
+        vault_registry: &mut Registry<ManagerCap<Config>>,
         expiration_ts: u64,
         asset_name: vector<u8>,
         strike_otm_pct: u64,
@@ -206,7 +206,7 @@ module typus_covered_call::covered_call {
     }
 
     public entry fun deposit<TOKEN>(
-        vault_registry: &mut Registry<ManagerCap<Config>, Config>,
+        vault_registry: &mut Registry<ManagerCap<Config>>,
         index: u64,
         coin: &mut Coin<TOKEN>,
         amount: u64,
@@ -230,7 +230,7 @@ module typus_covered_call::covered_call {
     }
 
     public entry fun unsubscribe<TOKEN>(
-        vault_registry: &mut Registry<ManagerCap<Config>, Config>,
+        vault_registry: &mut Registry<ManagerCap<Config>>,
         index: u64,
         ctx: &mut TxContext
     ){
@@ -244,7 +244,7 @@ module typus_covered_call::covered_call {
     }
 
     public entry fun withdraw<TOKEN>(
-        vault_registry: &mut Registry<ManagerCap<Config>, Config>,
+        vault_registry: &mut Registry<ManagerCap<Config>>,
         index: u64,
         amount: u64,
         ctx: &mut TxContext

@@ -33,7 +33,7 @@ module typus_covered_call::test {
         test_scenario::next_tx(scenario, admin);
         {
             let manager_cap = test_scenario::take_from_sender<ManagerCap<Config>>(scenario);
-            let registry = test_scenario::take_shared<Registry<ManagerCap<Config>, Config>>(scenario);
+            let registry = test_scenario::take_shared<Registry<ManagerCap<Config>>>(scenario);
             let (price_oracle, oracle_key) = oracle::test_new_oracle<SUI>(8, test_scenario::ctx(scenario));
 
             oracle::update(
@@ -69,7 +69,7 @@ module typus_covered_call::test {
         let scenario_val = test_new_vault();
         let scenario = &mut scenario_val;
         
-        let registry = test_scenario::take_shared<Registry<ManagerCap<Config>, Config>>(scenario);
+        let registry = test_scenario::take_shared<Registry<ManagerCap<Config>>>(scenario);
 
         let balance = balance::create_for_testing<SUI>(1000);
 
@@ -123,7 +123,7 @@ module typus_covered_call::test {
         let scenario_val = test_new_vault();
         let scenario = &mut scenario_val;
         
-        let registry = test_scenario::take_shared<Registry<ManagerCap<Config>, Config>>(scenario);
+        let registry = test_scenario::take_shared<Registry<ManagerCap<Config>>>(scenario);
         let manager_cap = test_scenario::take_from_sender<ManagerCap<Config>>(scenario);
 
         let (price_oracle, oracle_key) = oracle::test_new_oracle<SUI>(8, test_scenario::ctx(scenario));
@@ -270,7 +270,7 @@ module typus_covered_call::test {
     //     let user1_scenario = test_scenario::begin(user1);
     //     let user2_scenario = test_scenario::begin(user2);
         
-    //     let registry = test_scenario::take_shared<Registry<ManagerCap<Config>, Config>>(scenario);
+    //     let registry = test_scenario::take_shared<Registry<ManagerCap<Config>>>(scenario);
     //     let manager_cap = test_scenario::take_from_sender<ManagerCap<Config>>(scenario);
 
     //     let user1_ctx = test_scenario::ctx(&mut user1_scenario);
