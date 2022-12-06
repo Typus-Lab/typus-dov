@@ -65,7 +65,7 @@ module typus_covered_call::settlement {
         vault_registry: &mut Registry<ManagerCap<Config>>,
         expired_index: u64,
         price_oracle: &Oracle<TOKEN>,
-    ){
+    ) {
 
         let config = covered_call::get_config<ManagerCap<Config>, TOKEN, Config>(vault_registry, expired_index); 
 
@@ -100,7 +100,7 @@ module typus_covered_call::settlement {
         vault_registry: &mut Registry<ManagerCap<Config>>,
         expired_index: u64,
         price_oracle: &Oracle<TOKEN>,
-    ){
+    ) {
         settle_internal<TOKEN>(manager_cap, vault_registry, expired_index, price_oracle);
     }
 

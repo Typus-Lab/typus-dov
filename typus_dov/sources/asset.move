@@ -1,21 +1,19 @@
 module typus_dov::asset {
-    use std::string;
-
     struct Asset has store, drop, copy {
-        name: string::String,
+        name: vector<u8>,
         price: u64,
         price_decimal: u64
     }
 
-    public fun new_asset(name: string::String, price: u64, price_decimal: u64): Asset{
+    public fun new_asset(name: vector<u8>, price: u64, price_decimal: u64): Asset{
         Asset {
-            name: name,
-            price: price,
-            price_decimal: price_decimal
+            name,
+            price,
+            price_decimal,
         }
     }
 
-    public fun get_asset_name(asset: &Asset): string::String {
+    public fun get_asset_name(asset: &Asset): vector<u8> {
         asset.name
     }
 

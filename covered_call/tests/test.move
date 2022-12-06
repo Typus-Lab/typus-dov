@@ -77,7 +77,7 @@ module typus_covered_call::test {
 
         test_scenario::next_tx(scenario, admin);
 
-        covered_call::deposit<SUI>(&mut registry, 0, &mut coin, 1000, test_scenario::ctx(scenario));
+        covered_call::deposit<SUI>(&mut registry, 0, &mut coin, 1000, true, test_scenario::ctx(scenario));
 
         test_scenario::next_tx(scenario, admin);
 
@@ -102,7 +102,7 @@ module typus_covered_call::test {
     #[test]
     fun test_get_covered_call_payoff_by_price() {
         let payoff_config = payoff::new_payoff_config(
-            asset::new_asset(string::utf8(b"BTC"), 5000, 8),
+            asset::new_asset(b"BTC", 5000, 8),
             2000,
             option::some<u64>(6000),
             option::some<u64>(1000000),
@@ -113,13 +113,13 @@ module typus_covered_call::test {
         );
         debug::print(&i64::is_neg(&aa));
         debug::print(&i64::abs(&aa));
-        if (i64::is_neg(&aa)){
+        if (i64::is_neg(&aa)) {
             debug::print(&i64::neg(&aa));
         };
     }
 
     #[test]
-    fun test_settle(){
+    fun test_settle() {
         let scenario_val = test_new_vault();
         let scenario = &mut scenario_val;
         
@@ -160,10 +160,10 @@ module typus_covered_call::test {
         // user deposit
         let test_coin = coin::mint_for_testing<SUI>(1000000, test_scenario::ctx(scenario));
         let coin_amount = coin::value<SUI>(&test_coin);
-        covered_call::deposit<SUI>(&mut registry, 1, &mut test_coin, coin_amount, test_scenario::ctx(scenario));
+        covered_call::deposit<SUI>(&mut registry, 1, &mut test_coin, coin_amount, true, test_scenario::ctx(scenario));
         let test_coin_2 = coin::mint_for_testing<SUI>(500000, test_scenario::ctx(scenario));
         let coin_amount = coin::value<SUI>(&test_coin_2);
-        covered_call::deposit<SUI>(&mut registry, 2, &mut test_coin_2, coin_amount, test_scenario::ctx(scenario));
+        covered_call::deposit<SUI>(&mut registry, 2, &mut test_coin_2, coin_amount, true, test_scenario::ctx(scenario));
 
         covered_call::set_strike<ManagerCap<Config>, SUI>(&manager_cap, &mut registry, 1, 100);
         covered_call::set_premium_roi<ManagerCap<Config>, SUI>(&manager_cap, &mut registry, 1, 100000);
@@ -176,6 +176,7 @@ module typus_covered_call::test {
             1,
             &mut mm_test_coin,
             mm_coin_amount,
+            true,
             test_scenario::ctx(scenario)
         );
 
@@ -261,7 +262,7 @@ module typus_covered_call::test {
     }
 
     // #[test]
-    // fun test_unsubscribe(){
+    // fun test_unsubscribe() {
     //     let scenario_val = test_new_vault();
     //     let scenario = &mut scenario_val;
 

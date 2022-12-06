@@ -414,7 +414,7 @@ module typus_dov::vault {
 
     fun add_share<TOKEN>(sub_vault: &mut SubVault<TOKEN>, user: address, share: u64) {
         sub_vault.share_supply = sub_vault.share_supply + share;
-        if (linked_list::contains(&sub_vault.user_shares, user)){
+        if (linked_list::contains(&sub_vault.user_shares, user)) {
             let user_share = linked_list::borrow_mut(&mut sub_vault.user_shares, user);
             *user_share = *user_share + share;
         } else {

@@ -47,7 +47,7 @@
 //         low_barrier_price: u64,
 //         high_barrier_price: u64,
 //         ctx: &mut TxContext
-//     ){
+//     ) {
 //         let payoff_config = payoff::new_payoff_config(
 //             asset,
 //             is_bullish,
@@ -79,7 +79,7 @@
 //         coin: &mut Coin<T>,
 //         amount: u64,
 //         ctx: &mut TxContext
-//     ){
+//     ) {
 //         let name = if (rolling) {
 //             string::utf8(b"rolling")
 //         } else {
