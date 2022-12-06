@@ -1,17 +1,18 @@
 module typus_covered_call::covered_call {
     use std::option::{Self, Option};
 
-    use sui::tx_context::{Self, TxContext};
-    use sui::transfer;
     use sui::coin::Coin;
     use sui::dynamic_field;
-
-    use typus_dov::vault::{Self, Vault};
-    use typus_dov::asset;
-    use typus_covered_call::payoff::{Self, PayoffConfig};
-    use typus_dov::dutch::Auction;
-    use typus_oracle::oracle::{Self, Oracle};
     use sui::object::{Self, UID};
+    use sui::transfer;
+    use sui::tx_context::{Self, TxContext};
+
+    use typus_covered_call::payoff::{Self, PayoffConfig};
+    use typus_dov::asset;
+    use typus_dov::dutch::{Self, Auction};
+    use typus_dov::vault::{Self, Vault};
+    use typus_oracle::oracle::{Self, Oracle};
+    use typus_oracle::unix_time::Time;
 
     friend typus_covered_call::settlement;
 
@@ -202,6 +203,33 @@ module typus_covered_call::covered_call {
 
     }
 
+    public(friend) entry fun new_auction<MANAGER, TOKEN>(
+        _manager_cap: &MANAGER,
+        registry: &mut Registry<ManagerCap<Config>>,
+        index: u64,
+        start_ts_ms: u64,
+        end_ts_ms: u64,
+        decay_speed: u64,
+        initial_price: u64,
+        final_price: u64,
+        ctx: &mut TxContext,
+    ) {
+        option::fill(
+            &mut dynamic_field::borrow_mut<u64, CoveredCallVault<MANAGER, TOKEN>>(
+                &mut registry.id,
+                index
+            ).auction,
+            dutch::new(
+                start_ts_ms,
+                end_ts_ms,
+                decay_speed,
+                initial_price,
+                final_price,
+                ctx,
+            )
+        );
+    }
+
     public(friend) entry fun withdraw<TOKEN>(
         registry: &mut Registry<ManagerCap<Config>>,
         index: u64,
@@ -244,6 +272,42 @@ module typus_covered_call::covered_call {
                 registry,
                 index
             ),
+            ctx,
+        );
+    }
+
+    public(friend) entry fun new_bid<MANAGER, TOKEN>(
+        registry: &mut Registry<ManagerCap<Config>>,
+        index: u64,
+        size: u64,
+        coin: &mut Coin<TOKEN>,
+        time: &Time,
+        ctx: &mut TxContext,
+    ) {
+        dutch::new_bid<MANAGER, TOKEN>(
+            option::borrow_mut(&mut dynamic_field::borrow_mut<u64, CoveredCallVault<MANAGER, TOKEN>>(
+                &mut registry.id,
+                index
+            ).auction),
+            size,
+            coin,
+            time,
+            ctx,
+        );
+    }
+
+    public(friend) entry fun remove_bid<MANAGER, TOKEN>(
+        registry: &mut Registry<ManagerCap<Config>>,
+        index: u64,
+        bid_index: u64,
+        ctx: &mut TxContext,
+    ) {
+        dutch::remove_bid<MANAGER, TOKEN>(
+            option::borrow_mut(&mut dynamic_field::borrow_mut<u64, CoveredCallVault<MANAGER, TOKEN>>(
+                &mut registry.id,
+                index
+            ).auction),
+            bid_index,
             ctx,
         );
     }
