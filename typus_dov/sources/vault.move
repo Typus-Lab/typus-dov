@@ -6,7 +6,7 @@ module typus_dov::vault {
     use sui::table::{Self, Table};
     use sui::transfer;
     use sui::tx_context::{Self, TxContext};
-    use sui::vec_map;
+    use sui::vec_map::{Self, VecMap};
 
     use typus_dov::linked_list::{Self, LinkedList};
     use typus_dov::utils;
@@ -183,14 +183,12 @@ module typus_dov::vault {
         
     }
 
-    public fun rock_n_roll<MANAGER, TOKEN>(
+    public fun prepare_rolling<MANAGER, TOKEN>(
         _manager_cap: &MANAGER,
         vault: &mut Vault<MANAGER, TOKEN>,
-        next_vault: &mut Vault<MANAGER, TOKEN>,
-    ) {
+    ): (Balance<TOKEN>, VecMap<address, u64>) {
         assert!((!vault.able_to_deposit && vault.able_to_withdraw), E_NOT_YET_SETTLED);
 
-        // scale user shares
         let SubVault {
             balance,
             share_supply,
@@ -198,25 +196,32 @@ module typus_dov::vault {
         } = get_mut_sub_vault<MANAGER, TOKEN>(vault, C_VAULT_ROLLING);
         let index = linked_list::first(user_shares);
         let total_balance = balance::value(balance);
-        let scaled_shares = vec_map::empty();
+        let scaled_user_shares = vec_map::empty();
         while (option::is_some(&index)) {
             let user = option::borrow(&index);
             vec_map::insert(
-                &mut scaled_shares,
+                &mut scaled_user_shares,
                 *user,
                 *linked_list::borrow(user_shares, *user) * total_balance / *share_supply
             );
             index = linked_list::next(user_shares, *user);
         };
 
-        // transfer balance to next vault
-        let balance = balance::split(balance, total_balance);
-        let sub_vault = get_mut_sub_vault<MANAGER, TOKEN>(next_vault, C_VAULT_ROLLING);
-        balance::join(&mut sub_vault.balance, balance);
+        (balance::split(balance, total_balance), scaled_user_shares)
+    }
 
-        // add user shares to next vault
-        while (!vec_map::is_empty(&scaled_shares)) {
-            let (user, share) = vec_map::pop(&mut scaled_shares);
+    public fun rock_n_roll<MANAGER, TOKEN>(
+        _manager_cap: &MANAGER,
+        vault: &mut Vault<MANAGER, TOKEN>,
+        balance: Balance<TOKEN>,
+        scaled_user_shares: VecMap<address, u64>,
+    ) {
+        assert!((!vault.able_to_deposit && vault.able_to_withdraw), E_NOT_YET_SETTLED);
+
+        let sub_vault = get_mut_sub_vault<MANAGER, TOKEN>(vault, C_VAULT_ROLLING);
+        balance::join(&mut sub_vault.balance, balance);
+        while (!vec_map::is_empty(&scaled_user_shares)) {
+            let (user, share) = vec_map::pop(&mut scaled_user_shares);
             add_share(sub_vault, user, share);
         }
     }
