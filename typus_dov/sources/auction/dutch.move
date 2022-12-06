@@ -7,8 +7,12 @@ module typus_dov::dutch {
     use sui::tx_context::{Self, TxContext};
     use typus_oracle::unix_time::{Self, Time};
 
+    // ======== Errors ========
+
     const E_ZERO_SIZE: u64 = 0;
     const E_BID_NOT_EXISTS: u64 = 1;
+
+    // ======== Structs ========
 
     struct Auction<phantom MANAGER, phantom TOKEN> has store {
         start_ts_ms: u64,
@@ -41,6 +45,8 @@ module typus_dov::dutch {
         owner: address,
         size: u64,
     }
+
+    // ======== Public Functions ========
 
     public fun new<MANAGER, TOKEN>(
         start_ts_ms: u64,
@@ -141,31 +147,6 @@ module typus_dov::dutch {
         )
     }
 
-    /// decayed_price = 
-    ///     initial_price -
-    ///         (initial_price - final_price) *
-    ///             (1 - remaining_time / auction_duration) ^ decay_speed
-    fun decay_formula(
-        initial_price: u64,
-        final_price: u64,
-        decay_speed: u64,
-        start_ts_ms: u64,
-        end_ts_ms: u64,
-        current_ts_ms: u64,
-    ): u64 {
-        let price_diff = initial_price - final_price;
-        // 1 - remaining_time / auction_duration => 1 - (end - current) / (end - start) => (current - start) / (end - start)
-        let numerator = current_ts_ms - start_ts_ms;
-        let denominator = end_ts_ms - start_ts_ms;
-
-        while (decay_speed > 0) {
-            price_diff  = price_diff * numerator / denominator;
-            decay_speed = decay_speed - 1;
-        };
-        
-        initial_price - price_diff
-    }
-
     public fun delivery<MANAGER, TOKEN>(
         _manager_cap: &MANAGER,
         auction: &mut Auction<MANAGER, TOKEN>,
@@ -234,6 +215,33 @@ module typus_dov::dutch {
         };
 
         winners
+    }
+
+    // ======== Private Functions ========
+
+    /// decayed_price = 
+    ///     initial_price -
+    ///         (initial_price - final_price) *
+    ///             (1 - remaining_time / auction_duration) ^ decay_speed
+    fun decay_formula(
+        initial_price: u64,
+        final_price: u64,
+        decay_speed: u64,
+        start_ts_ms: u64,
+        end_ts_ms: u64,
+        current_ts_ms: u64,
+    ): u64 {
+        let price_diff = initial_price - final_price;
+        // 1 - remaining_time / auction_duration => 1 - (end - current) / (end - start) => (current - start) / (end - start)
+        let numerator = current_ts_ms - start_ts_ms;
+        let denominator = end_ts_ms - start_ts_ms;
+
+        while (decay_speed > 0) {
+            price_diff  = price_diff * numerator / denominator;
+            decay_speed = decay_speed - 1;
+        };
+        
+        initial_price - price_diff
     }
 
     #[test]

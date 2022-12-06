@@ -5,7 +5,6 @@ module typus_covered_call::covered_call {
     use sui::tx_context::{Self, TxContext};
     use sui::transfer;
     use sui::coin::Coin;
-    use sui::event::emit;
     use sui::dynamic_field;
 
     use typus_dov::vault::{Self, Vault};
@@ -165,7 +164,7 @@ module typus_covered_call::covered_call {
     }
 
     public entry fun new_covered_call_vault<TOKEN>(
-        manager_cap: &ManagerCap<Config>,
+        _manager_cap: &ManagerCap<Config>,
         vault_registry: &mut Registry<ManagerCap<Config>, Config>,
         expiration_ts: u64,
         asset_name: vector<u8>,

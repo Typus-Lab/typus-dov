@@ -339,6 +339,34 @@ module typus_dov::vault {
         );
     }
 
+    public fun enable_deposit<MANAGER, TOKEN>(
+        _manager_cap: &MANAGER,
+        vault: &mut Vault<MANAGER, TOKEN>
+    ) {
+        vault.able_to_deposit = true;
+    }
+
+    public fun disable_deposit<MANAGER, TOKEN>(
+        _manager_cap: &MANAGER,
+        vault: &mut Vault<MANAGER, TOKEN>
+    ) {
+        vault.able_to_deposit = false;
+    }
+
+    public fun enable_withdraw<MANAGER, TOKEN>(
+        _manager_cap: &MANAGER,
+        vault: &mut Vault<MANAGER, TOKEN>
+    ) {
+        vault.able_to_withdraw = true;
+    }
+
+    public fun disable_withdraw<MANAGER, TOKEN>(
+        _manager_cap: &MANAGER,
+        vault: &mut Vault<MANAGER, TOKEN>
+    ) {
+        vault.able_to_withdraw = false;
+    }
+
     // ======== Private Functions ========
 
     fun get_sub_vault<MANAGER, TOKEN>(
