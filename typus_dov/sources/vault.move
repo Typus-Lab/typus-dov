@@ -444,6 +444,14 @@ module typus_dov::vault {
         }
     }
 
+    // ======== Events =========
+
+    struct UserDeposit<phantom MANAGER, phantom TOKEN> has copy, drop { user: address, sub_vault_type: vector<u8>, amount: u64 }
+    
+    struct UserWithdraw<phantom MANAGER, phantom TOKEN> has copy, drop { user: address, sub_vault_type: vector<u8>, share: u64, amount: u64 }
+
+    // ======== Test =========
+
     #[test_only]
     public fun test_get_user_share<MANAGER, TOKEN>(
         vault: &Vault<MANAGER, TOKEN>,
@@ -466,9 +474,10 @@ module typus_dov::vault {
             )
         }
     }
+
     #[test_only]
     public fun test_get_balance<MANAGER, TOKEN>(
-        vault: &mut Vault<MANAGER, TOKEN>,
+        vault: &Vault<MANAGER, TOKEN>,
         is_rolling: bool,
     ) {
         use std::debug;
@@ -483,9 +492,10 @@ module typus_dov::vault {
         };
         debug::print(balance);
     }
+
     #[test_only]
     public fun test_get_share_supply<MANAGER, TOKEN>(
-        vault: &mut Vault<MANAGER, TOKEN>,
+        vault: &Vault<MANAGER, TOKEN>,
         is_rolling: bool,
     ) {
         use std::debug;
@@ -500,7 +510,4 @@ module typus_dov::vault {
         };
         debug::print(share_supply);
     }
-
-    struct UserDeposit<phantom MANAGER, phantom TOKEN> has copy, drop { user: address, sub_vault_type: vector<u8>, amount: u64 }
-    struct UserWithdraw<phantom MANAGER, phantom TOKEN> has copy, drop { user: address, sub_vault_type: vector<u8>, share: u64, amount: u64 }
 }

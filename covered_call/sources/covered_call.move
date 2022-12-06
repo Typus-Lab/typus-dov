@@ -25,7 +25,7 @@ module typus_covered_call::covered_call {
 
     // ======== Structs =========
 
-    struct ManagerCap<phantom CONFIG> has key, store {
+    struct ManagerCap has key, store {
         id: UID,
     }
 
@@ -34,15 +34,15 @@ module typus_covered_call::covered_call {
         expiration_ts: u64
     }
 
-    struct Registry<phantom MANAGER> has key {
+    struct Registry has key {
         id: UID,
         num_of_vault: u64,
     }
 
-    struct CoveredCallVault<phantom MANAGER, phantom TOKEN> has store {
+    struct CoveredCallVault<phantom TOKEN> has store {
         config: Config,
-        vault: Vault<MANAGER, TOKEN>,
-        auction: Option<Auction<MANAGER, TOKEN>>,
+        vault: Vault<ManagerCap, TOKEN>,
+        auction: Option<Auction<ManagerCap, TOKEN>>,
         next_index: Option<u64>,
     }
 
@@ -54,22 +54,22 @@ module typus_covered_call::covered_call {
 
     fun init_(ctx: &mut TxContext) {
         transfer::transfer(
-            ManagerCap<Config> {
+            ManagerCap {
                 id: object::new(ctx)
             },
             tx_context::sender(ctx)
         );
-        new_registry<ManagerCap<Config>>(ctx);
+        new_registry(ctx);
     }
 
-    fun new_registry<MANAGER>(
+    fun new_registry(
         ctx: &mut TxContext
     ) {
         let id = object::new(ctx);
 
-        // emit(RegistryCreated<MANAGER> { id: object::uid_to_inner(&id) });
+        // emit(RegistryCreated { id: object::uid_to_inner(&id) });
 
-        let vault = Registry<MANAGER> {
+        let vault = Registry {
             id,
             num_of_vault: 0
         };
@@ -83,32 +83,32 @@ module typus_covered_call::covered_call {
         &config.payoff_config
     }
 
-    public fun get_config<MANAGER, TOKEN, CONFIG: store>(
-        registry: &mut Registry<MANAGER>,
+    public fun get_config<TOKEN>(
+        registry: &mut Registry,
         index: u64,
     ): &Config {
-        &dynamic_field::borrow<u64, CoveredCallVault<MANAGER, TOKEN>>(&registry.id, index).config
+        &dynamic_field::borrow<u64, CoveredCallVault<TOKEN>>(&registry.id, index).config
     }
 
-    public fun get_next_index<MANAGER, TOKEN, CONFIG: store>(
-        registry: &mut Registry<MANAGER>,
+    public fun get_next_index<TOKEN>(
+        registry: &mut Registry,
         index: u64,
     ): Option<u64> {
-        dynamic_field::borrow<u64, CoveredCallVault<MANAGER, TOKEN>>(&registry.id, index).next_index
+        dynamic_field::borrow<u64, CoveredCallVault<TOKEN>>(&registry.id, index).next_index
     }
 
     public fun check_already_expired(config: &Config, ts_ms: u64) {
         assert!(ts_ms >= config.expiration_ts * 1000, E_VAULT_NOT_EXPIRED_YET);
     }
 
-    public fun set_strike<MANAGER, TOKEN>(
-        _manager_cap: &MANAGER,
-        registry: &mut Registry<MANAGER>,
+    public fun set_strike<TOKEN>(
+        _manager_cap: &ManagerCap,
+        registry: &mut Registry,
         index: u64,
         price: u64
     ) {
         payoff::set_strike(
-            &mut dynamic_field::borrow_mut<u64, CoveredCallVault<MANAGER, TOKEN>>(
+            &mut dynamic_field::borrow_mut<u64, CoveredCallVault<TOKEN>>(
                 &mut registry.id,
                 index
             )
@@ -118,14 +118,14 @@ module typus_covered_call::covered_call {
         );
     }
 
-    public fun set_premium_roi<MANAGER, TOKEN>(
-        _manager_cap: &MANAGER,
-        registry: &mut Registry<MANAGER>,
+    public fun set_premium_roi<TOKEN>(
+        _manager_cap: &ManagerCap,
+        registry: &mut Registry,
         index: u64,
         premium_roi: u64
     ) {
         payoff::set_premium_roi(
-            &mut dynamic_field::borrow_mut<u64, CoveredCallVault<MANAGER, TOKEN>>(
+            &mut dynamic_field::borrow_mut<u64, CoveredCallVault<TOKEN>>(
                 &mut registry.id,
                 index
             )
@@ -137,18 +137,18 @@ module typus_covered_call::covered_call {
 
     // ======== Public Friend Functions =========
 
-    public(friend) fun get_mut_vault<MANAGER, TOKEN, CONFIG: store>(
-        registry: &mut Registry<MANAGER>,
+    public(friend) fun get_mut_vault<TOKEN>(
+        registry: &mut Registry,
         index: u64,
-    ): &mut Vault<MANAGER, TOKEN> {
-        &mut dynamic_field::borrow_mut<u64, CoveredCallVault<MANAGER, TOKEN>>(&mut registry.id, index).vault
+    ): &mut Vault<ManagerCap, TOKEN> {
+        &mut dynamic_field::borrow_mut<u64, CoveredCallVault<TOKEN>>(&mut registry.id, index).vault
     }
 
     // ======== Entry Functions =========
 
     public(friend) entry fun new_covered_call_vault<TOKEN>(
-        _manager_cap: &ManagerCap<Config>,
-        registry: &mut Registry<ManagerCap<Config>>,
+        _manager_cap: &ManagerCap,
+        registry: &mut Registry,
         expiration_ts: u64,
         asset_name: vector<u8>,
         strike_otm_pct: u64,
@@ -167,7 +167,7 @@ module typus_covered_call::covered_call {
         );
 
         let config = Config { payoff_config, expiration_ts };
-        let vault = vault::new_vault<ManagerCap<Config>, TOKEN>(ctx);
+        let vault = vault::new_vault<ManagerCap, TOKEN>(ctx);
 
         dynamic_field::add(
             &mut registry.id,
@@ -183,15 +183,15 @@ module typus_covered_call::covered_call {
     }
 
     public(friend) entry fun deposit<TOKEN>(
-        registry: &mut Registry<ManagerCap<Config>>,
+        registry: &mut Registry,
         index: u64,
         coin: &mut Coin<TOKEN>,
         amount: u64,
         is_rolling: bool,
         ctx: &mut TxContext
     ) {
-        vault::deposit<ManagerCap<Config>, TOKEN>(
-            get_mut_vault<ManagerCap<Config>, TOKEN, Config>(
+        vault::deposit<ManagerCap, TOKEN>(
+            get_mut_vault<TOKEN>(
                 registry,
                 index
             ),
@@ -203,9 +203,9 @@ module typus_covered_call::covered_call {
 
     }
 
-    public(friend) entry fun new_auction<MANAGER, TOKEN>(
-        _manager_cap: &MANAGER,
-        registry: &mut Registry<ManagerCap<Config>>,
+    public(friend) entry fun new_auction<TOKEN>(
+        _manager_cap: &ManagerCap,
+        registry: &mut Registry,
         index: u64,
         start_ts_ms: u64,
         end_ts_ms: u64,
@@ -215,7 +215,7 @@ module typus_covered_call::covered_call {
         ctx: &mut TxContext,
     ) {
         option::fill(
-            &mut dynamic_field::borrow_mut<u64, CoveredCallVault<MANAGER, TOKEN>>(
+            &mut dynamic_field::borrow_mut<u64, CoveredCallVault<TOKEN>>(
                 &mut registry.id,
                 index
             ).auction,
@@ -231,14 +231,14 @@ module typus_covered_call::covered_call {
     }
 
     public(friend) entry fun withdraw<TOKEN>(
-        registry: &mut Registry<ManagerCap<Config>>,
+        registry: &mut Registry,
         index: u64,
         amount: u64,
         is_rolling: bool,
         ctx: &mut TxContext
     ) {
-        vault::withdraw<ManagerCap<Config>, TOKEN>(
-            get_mut_vault<ManagerCap<Config>, TOKEN, Config>(
+        vault::withdraw<ManagerCap, TOKEN>(
+            get_mut_vault<TOKEN>(
                 registry,
                 index
             ),
@@ -249,12 +249,12 @@ module typus_covered_call::covered_call {
     }
 
     public(friend) entry fun subscribe<TOKEN>(
-        registry: &mut Registry<ManagerCap<Config>>,
+        registry: &mut Registry,
         index: u64,
         ctx: &mut TxContext
     ) {
-        vault::subscribe<ManagerCap<Config>, TOKEN>(
-            get_mut_vault<ManagerCap<Config>, TOKEN, Config>(
+        vault::subscribe<ManagerCap, TOKEN>(
+            get_mut_vault<TOKEN>(
                 registry,
                 index
             ),
@@ -263,12 +263,12 @@ module typus_covered_call::covered_call {
     }
 
     public(friend) entry fun unsubscribe<TOKEN>(
-        registry: &mut Registry<ManagerCap<Config>>,
+        registry: &mut Registry,
         index: u64,
         ctx: &mut TxContext
     ) {
-        vault::unsubscribe<ManagerCap<Config>, TOKEN>(
-            get_mut_vault<ManagerCap<Config>, TOKEN, Config>(
+        vault::unsubscribe<ManagerCap, TOKEN>(
+            get_mut_vault<TOKEN>(
                 registry,
                 index
             ),
@@ -276,16 +276,16 @@ module typus_covered_call::covered_call {
         );
     }
 
-    public(friend) entry fun new_bid<MANAGER, TOKEN>(
-        registry: &mut Registry<ManagerCap<Config>>,
+    public(friend) entry fun new_bid<TOKEN>(
+        registry: &mut Registry,
         index: u64,
         size: u64,
         coin: &mut Coin<TOKEN>,
         time: &Time,
         ctx: &mut TxContext,
     ) {
-        dutch::new_bid<MANAGER, TOKEN>(
-            option::borrow_mut(&mut dynamic_field::borrow_mut<u64, CoveredCallVault<MANAGER, TOKEN>>(
+        dutch::new_bid<ManagerCap, TOKEN>(
+            option::borrow_mut(&mut dynamic_field::borrow_mut<u64, CoveredCallVault<TOKEN>>(
                 &mut registry.id,
                 index
             ).auction),
@@ -296,14 +296,14 @@ module typus_covered_call::covered_call {
         );
     }
 
-    public(friend) entry fun remove_bid<MANAGER, TOKEN>(
-        registry: &mut Registry<ManagerCap<Config>>,
+    public(friend) entry fun remove_bid<TOKEN>(
+        registry: &mut Registry,
         index: u64,
         bid_index: u64,
         ctx: &mut TxContext,
     ) {
-        dutch::remove_bid<MANAGER, TOKEN>(
-            option::borrow_mut(&mut dynamic_field::borrow_mut<u64, CoveredCallVault<MANAGER, TOKEN>>(
+        dutch::remove_bid<ManagerCap, TOKEN>(
+            option::borrow_mut(&mut dynamic_field::borrow_mut<u64, CoveredCallVault<TOKEN>>(
                 &mut registry.id,
                 index
             ).auction),
@@ -314,8 +314,8 @@ module typus_covered_call::covered_call {
 
     // ======== Events =========
 
-    // struct RegistryCreated<phantom MANAGER, phantom CONFIG> has copy, drop { id: ID }
-    // struct VaultCreated<phantom MANAGER, phantom TOKEN, CONFIG, phantom AUCTION> has copy, drop {config: CONFIG }
+    // struct RegistryCreated<phantom phantom CONFIG> has copy, drop { id: ID }
+    // struct VaultCreated<phantom phantom TOKEN, CONFIG, phantom AUCTION> has copy, drop {config: CONFIG }
 
     // struct VaultCreated has copy, drop {
     //     asset: String,

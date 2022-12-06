@@ -17,7 +17,7 @@ module typus_covered_call::test {
     use typus_dov::vault;
     use typus_oracle::oracle;
 
-    use typus_covered_call::covered_call::{Self, ManagerCap, Config, Registry};
+    use typus_covered_call::covered_call::{Self, ManagerCap, Registry};
     use typus_covered_call::settlement;
     use typus_covered_call::payoff;
 
@@ -32,8 +32,8 @@ module typus_covered_call::test {
 
         test_scenario::next_tx(scenario, admin);
         {
-            let manager_cap = test_scenario::take_from_sender<ManagerCap<Config>>(scenario);
-            let registry = test_scenario::take_shared<Registry<ManagerCap<Config>>>(scenario);
+            let manager_cap = test_scenario::take_from_sender<ManagerCap>(scenario);
+            let registry = test_scenario::take_shared<Registry>(scenario);
             let (price_oracle, oracle_key) = oracle::test_new_oracle<SUI>(8, test_scenario::ctx(scenario));
 
             oracle::update(
@@ -53,7 +53,7 @@ module typus_covered_call::test {
                 &price_oracle,
                 test_scenario::ctx(scenario)
             );
-            test_scenario::return_to_sender<ManagerCap<Config>>(scenario, manager_cap);
+            test_scenario::return_to_sender<ManagerCap>(scenario, manager_cap);
             test_scenario::return_shared(registry);
             transfer::transfer(oracle_key, admin);
             transfer::transfer(price_oracle, admin);
@@ -69,7 +69,7 @@ module typus_covered_call::test {
         let scenario_val = test_new_vault();
         let scenario = &mut scenario_val;
         
-        let registry = test_scenario::take_shared<Registry<ManagerCap<Config>>>(scenario);
+        let registry = test_scenario::take_shared<Registry>(scenario);
 
         let balance = balance::create_for_testing<SUI>(1000);
 
@@ -81,12 +81,12 @@ module typus_covered_call::test {
 
         test_scenario::next_tx(scenario, admin);
 
-        let current_vault = covered_call::get_mut_vault<ManagerCap<Config>, SUI, Config>(
+        let current_vault = covered_call::get_mut_vault<SUI>(
             &mut registry,
             0
         );
 
-        let share = vault::test_get_user_share<ManagerCap<Config>, SUI>(current_vault, true, admin);
+        let share = vault::test_get_user_share<ManagerCap, SUI>(current_vault, true, admin);
 
         assert!(share == 1000, 0);
 
@@ -123,8 +123,8 @@ module typus_covered_call::test {
         let scenario_val = test_new_vault();
         let scenario = &mut scenario_val;
         
-        let registry = test_scenario::take_shared<Registry<ManagerCap<Config>>>(scenario);
-        let manager_cap = test_scenario::take_from_sender<ManagerCap<Config>>(scenario);
+        let registry = test_scenario::take_shared<Registry>(scenario);
+        let manager_cap = test_scenario::take_from_sender<ManagerCap>(scenario);
 
         let (price_oracle, oracle_key) = oracle::test_new_oracle<SUI>(8, test_scenario::ctx(scenario));
         oracle::update(
@@ -165,8 +165,8 @@ module typus_covered_call::test {
         let coin_amount = coin::value<SUI>(&test_coin_2);
         covered_call::deposit<SUI>(&mut registry, 2, &mut test_coin_2, coin_amount, true, test_scenario::ctx(scenario));
 
-        covered_call::set_strike<ManagerCap<Config>, SUI>(&manager_cap, &mut registry, 1, 100);
-        covered_call::set_premium_roi<ManagerCap<Config>, SUI>(&manager_cap, &mut registry, 1, 100000);
+        covered_call::set_strike<SUI>(&manager_cap, &mut registry, 1, 100);
+        covered_call::set_premium_roi<SUI>(&manager_cap, &mut registry, 1, 100000);
 
         // mm deposit
         let mm_test_coin = coin::mint_for_testing<SUI>(10000, test_scenario::ctx(scenario));
@@ -181,35 +181,35 @@ module typus_covered_call::test {
         );
 
         debug::print(&string::utf8(b"before settle"));
-        vault::test_get_balance<ManagerCap<Config>, SUI>(covered_call::get_mut_vault<ManagerCap<Config>, SUI, Config>(
+        vault::test_get_balance<ManagerCap, SUI>(covered_call::get_mut_vault<SUI>(
             &mut registry,
             1
         ), true);
-        vault::test_get_share_supply<ManagerCap<Config>, SUI>(covered_call::get_mut_vault<ManagerCap<Config>, SUI, Config>(
+        vault::test_get_share_supply<ManagerCap, SUI>(covered_call::get_mut_vault<SUI>(
             &mut registry,
             1
         ), true);
-        vault::test_get_balance<ManagerCap<Config>, SUI>(covered_call::get_mut_vault<ManagerCap<Config>, SUI, Config>(
-            &mut registry,
-            1
-        ), false);
-        vault::test_get_share_supply<ManagerCap<Config>, SUI>(covered_call::get_mut_vault<ManagerCap<Config>, SUI, Config>(
+        vault::test_get_balance<ManagerCap, SUI>(covered_call::get_mut_vault<SUI>(
             &mut registry,
             1
         ), false);
-        vault::test_get_balance<ManagerCap<Config>, SUI>(covered_call::get_mut_vault<ManagerCap<Config>, SUI, Config>(
+        vault::test_get_share_supply<ManagerCap, SUI>(covered_call::get_mut_vault<SUI>(
+            &mut registry,
+            1
+        ), false);
+        vault::test_get_balance<ManagerCap, SUI>(covered_call::get_mut_vault<SUI>(
             &mut registry,
             2
         ), true);
-        vault::test_get_share_supply<ManagerCap<Config>, SUI>(covered_call::get_mut_vault<ManagerCap<Config>, SUI, Config>(
+        vault::test_get_share_supply<ManagerCap, SUI>(covered_call::get_mut_vault<SUI>(
             &mut registry,
             2
         ), true);
-        vault::test_get_balance<ManagerCap<Config>, SUI>(covered_call::get_mut_vault<ManagerCap<Config>, SUI, Config>(
+        vault::test_get_balance<ManagerCap, SUI>(covered_call::get_mut_vault<SUI>(
             &mut registry,
             2
         ), false);
-        vault::test_get_share_supply<ManagerCap<Config>, SUI>(covered_call::get_mut_vault<ManagerCap<Config>, SUI, Config>(
+        vault::test_get_share_supply<ManagerCap, SUI>(covered_call::get_mut_vault<SUI>(
             &mut registry,
             2
         ), false);
@@ -218,35 +218,35 @@ module typus_covered_call::test {
         settlement::settle_with_roll_over<SUI>(&manager_cap, &mut registry, 1, &price_oracle);
 
         debug::print(&string::utf8(b"after settle"));
-        vault::test_get_balance<ManagerCap<Config>, SUI>(covered_call::get_mut_vault<ManagerCap<Config>, SUI, Config>(
+        vault::test_get_balance<ManagerCap, SUI>(covered_call::get_mut_vault<SUI>(
             &mut registry,
             1
         ), true);
-        vault::test_get_share_supply<ManagerCap<Config>, SUI>(covered_call::get_mut_vault<ManagerCap<Config>, SUI, Config>(
+        vault::test_get_share_supply<ManagerCap, SUI>(covered_call::get_mut_vault<SUI>(
             &mut registry,
             1
         ), true);
-        vault::test_get_balance<ManagerCap<Config>, SUI>(covered_call::get_mut_vault<ManagerCap<Config>, SUI, Config>(
-            &mut registry,
-            1
-        ), false);
-        vault::test_get_share_supply<ManagerCap<Config>, SUI>(covered_call::get_mut_vault<ManagerCap<Config>, SUI, Config>(
+        vault::test_get_balance<ManagerCap, SUI>(covered_call::get_mut_vault<SUI>(
             &mut registry,
             1
         ), false);
-        vault::test_get_balance<ManagerCap<Config>, SUI>(covered_call::get_mut_vault<ManagerCap<Config>, SUI, Config>(
+        vault::test_get_share_supply<ManagerCap, SUI>(covered_call::get_mut_vault<SUI>(
+            &mut registry,
+            1
+        ), false);
+        vault::test_get_balance<ManagerCap, SUI>(covered_call::get_mut_vault<SUI>(
             &mut registry,
             2
         ), true);
-        vault::test_get_share_supply<ManagerCap<Config>, SUI>(covered_call::get_mut_vault<ManagerCap<Config>, SUI, Config>(
+        vault::test_get_share_supply<ManagerCap, SUI>(covered_call::get_mut_vault<SUI>(
             &mut registry,
             2
         ), true);
-        vault::test_get_balance<ManagerCap<Config>, SUI>(covered_call::get_mut_vault<ManagerCap<Config>, SUI, Config>(
+        vault::test_get_balance<ManagerCap, SUI>(covered_call::get_mut_vault<SUI>(
             &mut registry,
             2
         ), false);
-        vault::test_get_share_supply<ManagerCap<Config>, SUI>(covered_call::get_mut_vault<ManagerCap<Config>, SUI, Config>(
+        vault::test_get_share_supply<ManagerCap, SUI>(covered_call::get_mut_vault<SUI>(
             &mut registry,
             2
         ), false);
@@ -255,7 +255,7 @@ module typus_covered_call::test {
         coin::destroy_for_testing(test_coin_2);
         coin::destroy_for_testing(mm_test_coin);
         test_scenario::return_shared(registry); 
-        test_scenario::return_to_sender<ManagerCap<Config>>(scenario, manager_cap);
+        test_scenario::return_to_sender<ManagerCap>(scenario, manager_cap);
         transfer::transfer(oracle_key, tx_context::sender(test_scenario::ctx(scenario)));
         transfer::share_object(price_oracle);
         test_scenario::end(scenario_val); 
@@ -271,8 +271,8 @@ module typus_covered_call::test {
     //     let user1_scenario = test_scenario::begin(user1);
     //     let user2_scenario = test_scenario::begin(user2);
         
-    //     let registry = test_scenario::take_shared<Registry<ManagerCap<Config>>>(scenario);
-    //     let manager_cap = test_scenario::take_from_sender<ManagerCap<Config>>(scenario);
+    //     let registry = test_scenario::take_shared<Registry>(scenario);
+    //     let manager_cap = test_scenario::take_from_sender<ManagerCap>(scenario);
 
     //     let user1_ctx = test_scenario::ctx(&mut user1_scenario);
     //     let user2_ctx = test_scenario::ctx(&mut user2_scenario);
@@ -313,10 +313,10 @@ module typus_covered_call::test {
     //     covered_call::deposit<SUI>(&mut registry, 1, &mut test_coin_2, coin_amount, user2_ctx);
 
     //     debug::print(&string::utf8(b"A: after deposit"));
-    //     vault::test_get_balance<ManagerCap<Config>, SUI, Config, Auction<SUI>>(&mut registry, 1, true);
-    //     vault::test_get_share_supply<ManagerCap<Config>, SUI, Config, Auction<SUI>>(&mut registry, 1, true);
-    //     vault::test_get_balance<ManagerCap<Config>, SUI, Config, Auction<SUI>>(&mut registry, 1, false);
-    //     vault::test_get_share_supply<ManagerCap<Config>, SUI, Config, Auction<SUI>>(&mut registry, 1, false);
+    //     vault::test_get_balance<SUI, Auction<SUI>>(&mut registry, 1, true);
+    //     vault::test_get_share_supply<SUI, Auction<SUI>>(&mut registry, 1, true);
+    //     vault::test_get_balance<SUI, Auction<SUI>>(&mut registry, 1, false);
+    //     vault::test_get_share_supply<SUI, Auction<SUI>>(&mut registry, 1, false);
 
     //     covered_call::unsubscribe<SUI>(
     //         &mut registry,
@@ -325,17 +325,17 @@ module typus_covered_call::test {
     //     );
 
     //     debug::print(&string::utf8(b"B: user1 unsubscribed"));
-    //     vault::test_get_balance<ManagerCap<Config>, SUI, Config, Auction<SUI>>(&mut registry, 1, true);
-    //     vault::test_get_share_supply<ManagerCap<Config>, SUI, Config, Auction<SUI>>(&mut registry, 1, true);
-    //     vault::test_get_balance<ManagerCap<Config>, SUI, Config, Auction<SUI>>(&mut registry, 1, false);
-    //     vault::test_get_share_supply<ManagerCap<Config>, SUI, Config, Auction<SUI>>(&mut registry, 1, false);
+    //     vault::test_get_balance<SUI, Auction<SUI>>(&mut registry, 1, true);
+    //     vault::test_get_share_supply<SUI, Auction<SUI>>(&mut registry, 1, true);
+    //     vault::test_get_balance<SUI, Auction<SUI>>(&mut registry, 1, false);
+    //     vault::test_get_share_supply<SUI, Auction<SUI>>(&mut registry, 1, false);
 
     //     coin::destroy_for_testing(test_coin);
     //     coin::destroy_for_testing(test_coin_1);
     //     coin::destroy_for_testing(test_coin_2);
         
     //     test_scenario::return_shared(registry); 
-    //     test_scenario::return_to_sender<ManagerCap<Config>>(scenario, manager_cap);
+    //     test_scenario::return_to_sender<ManagerCap>(scenario, manager_cap);
     //     transfer::transfer(oracle_key, tx_context::sender(test_scenario::ctx(scenario)));
     //     transfer::share_object(price_oracle);
 
