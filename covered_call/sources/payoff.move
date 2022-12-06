@@ -13,6 +13,7 @@ module typus_covered_call::payoff {
     // ======== Constants =========
 
     const ROI_DECIMAL: u64 = 8;
+    const OTM_DECIMAL: u64 = 4;
 
     // ======== Errors =========
 
@@ -22,23 +23,30 @@ module typus_covered_call::payoff {
 
     struct PayoffConfig has store, drop, copy {
         asset: Asset,
-        strike: u64,
+        strike_otm_pct: u64,
+        strike: Option<u64>,
         premium_roi: Option<u64>,
     }
 
     // ======== Functions =========
 
+    public fun get_otm_decimal(): u64 {
+        OTM_DECIMAL
+    }
+
     public fun get_roi_decimal(): u64 {
         ROI_DECIMAL
     }
-
+    
     public(friend) fun new_payoff_config(
         asset: Asset,
-        strike: u64,
+        strike_otm_pct: u64,
+        strike: Option<u64>,
         premium_roi: Option<u64>,
     ): PayoffConfig {
         PayoffConfig {
             asset,
+            strike_otm_pct,
             strike,
             premium_roi,
         }
@@ -46,6 +54,12 @@ module typus_covered_call::payoff {
 
     public(friend) fun set_premium_roi(payoff_config: &mut PayoffConfig, premium_roi: u64) {
         option::fill(&mut payoff_config.premium_roi, premium_roi);
+    } 
+
+    public(friend) fun set_strike(payoff_config: &mut PayoffConfig, price: u64) {
+        let multiplier = utils::multiplier(OTM_DECIMAL);
+        let strike = price * (multiplier + payoff_config.strike_otm_pct) / multiplier;
+        option::fill(&mut payoff_config.strike, strike);
     } 
 
     // payoff represents the RoI per week
@@ -60,25 +74,27 @@ module typus_covered_call::payoff {
         let strike = payoff_config.strike;
         let premium_roi = payoff_config.premium_roi;
 
+        assert!(option::is_some(&strike), E_NO_CONFIG_CONTAINS_NONE);
         assert!(option::is_some(&premium_roi), E_NO_CONFIG_CONTAINS_NONE);
 
+        let strike = option::borrow<u64>(&strike);
         let premium_roi = option::borrow<u64>(&premium_roi);
 
-        debug::print(&strike);
+        debug::print(strike);
         debug::print(premium_roi);
         debug::print(&string::utf8(b"payoff:"));
 
-        if (price < strike) {
+        if (price < *strike) {
             debug::print(premium_roi);
             i64::from(*premium_roi)
         } else {
             debug::print(&i64::sub(
                 &i64::from(*premium_roi),
-                &i64::from(utils::multiplier(ROI_DECIMAL) * (price - strike) / strike)
+                &i64::from(utils::multiplier(ROI_DECIMAL) * (price - *strike) / *strike)
             ));
             i64::sub(
                 &i64::from(*premium_roi),
-                &i64::from(utils::multiplier(ROI_DECIMAL) * (price - strike) / strike)
+                &i64::from(utils::multiplier(ROI_DECIMAL) * (price - *strike) / *strike)
             )
         }
     }    

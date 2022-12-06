@@ -1,28 +1,41 @@
 module typus_covered_call::covered_call {
-    use std::option;
-    use std::string::{Self, String};
+    use std::option::{Self, Option};
+    use std::string;
 
     use sui::tx_context::{Self, TxContext};
     use sui::transfer;
     use sui::coin::Coin;
     use sui::event::emit;
+    use sui::dynamic_field;
 
-    use typus_dov::vault::{Self, VaultRegistry};
+    use typus_dov::vault::{Self, Vault};
     use typus_dov::asset;
     use typus_covered_call::payoff::{Self, PayoffConfig};
-    use typus_dov::dutch::Auction;
+    use typus_dov::dutch::{Self, Auction};
     use typus_oracle::oracle::{Self, Oracle};
     use sui::object::{Self, UID};
 
     // ======== Structs =========
 
-    struct ManagerCap<phantom CONFIG> has key {
+    struct ManagerCap<phantom CONFIG> has key, store {
         id: UID,
     }
 
     struct Config has store, drop, copy {
         payoff_config: PayoffConfig,
         expiration_ts: u64
+    }
+
+    struct Registry<phantom MANAGER, phantom CONFIG> has key {
+        id: UID,
+        num_of_vault: u64,
+    }
+
+    struct CoveredCallVault<phantom MANAGER, phantom TOKEN> has store {
+        config: Config,
+        vault: Vault<MANAGER, TOKEN>,
+        next_index: Option<u64>,
+        auction: Option<dutch::Auction<TOKEN>>
     }
 
     // ======== Functions =========
@@ -32,20 +45,70 @@ module typus_covered_call::covered_call {
             id: object::new(ctx)
         };
         transfer::transfer(manager_cap, tx_context::sender(ctx));
-        vault::new_vault_registry<ManagerCap<Config>, Config>(ctx);
+        new_registry<ManagerCap<Config>, Config>(ctx);
     }
 
     fun init(ctx: &mut TxContext) {
         init_(ctx);
     }
 
-    public fun get_config<TOKEN>(
-        vault_registry: &mut VaultRegistry<ManagerCap<Config>, Config>,
+    fun new_registry<MANAGER, CONFIG>(
+        ctx: &mut TxContext
+    ) {
+        let id = object::new(ctx);
+
+        // emit(RegistryCreated<MANAGER, CONFIG> { id: object::uid_to_inner(&id) });
+
+        let vault = Registry<MANAGER, CONFIG> {
+            id,
+            num_of_vault: 0
+        };
+
+        transfer::share_object(vault);
+    }
+
+    fun new_vault<MANAGER, TOKEN>(
+        config: Config,
+        vault: Vault<MANAGER, TOKEN>,
+        next_index: Option<u64>,
+        auction: Option<dutch::Auction<TOKEN>>
+    ): CoveredCallVault<MANAGER, TOKEN> {
+        CoveredCallVault<MANAGER, TOKEN> {
+            config,
+            vault,
+            next_index,
+            auction
+        }
+    }
+
+    fun get_vault<MANAGER, TOKEN: store, CONFIG: store>(
+        vault_registry: &mut Registry<MANAGER, CONFIG>,
+        vault_index: u64,
+    ): &CoveredCallVault<MANAGER, TOKEN> {
+        dynamic_field::borrow<u64, CoveredCallVault<MANAGER, TOKEN>>(&vault_registry.id, vault_index)
+    }
+
+    fun get_mut_vault<MANAGER, TOKEN: store, CONFIG: store>(
+        vault_registry: &mut Registry<MANAGER, CONFIG>,
+        vault_index: u64,
+    ): &mut CoveredCallVault<MANAGER, TOKEN> {
+        dynamic_field::borrow_mut<u64, CoveredCallVault<MANAGER, TOKEN>>(&mut vault_registry.id, vault_index)
+    }
+
+    fun get_config<MANAGER, TOKEN: store, CONFIG: store>(
+        vault_registry: &mut Registry<MANAGER, CONFIG>,
         vault_index: u64,
     ): &Config {
-        vault::get_config<ManagerCap<Config>, TOKEN, Config, Auction<TOKEN>>(vault_registry, vault_index)
+        &get_vault<MANAGER, TOKEN, CONFIG>(vault_registry, vault_index).config
     }
-     
+
+    fun get_mut_config<MANAGER, TOKEN: store, CONFIG: store>(
+        _manager_cap: &MANAGER,
+        vault_registry: &mut Registry<MANAGER, CONFIG>,
+        vault_index: u64,
+    ): &mut Config {
+        &mut get_mut_vault<MANAGER, TOKEN, CONFIG>(vault_registry, vault_index).config
+    }
 
     public fun get_payoff_config(config: &Config): &PayoffConfig {
         &config.payoff_config
@@ -55,13 +118,27 @@ module typus_covered_call::covered_call {
         assert!(unix_ms >= config.expiration_ts * 1000, E_VAULT_NOT_EXPIRED_YET);
     }
 
-    public fun set_premium_roi<TOKEN>(
-        manager_cap: &ManagerCap<Config>,
-        vault_registry: &mut VaultRegistry<ManagerCap<Config>, Config>,
+    public fun set_strike<MANAGER, TOKEN: store>(
+        manager_cap: &MANAGER,
+        vault_registry: &mut Registry<MANAGER, Config>,
+        index: u64,
+        price: u64
+    ){
+        let config = get_mut_config<MANAGER, TOKEN, Config>(
+            manager_cap,
+            vault_registry,
+            index
+        );
+        payoff::set_strike(&mut config.payoff_config, price);
+    }
+
+    public fun set_premium_roi<MANAGER, TOKEN: store>(
+        manager_cap: &MANAGER,
+        vault_registry: &mut Registry<MANAGER, Config>,
         index: u64,
         premium_roi: u64
     ){
-        let config = vault::get_mut_config<ManagerCap<Config>, TOKEN, Config, Auction<TOKEN>>(
+        let config = get_mut_config<MANAGER, TOKEN, Config>(
             manager_cap,
             vault_registry,
             index
@@ -71,10 +148,10 @@ module typus_covered_call::covered_call {
 
     public entry fun new_covered_call_vault<TOKEN>(
         manager_cap: &ManagerCap<Config>,
-        vault_registry: &mut VaultRegistry<ManagerCap<Config>, Config>,
+        vault_registry: &mut Registry<ManagerCap<Config>, Config>,
         expiration_ts: u64,
         asset_name: vector<u8>,
-        strike: u64,
+        strike_otm_pct: u64,
         price_oracle: &Oracle<TOKEN>,
         ctx: &mut TxContext
     ){
@@ -85,26 +162,29 @@ module typus_covered_call::covered_call {
         let asset = string::utf8(asset_name);
         let payoff_config = payoff::new_payoff_config(
             asset::new_asset(asset, price, price_decimal),
-            strike,
+            strike_otm_pct,
+            option::none(),
             option::none(),
         );
 
-        let _n = vault::new_vault<ManagerCap<Config>, TOKEN, Config, Auction<TOKEN>>(
-            manager_cap,
-            vault_registry,
-            Config { payoff_config, expiration_ts },
-            ctx
+        let config = Config { payoff_config, expiration_ts };
+        let new_vault = vault::new_vault<ManagerCap<Config>, TOKEN>(ctx);
+        let covered_call = new_vault<ManagerCap<Config>, TOKEN>(
+            config,
+            new_vault,
+            option::none(),
+            option::none()
         );
 
-        emit(VaultCreated{
-            asset,
-            expiration_ts,
-            strike,
-        });
+        // emit(VaultCreated{
+        //     asset,
+        //     expiration_ts,
+        //     strike,
+        // });
     }
 
-    public entry fun deposit<TOKEN>(
-        vault_registry: &mut VaultRegistry<ManagerCap<Config>, Config>,
+    public entry fun deposit<TOKEN: store>(
+        vault_registry: &mut Registry<ManagerCap<Config>, Config>,
         index: u64,
         coin: &mut Coin<TOKEN>,
         amount: u64,
@@ -112,9 +192,13 @@ module typus_covered_call::covered_call {
     ){
         let rolling = true;
 
-        vault::deposit<ManagerCap<Config>, TOKEN, Config, Auction<TOKEN>>(
+        let covered_call_vault = get_mut_vault<ManagerCap<Config>, TOKEN, Config>(
             vault_registry,
-            index,
+            index
+        );
+
+        vault::deposit<ManagerCap<Config>, TOKEN>(
+            &mut covered_call_vault.vault,
             coin,
             amount,
             rolling,
@@ -123,27 +207,35 @@ module typus_covered_call::covered_call {
 
     }
 
-    public entry fun unsubscribe<TOKEN>(
-        vault_registry: &mut VaultRegistry<ManagerCap<Config>, Config>,
+    public entry fun unsubscribe<TOKEN: store>(
+        vault_registry: &mut Registry<ManagerCap<Config>, Config>,
         index: u64,
         ctx: &mut TxContext
     ){
-        vault::unsubscribe<ManagerCap<Config>, TOKEN, Config, Auction<TOKEN>>(
-            vault_registry, index, ctx
+        let covered_call_vault = get_mut_vault<ManagerCap<Config>, TOKEN, Config>(
+            vault_registry,
+            index
+        );
+        vault::unsubscribe<ManagerCap<Config>, TOKEN>(
+            &mut covered_call_vault.vault, ctx
         );
     }
 
-    public entry fun withdraw<TOKEN>(
-        vault_registry: &mut VaultRegistry<ManagerCap<Config>, Config>,
+    public entry fun withdraw<TOKEN: store>(
+        vault_registry: &mut Registry<ManagerCap<Config>, Config>,
         index: u64,
         amount: u64,
         ctx: &mut TxContext
     ){
         let rolling = false;
 
-        vault::withdraw<ManagerCap<Config>, TOKEN, Config, Auction<TOKEN>>(
-            vault_registry, 
-            index,
+        let covered_call_vault = get_mut_vault<ManagerCap<Config>, TOKEN, Config>(
+            vault_registry,
+            index
+        );
+
+        vault::withdraw<ManagerCap<Config>, TOKEN>(
+            &mut covered_call_vault.vault,
             option::some(amount),
             rolling,
             ctx
@@ -154,11 +246,14 @@ module typus_covered_call::covered_call {
 
     // ======== Events =========
 
-    struct VaultCreated has copy, drop {
-        asset: String,
-        expiration_ts: u64,
-        strike: u64,
-    }
+    // struct RegistryCreated<phantom MANAGER, phantom CONFIG> has copy, drop { id: ID }
+    // struct VaultCreated<phantom MANAGER, phantom TOKEN, CONFIG, phantom AUCTION> has copy, drop {config: CONFIG }
+
+    // struct VaultCreated has copy, drop {
+    //     asset: String,
+    //     expiration_ts: u64,
+    //     strike: u64,
+    // }
 
     // struct VaultDeposit has copy, drop {
     //     index: u64,
@@ -173,28 +268,4 @@ module typus_covered_call::covered_call {
         init_(ctx);
     }
 
-    // #[test_only]
-    // public fun get_sub_vault_deposit<T>(vault_registry: &mut VaultRegistry<Config>, index: u64): vector<u64> {
-    //     use std::vector;
-    //     let deposit_value_rolling = vault::get_vault_deposit_value<T, Config, Auction<T>>(vault_registry, index, string::utf8(b"rolling"));
-    //     let deposit_value_regular = vault::get_vault_deposit_value<T, Config, Auction<T>>(vault_registry, index, string::utf8(b"regular"));
-    //     let deposit_value_mm = vault::get_vault_deposit_value<T, Config, Auction<T>>(vault_registry, index, string::utf8(b"maker"));
-    //     let vec = vector::empty<u64>();
-    //     vector::push_back<u64>(&mut vec, deposit_value_rolling);
-    //     vector::push_back<u64>(&mut vec, deposit_value_regular);
-    //     vector::push_back<u64>(&mut vec, deposit_value_mm);
-    //     vec
-    // }
-    // #[test_only]
-    // public fun get_sub_vault_share_supply<T>(vault_registry: &mut VaultRegistry<Config>, index: u64): vector<u64> {
-    //     use std::vector;
-    //     let share_supply_rolling = vault::get_vault_share_supply<T, Config, Auction<T>>(vault_registry, index, string::utf8(b"rolling"));
-    //     let share_supply_regular = vault::get_vault_share_supply<T, Config, Auction<T>>(vault_registry, index, string::utf8(b"regular"));
-    //     let share_supply_mm = vault::get_vault_share_supply<T, Config, Auction<T>>(vault_registry, index, string::utf8(b"maker"));
-    //     let vec = vector::empty<u64>();
-    //     vector::push_back<u64>(&mut vec, share_supply_rolling);
-    //     vector::push_back<u64>(&mut vec, share_supply_regular);
-    //     vector::push_back<u64>(&mut vec, share_supply_mm);
-    //     vec
-    // }
 }
