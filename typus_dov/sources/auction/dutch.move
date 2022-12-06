@@ -10,13 +10,13 @@ module typus_dov::dutch {
     const E_ZERO_SIZE: u64 = 0;
     const E_BID_NOT_EXISTS: u64 = 1;
 
-    struct Auction<phantom T> has store {
+    struct Auction<phantom MANAGER, phantom TOKEN> has store {
         start_ts_ms: u64,
         end_ts_ms: u64,
         price_config: PriceConfig,
         index: u64,
         bids: Table<u64, Bid>,
-        funds: Table<u64, Fund<T>>,
+        funds: Table<u64, Fund<TOKEN>>,
         ownerships: Table<address, vector<u64>>
     }
 
@@ -32,8 +32,8 @@ module typus_dov::dutch {
         ts_ms: u64,
     }
 
-    struct Fund<phantom T> has store {
-        coin: Coin<T>,
+    struct Fund<phantom TOKEN> has store {
+        coin: Coin<TOKEN>,
         owner: address,
     }
 
@@ -42,14 +42,14 @@ module typus_dov::dutch {
         size: u64,
     }
 
-    public fun new<T>(
+    public fun new<MANAGER, TOKEN>(
         start_ts_ms: u64,
         end_ts_ms: u64,
         decay_speed: u64,
         initial_price: u64,
         final_price: u64,
         ctx: &mut TxContext,
-    ): Auction<T> {
+    ): Auction<MANAGER, TOKEN> {
         Auction {
             start_ts_ms,
             end_ts_ms,
@@ -65,10 +65,10 @@ module typus_dov::dutch {
         }
     }
 
-    public fun new_bid<T>(
-        auction: &mut Auction<T>,
+    public fun new_bid<MANAGER, TOKEN>(
+        auction: &mut Auction<MANAGER, TOKEN>,
         size: u64,
-        coin: &mut Coin<T>,
+        coin: &mut Coin<TOKEN>,
         time: &Time,
         ctx: &mut TxContext,
     ) {
@@ -109,11 +109,12 @@ module typus_dov::dutch {
         }
     }
 
-    public fun remove_bid<T>(
-        auction: &mut Auction<T>,
-        owner: address,
+    public fun remove_bid<MANAGER, TOKEN>(
+        auction: &mut Auction<MANAGER, TOKEN>,
         bid_index: u64,
+        ctx: &mut TxContext,
     ) {
+        let owner = tx_context::sender(ctx);
         let ownership = table::borrow_mut(&mut auction.ownerships, owner);
         let (bid_exist, index) = vector::index_of(ownership, &bid_index);
         assert!(bid_exist, E_BID_NOT_EXISTS);
@@ -126,15 +127,10 @@ module typus_dov::dutch {
         transfer::transfer(coin, owner);
     }
 
-    public fun get_bid_by_index<T>(auction: &Auction<T>, index: u64): &Bid {
-        table::borrow(&auction.bids, index)
-    }
-
-    public fun get_bids_index_by_address<T>(auction: &Auction<T>, owner: address): &vector<u64> {
-        table::borrow(&auction.ownerships, owner)
-    }
-
-    public fun get_decayed_price<T>(auction: &Auction<T>, time: &Time): u64 {
+    public fun get_decayed_price<MANAGER, TOKEN>(
+        auction: &Auction<MANAGER, TOKEN>,
+        time: &Time
+    ): u64 {
         decay_formula(
             auction.price_config.initial_price,
             auction.price_config.final_price,
@@ -170,7 +166,12 @@ module typus_dov::dutch {
         initial_price - price_diff
     }
 
-    public fun delivery<T>(auction: &mut Auction<T>, size: u64, balance: &mut Balance<T>): vector<Winner> {
+    public fun delivery<MANAGER, TOKEN>(
+        _manager_cap: &MANAGER,
+        auction: &mut Auction<MANAGER, TOKEN>,
+        size: u64,
+        balance: &mut Balance<TOKEN>
+    ): vector<Winner> {
         // calculate decayed price
         let delivery_price = auction.price_config.initial_price;
         let index = 0;
