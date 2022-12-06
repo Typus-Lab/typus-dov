@@ -133,9 +133,8 @@ module typus_covered_call::covered_call {
         &mut dynamic_field::borrow_mut<u64, CoveredCallVault<MANAGER, TOKEN>>(&mut vault_registry.id, vault_index).config
     }
 
-    // ======== Public Entry Functions =========
 
-    public entry fun set_strike<MANAGER, TOKEN: store>(
+    public fun set_strike<MANAGER, TOKEN>(
         manager_cap: &MANAGER,
         vault_registry: &mut Registry<MANAGER, Config>,
         index: u64,
@@ -149,7 +148,7 @@ module typus_covered_call::covered_call {
         payoff::set_strike(&mut config.payoff_config, price);
     }
 
-    public entry fun set_premium_roi<MANAGER, TOKEN: store>(
+    public fun set_premium_roi<MANAGER, TOKEN>(
         manager_cap: &MANAGER,
         vault_registry: &mut Registry<MANAGER, Config>,
         index: u64,
@@ -162,6 +161,8 @@ module typus_covered_call::covered_call {
         );
         payoff::set_premium_roi(&mut config.payoff_config, premium_roi);
     }
+
+    // ======== Public Entry Functions =========
 
     public entry fun new_covered_call_vault<TOKEN>(
         _manager_cap: &ManagerCap<Config>,
@@ -196,7 +197,7 @@ module typus_covered_call::covered_call {
         let vault_index = vault_registry.num_of_vault;
 
         dynamic_field::add(&mut vault_registry.id, vault_index, covered_call);
-
+        vault_registry.num_of_vault = vault_registry.num_of_vault + 1;
         // emit(VaultCreated{
         //     asset,
         //     expiration_ts,
@@ -242,7 +243,7 @@ module typus_covered_call::covered_call {
         );
     }
 
-    public entry fun withdraw<TOKEN: store>(
+    public entry fun withdraw<TOKEN>(
         vault_registry: &mut Registry<ManagerCap<Config>, Config>,
         index: u64,
         amount: u64,
