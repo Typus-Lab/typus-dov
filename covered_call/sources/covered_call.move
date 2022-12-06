@@ -35,7 +35,7 @@ module typus_covered_call::covered_call {
         config: Config,
         vault: Vault<MANAGER, TOKEN>,
         next_index: Option<u64>,
-        auction: Option<dutch::Auction<TOKEN>>
+        auction: Option<Auction<MANAGER, TOKEN>>
     }
 
     // ======== Functions =========
@@ -71,7 +71,7 @@ module typus_covered_call::covered_call {
         config: Config,
         vault: Vault<MANAGER, TOKEN>,
         next_index: Option<u64>,
-        auction: Option<dutch::Auction<TOKEN>>
+        auction: Option<Auction<MANAGER, TOKEN>>
     ): CoveredCallVault<MANAGER, TOKEN> {
         CoveredCallVault<MANAGER, TOKEN> {
             config,
