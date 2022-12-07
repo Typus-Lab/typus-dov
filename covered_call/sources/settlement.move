@@ -11,6 +11,7 @@ module typus_covered_call::settlement {
     use typus_covered_call::covered_call::{Self, ManagerCap, Registry};
 
     use typus_oracle::oracle::{Self, Oracle};
+    use typus_oracle::unix_time::{Self, Time};
 
     const E_VAULT_HAS_BEEN_SETTLED: u64 = 666;
     // ======== Functions =========
@@ -20,12 +21,14 @@ module typus_covered_call::settlement {
         vault_registry: &mut Registry,
         expired_index: u64,
         price_oracle: &Oracle<TOKEN>,
+        time_oracle: &Time
     ) {
         let config = covered_call::get_config<TOKEN>(vault_registry, expired_index); 
 
-        let (price, _decimal, unix_ms, _epoch) = oracle::get_oracle<TOKEN>(price_oracle);
+        let (price, _decimal, _unix_ms, _epoch) = oracle::get_oracle<TOKEN>(price_oracle);
 
-        covered_call::check_already_expired(config, unix_ms);
+        let current_ts_ms = unix_time::get_ts_ms(time_oracle);
+        covered_call::check_already_expired(config, current_ts_ms);
 
         let payoff_config = covered_call::get_payoff_config(config);
 
@@ -65,13 +68,15 @@ module typus_covered_call::settlement {
         vault_registry: &mut Registry,
         expired_index: u64,
         price_oracle: &Oracle<TOKEN>,
+        time_oracle: &Time
     ) {
 
         let config = covered_call::get_config<TOKEN>(vault_registry, expired_index); 
 
-        let (_price, _decimal, unix_ms, _epoch) = oracle::get_oracle<TOKEN>(price_oracle);
+        let (_price, _decimal, _unix_ms, _epoch) = oracle::get_oracle<TOKEN>(price_oracle);
 
-        covered_call::check_already_expired(config, unix_ms);
+        let current_ts_ms = unix_time::get_ts_ms(time_oracle);
+        covered_call::check_already_expired(config, current_ts_ms);
 
         let (balance, scaled_user_shares) = vault::prepare_rolling<ManagerCap, TOKEN>(
             manager_cap,
@@ -100,8 +105,9 @@ module typus_covered_call::settlement {
         vault_registry: &mut Registry,
         expired_index: u64,
         price_oracle: &Oracle<TOKEN>,
+        time_oracle: &Time
     ) {
-        settle_internal<TOKEN>(manager_cap, vault_registry, expired_index, price_oracle);
+        settle_internal<TOKEN>(manager_cap, vault_registry, expired_index, price_oracle, time_oracle);
     }
 
     public entry fun settle_with_roll_over<TOKEN>(
@@ -109,9 +115,10 @@ module typus_covered_call::settlement {
         vault_registry: &mut Registry,
         expired_index: u64,
         price_oracle: &Oracle<TOKEN>,
+        time_oracle: &Time
     ) {
-        settle_internal<TOKEN>(manager_cap, vault_registry, expired_index, price_oracle);
-        settle_roll_over<TOKEN>(manager_cap, vault_registry, expired_index, price_oracle);
+        settle_internal<TOKEN>(manager_cap, vault_registry, expired_index, price_oracle, time_oracle);
+        settle_roll_over<TOKEN>(manager_cap, vault_registry, expired_index, price_oracle, time_oracle);
     }
 
     // ======== Events =========

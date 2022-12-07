@@ -31,7 +31,7 @@ module typus_covered_call::covered_call {
 
     struct Config has store, drop, copy {
         payoff_config: PayoffConfig,
-        expiration_ts: u64
+        expiration_ts_ms: u64
     }
 
     struct Registry has key {
@@ -80,7 +80,7 @@ module typus_covered_call::covered_call {
     fun new_covered_call_vault_<TOKEN>(
         _manager_cap: &ManagerCap,
         registry: &mut Registry,
-        expiration_ts: u64,
+        expiration_ts_ms: u64,
         asset_name: vector<u8>,
         strike_otm_pct: u64,
         price_oracle: &Oracle<TOKEN>,
@@ -97,7 +97,7 @@ module typus_covered_call::covered_call {
             option::none(),
         );
 
-        let config = Config { payoff_config, expiration_ts };
+        let config = Config { payoff_config, expiration_ts_ms };
         let vault = vault::new_vault<ManagerCap, TOKEN>(ctx);
         let index = registry.num_of_vault;
 
@@ -167,7 +167,7 @@ module typus_covered_call::covered_call {
     }
 
     public fun check_already_expired(config: &Config, ts_ms: u64) {
-        assert!(ts_ms >= config.expiration_ts * 1000, E_VAULT_NOT_EXPIRED_YET);
+        assert!(ts_ms >= config.expiration_ts_ms, E_VAULT_NOT_EXPIRED_YET);
     }
 
     public fun set_strike<TOKEN>(
@@ -218,7 +218,7 @@ module typus_covered_call::covered_call {
     public(friend) entry fun new_covered_call_vault<TOKEN>(
         manager_cap: &ManagerCap,
         registry: &mut Registry,
-        expiration_ts: u64,
+        expiration_ts_ms: u64,
         asset_name: vector<u8>,
         strike_otm_pct: u64,
         price_oracle: &Oracle<TOKEN>,
@@ -227,7 +227,7 @@ module typus_covered_call::covered_call {
         new_covered_call_vault_<TOKEN>(
             manager_cap,
             registry,
-            expiration_ts,
+            expiration_ts_ms,
             asset_name,
             strike_otm_pct,
             price_oracle,
@@ -302,7 +302,7 @@ module typus_covered_call::covered_call {
         decay_speed: u64,
         initial_price: u64,
         final_price: u64,
-        expiration_ts: u64,
+        expiration_ts_ms: u64,
         asset_name: vector<u8>,
         strike_otm_pct: u64,
         price_oracle: &Oracle<TOKEN>,
@@ -311,7 +311,7 @@ module typus_covered_call::covered_call {
         let next = new_covered_call_vault_<TOKEN>(
             manager_cap,
             registry,
-            expiration_ts,
+            expiration_ts_ms,
             asset_name,
             strike_otm_pct,
             price_oracle,
