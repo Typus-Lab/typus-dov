@@ -82,7 +82,7 @@ module typus_dov::dutch {
             Bid {
                 price,
                 size,
-                ts_ms: unix_time::get_unix_ms(time),
+                ts_ms: unix_time::get_ts_ms(time),
             }
         );
         table::add(
@@ -141,7 +141,7 @@ module typus_dov::dutch {
             auction.price_config.decay_speed,
             auction.start_ts_ms,
             auction.end_ts_ms,
-            unix_time::get_unix_ms(time) / 1000,
+            unix_time::get_ts_ms(time) / 1000,
         )
     }
 

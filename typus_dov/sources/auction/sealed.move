@@ -95,7 +95,7 @@ module typus_dov::sealed {
         time: &Time,
         ctx: &mut TxContext,
     ) {
-        let current_timestamp = unix_time::get_unix_ms(time);
+        let current_timestamp = unix_time::get_ts_ms(time);
         assert!(current_timestamp < auction.bid_closing_time, E_AUCTION_CLOSED);
         let index = auction.index;
         let owner = tx_context::sender(ctx);
@@ -159,7 +159,7 @@ module typus_dov::sealed {
         time: &Time,
         ctx: &mut TxContext,
     ) {
-        let current_timestamp = unix_time::get_unix_ms(time);
+        let current_timestamp = unix_time::get_ts_ms(time);
         assert!(current_timestamp >= auction.bid_closing_time, E_AUCTION_NOT_CLOSED);
         assert!(current_timestamp < auction.reveal_closing_time, E_REVEAL_CLOSED);
         assert!(bid_index < auction.index, E_BID_NOT_EXISTS);
@@ -271,7 +271,7 @@ module typus_dov::sealed {
         balance: &mut Balance<Token>,
         time: &Time,
     ) {
-        let current_timestamp = unix_time::get_unix_ms(time);
+        let current_timestamp = unix_time::get_ts_ms(time);
         assert!( current_timestamp >= auction.reveal_closing_time, E_REVEAL_NOT_CLOSED);
         
         // find valid bids and unvealed bids
