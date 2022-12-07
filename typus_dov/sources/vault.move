@@ -495,7 +495,7 @@ module typus_dov::vault {
     public fun test_get_balance<MANAGER, TOKEN>(
         vault: &Vault<MANAGER, TOKEN>,
         is_rolling: bool,
-    ) {
+    ): u64 {
         use std::debug;
         let balance = if (is_rolling) {
             &get_sub_vault<MANAGER, TOKEN>(
@@ -507,13 +507,14 @@ module typus_dov::vault {
             ).balance
         };
         debug::print(balance);
+        balance::value<TOKEN>(balance)
     }
 
     #[test_only]
     public fun test_get_share_supply<MANAGER, TOKEN>(
         vault: &Vault<MANAGER, TOKEN>,
         is_rolling: bool,
-    ) {
+    ): u64 {
         use std::debug;
         let share_supply = if (is_rolling) {
             &get_sub_vault<MANAGER, TOKEN>(
@@ -525,5 +526,6 @@ module typus_dov::vault {
             ).share_supply
         };
         debug::print(share_supply);
+        *share_supply
     }
 }
