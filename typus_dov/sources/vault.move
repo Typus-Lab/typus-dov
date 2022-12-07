@@ -345,7 +345,7 @@ module typus_dov::vault {
         balance: Balance<TOKEN>,
         maker_shares: VecMap<address, u64>,
     ) {
-        let sub_vault = get_mut_sub_vault<MANAGER, TOKEN>(vault, C_VAULT_ROLLING);
+        let sub_vault = get_mut_sub_vault<MANAGER, TOKEN>(vault, C_VAULT_MAKER);
         balance::join(&mut sub_vault.balance, balance);
         while (!vec_map::is_empty(&maker_shares)) {
             let (user, share) = vec_map::pop(&mut maker_shares);

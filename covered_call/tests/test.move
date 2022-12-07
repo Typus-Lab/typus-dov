@@ -5,6 +5,7 @@ module typus_covered_call::test {
     use sui::sui::SUI;
     use sui::balance;
     use sui::coin;
+    use sui::vec_map;
     use sui::tx_context;
 
     use std::string;
@@ -157,6 +158,13 @@ module typus_covered_call::test {
             test_scenario::ctx(scenario)
         );
 
+        covered_call::set_next_index<SUI>(
+            &manager_cap,
+            &mut registry,
+            1,
+            2
+        );
+
         // user deposit
         let test_coin = coin::mint_for_testing<SUI>(1000000, test_scenario::ctx(scenario));
         let coin_amount = coin::value<SUI>(&test_coin);
@@ -171,13 +179,16 @@ module typus_covered_call::test {
         // mm deposit
         let mm_test_coin = coin::mint_for_testing<SUI>(10000, test_scenario::ctx(scenario));
         let mm_coin_amount = coin::value<SUI>(&mm_test_coin);
-        covered_call::deposit<SUI>(
-            &mut registry,
-            1,
-            &mut mm_test_coin,
-            mm_coin_amount,
-            true,
-            test_scenario::ctx(scenario)
+        let maker_shares = vec_map::empty<address, u64>();
+        vec_map::insert(&mut maker_shares, test_scenario::sender(scenario), mm_coin_amount);
+        vault::maker_deposit<ManagerCap, SUI>(
+            &manager_cap,
+            covered_call::get_mut_vault<SUI>(
+                &mut registry,
+                1
+            ),
+            coin::into_balance(mm_test_coin),
+            maker_shares,
         );
 
         debug::print(&string::utf8(b"before settle"));
@@ -213,9 +224,25 @@ module typus_covered_call::test {
             &mut registry,
             2
         ), false);
+
+        vault::disable_deposit<ManagerCap, SUI>(
+            &manager_cap,
+            covered_call::get_mut_vault<SUI>(
+                &mut registry,
+                1
+            )
+        );
+
+        vault::disable_deposit<ManagerCap, SUI>(
+            &manager_cap,
+            covered_call::get_mut_vault<SUI>(
+                &mut registry,
+                2
+            )
+        );
         // settle internal
-        // settlement::settle_without_roll_over<SUI>(&manager_cap,&mut registry, 1, &price_oracle);
-        settlement::settle_with_roll_over<SUI>(&manager_cap, &mut registry, 1, &price_oracle);
+        settlement::settle_without_roll_over<SUI>(&manager_cap,&mut registry, 1, &price_oracle);
+        // settlement::settle_with_roll_over<SUI>(&manager_cap, &mut registry, 1, &price_oracle);
 
         debug::print(&string::utf8(b"after settle"));
         vault::test_get_balance<ManagerCap, SUI>(covered_call::get_mut_vault<SUI>(
@@ -253,7 +280,7 @@ module typus_covered_call::test {
 
         coin::destroy_for_testing(test_coin);
         coin::destroy_for_testing(test_coin_2);
-        coin::destroy_for_testing(mm_test_coin);
+        // coin::destroy_for_testing(mm_test_coin);
         test_scenario::return_shared(registry); 
         test_scenario::return_to_sender<ManagerCap>(scenario, manager_cap);
         transfer::transfer(oracle_key, tx_context::sender(test_scenario::ctx(scenario)));

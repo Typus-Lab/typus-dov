@@ -135,6 +135,21 @@ module typus_covered_call::covered_call {
         );
     }
 
+    public fun set_next_index<TOKEN>(
+        _manager_cap: &ManagerCap,
+        registry: &mut Registry,
+        index: u64,
+        next_index: u64
+    ) {
+        option::fill(
+            &mut dynamic_field::borrow_mut<u64, CoveredCallVault<TOKEN>>(
+                &mut registry.id,
+                index
+            )
+            .next_index,
+            next_index
+        );
+    }
     // ======== Public Friend Functions =========
 
     public(friend) fun get_mut_vault<TOKEN>(
