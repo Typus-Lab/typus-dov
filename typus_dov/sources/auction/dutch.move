@@ -267,7 +267,7 @@ module typus_dov::dutch {
     }
 
     #[test]
-    fun test_auction_new_auction(): Auction<sui::sui::SUI> {
+    fun test_auction_new_auction<MANAGER>(): Auction<MANAGER, sui::sui::SUI> {
         use sui::test_scenario;
 
         let admin = @0xFFFF;
@@ -291,7 +291,7 @@ module typus_dov::dutch {
     }
 
     #[test]
-    fun test_auction_new_bid(): Auction<sui::sui::SUI> {
+    fun test_auction_new_bid<MANAGER>(): Auction<MANAGER,sui::sui::SUI> {
         use sui::test_scenario;
         use typus_oracle::unix_time::{Self, Time, Key};
         use sui::coin;
