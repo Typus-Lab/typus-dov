@@ -79,15 +79,15 @@ module typus_covered_call::covered_call {
 
     // ======== Public Functions =========
 
-    public fun get_payoff_config(config: &Config): &PayoffConfig {
-        &config.payoff_config
-    }
-
     public fun get_config<TOKEN>(
         registry: &mut Registry,
         index: u64,
     ): &Config {
         &dynamic_field::borrow<u64, CoveredCallVault<TOKEN>>(&registry.id, index).config
+    }
+
+    public fun get_payoff_config(config: &Config): &PayoffConfig {
+        &config.payoff_config
     }
 
     public fun get_next_index<TOKEN>(
@@ -219,7 +219,7 @@ module typus_covered_call::covered_call {
     }
 
     public(friend) entry fun new_auction<TOKEN>(
-        _manager_cap: &ManagerCap,
+        manager_cap: &ManagerCap,
         registry: &mut Registry,
         index: u64,
         start_ts_ms: u64,
@@ -229,11 +229,14 @@ module typus_covered_call::covered_call {
         final_price: u64,
         ctx: &mut TxContext,
     ) {
+        let covered_call_vault = dynamic_field::borrow_mut<u64, CoveredCallVault<TOKEN>>(
+            &mut registry.id,
+            index
+        );
+        vault::disable_deposit(manager_cap, &mut covered_call_vault.vault);
+        vault::disable_withdraw(manager_cap, &mut covered_call_vault.vault);
         option::fill(
-            &mut dynamic_field::borrow_mut<u64, CoveredCallVault<TOKEN>>(
-                &mut registry.id,
-                index
-            ).auction,
+            &mut covered_call_vault.auction,
             dutch::new(
                 start_ts_ms,
                 end_ts_ms,
@@ -315,6 +318,7 @@ module typus_covered_call::covered_call {
         registry: &mut Registry,
         index: u64,
         bid_index: u64,
+        time: &Time,
         ctx: &mut TxContext,
     ) {
         dutch::remove_bid<ManagerCap, TOKEN>(
@@ -323,6 +327,7 @@ module typus_covered_call::covered_call {
                 index
             ).auction),
             bid_index,
+            time,
             ctx,
         );
     }

@@ -13,6 +13,8 @@ module typus_dov::dutch {
 
     const E_ZERO_SIZE: u64 = 0;
     const E_BID_NOT_EXISTS: u64 = 1;
+    const E_AUCTION_NOT_YET_STARTED: u64 = 2;
+    const E_AUCTION_CLOSED: u64 = 3;
 
     // ======== Structs ========
 
@@ -75,7 +77,10 @@ module typus_dov::dutch {
         time: &Time,
         ctx: &mut TxContext,
     ) {
+        assert!(unix_time::get_unix_ms(time) >= auction.start_ts_ms, E_AUCTION_NOT_YET_STARTED);
+        assert!(unix_time::get_unix_ms(time) <= auction.end_ts_ms, E_AUCTION_CLOSED);
         assert!(size != 0, E_ZERO_SIZE);
+
         let index = auction.index;
         let owner = tx_context::sender(ctx);
         let price = get_decayed_price(auction, time);
@@ -115,8 +120,12 @@ module typus_dov::dutch {
     public fun remove_bid<MANAGER, TOKEN>(
         auction: &mut Auction<MANAGER, TOKEN>,
         bid_index: u64,
+        time: &Time,
         ctx: &mut TxContext,
     ) {
+        assert!(unix_time::get_unix_ms(time) >= auction.start_ts_ms, E_AUCTION_NOT_YET_STARTED);
+        assert!(unix_time::get_unix_ms(time) <= auction.end_ts_ms, E_AUCTION_CLOSED);
+
         let owner = tx_context::sender(ctx);
         let ownership = table::borrow_mut(&mut auction.ownerships, owner);
         let (bid_exist, index) = vector::index_of(ownership, &bid_index);
@@ -148,8 +157,8 @@ module typus_dov::dutch {
         _manager_cap: &MANAGER,
         auction: &mut Auction<MANAGER, TOKEN>,
         size: u64,
-        balance: &mut Balance<TOKEN>
-    ): VecMap<address, u64> {
+    ): (Balance<TOKEN>, VecMap<address, u64>) {
+        let balance = balance::zero();
         // calculate decayed price
         let delivery_price = auction.price_config.initial_price;
         let index = 0;
@@ -177,7 +186,7 @@ module typus_dov::dutch {
                 if (size > 0) {
                     // filled
                     if (bid.size <= size) {
-                        balance::join(balance, balance::split(coin::balance_mut(&mut coin), delivery_price * bid.size));
+                        balance::join(&mut balance, balance::split(coin::balance_mut(&mut coin), delivery_price * bid.size));
                         size = size - bid.size;
                         vec_map::insert(
                             &mut winners,
@@ -187,7 +196,7 @@ module typus_dov::dutch {
                     }
                     // partially filled
                     else {
-                        balance::join(balance, balance::split(coin::balance_mut(&mut coin), delivery_price * size));
+                        balance::join(&mut balance, balance::split(coin::balance_mut(&mut coin), delivery_price * size));
                         vec_map::insert(
                             &mut winners,
                             owner,
@@ -207,7 +216,7 @@ module typus_dov::dutch {
             index = index + 1;
         };
 
-        winners
+        (balance, winners)
     }
 
     // ======== Private Functions ========

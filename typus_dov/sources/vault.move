@@ -26,8 +26,9 @@ module typus_dov::vault {
     const E_SUBSCRIBE_DISABLED: u64 = 3;
     const E_UNSUBSCRIBE_DISABLED: u64 = 4;
     const E_NEXT_VAULT_NOT_EXISTS: u64 = 5;
-    const E_NOT_YET_SETTLED: u64 = 6;
-    const E_HAS_BEEN_SETTLED: u64 = 7;
+    const E_NOT_YET_ACTIVATED: u64 = 6;
+    const E_NOT_YET_SETTLED: u64 = 8;
+    const E_ALREADY_SETTLED: u64 = 9;
 
     // ======== Structs ========
 
@@ -82,7 +83,7 @@ module typus_dov::vault {
     }
 
     public fun settle_fund<MANAGER, TOKEN>(
-        _manager_cap: &MANAGER,
+        manager_cap: &MANAGER,
         vault: &mut Vault<MANAGER, TOKEN>,
         settled_share_price: u64,
         share_price_decimal: u64
@@ -93,7 +94,8 @@ module typus_dov::vault {
             able_to_deposit: atd,
             able_to_withdraw: atw,
         } = vault;
-        assert!((!*atd && *atw), E_NOT_YET_SETTLED);
+        assert!(!(*atd && *atw), E_NOT_YET_ACTIVATED);
+        assert!(!(!*atd && *atw), E_ALREADY_SETTLED);
 
         let balance = balance::value(
             &get_sub_vault<MANAGER, TOKEN>(
@@ -111,7 +113,7 @@ module typus_dov::vault {
             vault, C_VAULT_REGULAR
         ).share_supply;
 
-        assert!(balance == share_supply, E_HAS_BEEN_SETTLED);
+        assert!(balance == share_supply, E_ALREADY_SETTLED);
 
         let multiplier = utils::multiplier(share_price_decimal);
 
@@ -180,8 +182,8 @@ module typus_dov::vault {
                 ).balance,
                 coin
             );
-        }
-        
+        };
+        enable_withdraw(manager_cap, vault);
     }
 
     public fun prepare_rolling<MANAGER, TOKEN>(
