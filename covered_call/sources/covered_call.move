@@ -213,13 +213,6 @@ module typus_covered_call::covered_call {
         &mut dynamic_field::borrow_mut<u64, CoveredCallVault<TOKEN>>(&mut registry.id, index).vault
     }
 
-    public(friend) fun get_mut_action<TOKEN>(
-        registry: &mut Registry,
-        index: u64,
-    ): &mut Auction<ManagerCap, TOKEN> {
-        option::borrow_mut(&mut dynamic_field::borrow_mut<u64, CoveredCallVault<TOKEN>>(&mut registry.id, index).auction)
-    }
-
     // ======== Entry Functions =========
 
     public(friend) entry fun new_covered_call_vault<TOKEN>(
@@ -239,6 +232,19 @@ module typus_covered_call::covered_call {
             strike_otm_pct,
             price_oracle,
             ctx,
+        );
+    }
+
+    public(friend) entry fun new_manager<TOKEN>(
+        manager_cap: &ManagerCap,
+        user: address,
+        ctx: &mut TxContext
+    ) {
+        transfer::transfer(
+            ManagerCap {
+                id: object::new(ctx)
+            },
+            user
         );
     }
 

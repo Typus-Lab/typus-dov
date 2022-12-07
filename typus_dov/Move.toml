@@ -7,5 +7,5 @@ Sui = { git = "https://github.com/MystenLabs/sui.git", subdir = "crates/sui-fram
 typus_oracle = { git = "https://github.com/Typus-Lab/typus-oracle.git", rev = "main"}
 
 [addresses]
-typus_dov = "0x007e6c311fb843597c35615d58e1f1fcb9b6c320"
+typus_dov = "_"
 sui = "0000000000000000000000000000000000000002"
