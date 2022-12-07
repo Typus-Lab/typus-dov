@@ -471,61 +471,36 @@ module typus_dov::vault {
     #[test_only]
     public fun test_get_user_share<MANAGER, TOKEN>(
         vault: &Vault<MANAGER, TOKEN>,
-        is_rolling: bool,
+        sub_vault_type: vector<u8>,
         user: address
     ): u64 {
-        if (is_rolling) {
-            *linked_list::borrow<address, u64>(
-                &get_sub_vault<MANAGER, TOKEN>(
-                    vault, C_VAULT_ROLLING
-                ).user_shares,
-                user
-            )
-        } else {
-            *linked_list::borrow<address, u64>(
-                &get_sub_vault<MANAGER, TOKEN>(
-                    vault, C_VAULT_REGULAR
-                ).user_shares,
-                user
-            )
-        }
+        *linked_list::borrow<address, u64>(
+            &get_sub_vault<MANAGER, TOKEN>(
+                vault, sub_vault_type
+            ).user_shares,
+            user
+        )
     }
 
     #[test_only]
     public fun test_get_balance<MANAGER, TOKEN>(
         vault: &Vault<MANAGER, TOKEN>,
-        is_rolling: bool,
+        sub_vault_type: vector<u8>,
     ): u64 {
-        use std::debug;
-        let balance = if (is_rolling) {
-            &get_sub_vault<MANAGER, TOKEN>(
-                vault, C_VAULT_ROLLING
-            ).balance
-        } else {
-            &get_sub_vault<MANAGER, TOKEN>(
-                vault, C_VAULT_REGULAR
-            ).balance
-        };
-        debug::print(balance);
+        let balance = &get_sub_vault<MANAGER, TOKEN>(
+            vault, sub_vault_type
+        ).balance;
         balance::value<TOKEN>(balance)
     }
 
     #[test_only]
     public fun test_get_share_supply<MANAGER, TOKEN>(
         vault: &Vault<MANAGER, TOKEN>,
-        is_rolling: bool,
+        sub_vault_type: vector<u8>,
     ): u64 {
-        use std::debug;
-        let share_supply = if (is_rolling) {
-            &get_sub_vault<MANAGER, TOKEN>(
-                vault, C_VAULT_ROLLING
-            ).share_supply
-        } else {
-            &get_sub_vault<MANAGER, TOKEN>(
-                vault, C_VAULT_REGULAR
-            ).share_supply
-        };
-        debug::print(share_supply);
+        let share_supply = &get_sub_vault<MANAGER, TOKEN>(
+            vault, sub_vault_type
+        ).share_supply;
         *share_supply
     }
 }

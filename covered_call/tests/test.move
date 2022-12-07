@@ -176,6 +176,8 @@ module typus_covered_call::test {
         covered_call::deposit<SUI>(&mut registry, 1, &mut test_coin, coin_amount, true, test_scenario::ctx(scenario));
 
         // auction
+        let option_price_decimal = 8;
+        let _option_price_multiplier = utils::multiplier(option_price_decimal);
         let initial_price = 100_000_000;
         let final_price = 50_000_000;
         let start_auction_ts_ms = expiration_ts_ms_1 - 1000;
@@ -211,8 +213,11 @@ module typus_covered_call::test {
         );
         // new maker bid
         let current_time = start_auction_ts_ms + 300;
-        let bid_size = 5;
+        let bid_size = 50000;
         let bid_coin_value = initial_price * bid_size;
+        debug::print(&string::utf8(b"bid coin size:"));
+        debug::print(&bid_coin_value);
+
         let mm_test_coin = coin::mint_for_testing<SUI>(bid_coin_value, test_scenario::ctx(scenario));
         unix_time::update(
             &mut time_oracle,
@@ -246,6 +251,7 @@ module typus_covered_call::test {
 
         let sell_size = vault_1_balance * price_multiplier / price;
         debug::print(&string::utf8(b"sell size:"));
+        debug::print(&sell_size);
 
         covered_call::delivery<SUI>(
             &manager_cap,
@@ -423,21 +429,31 @@ module typus_covered_call::test {
 
     #[test_only]
     fun test_print_vault_summary(registry: &mut Registry, index: u64) {
-        vault::test_get_balance<ManagerCap, SUI>(covered_call::get_mut_vault<SUI>(
+        let balance_rolling = vault::test_get_balance<ManagerCap, SUI>(covered_call::get_mut_vault<SUI>(
             registry,
             index
-        ), true);
-        vault::test_get_share_supply<ManagerCap, SUI>(covered_call::get_mut_vault<SUI>(
+        ), b"rolling");
+        let share_rolling = vault::test_get_share_supply<ManagerCap, SUI>(covered_call::get_mut_vault<SUI>(
             registry,
             index
-        ), true);
-        vault::test_get_balance<ManagerCap, SUI>(covered_call::get_mut_vault<SUI>(
+        ), b"rolling");
+        let balance_regular = vault::test_get_balance<ManagerCap, SUI>(covered_call::get_mut_vault<SUI>(
             registry,
             index
-        ), false);
-        vault::test_get_share_supply<ManagerCap, SUI>(covered_call::get_mut_vault<SUI>(
+        ), b"regular");
+        let share_regular = vault::test_get_share_supply<ManagerCap, SUI>(covered_call::get_mut_vault<SUI>(
             registry,
             index
-        ), false);
+        ), b"regular");
+        let balance_maker = vault::test_get_balance<ManagerCap, SUI>(covered_call::get_mut_vault<SUI>(
+            registry,
+            index
+        ), b"maker");
+        let share_maker = vault::test_get_share_supply<ManagerCap, SUI>(covered_call::get_mut_vault<SUI>(
+            registry,
+            index
+        ), b"maker");
+        debug::print(&(balance_rolling, balance_regular, balance_maker));
+        debug::print(&(share_rolling, share_regular, share_maker));
     }
 }
