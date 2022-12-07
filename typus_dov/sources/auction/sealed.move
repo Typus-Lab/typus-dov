@@ -519,21 +519,6 @@ module typus_dov::sealed {
         let bid = table::borrow(&auction.bids, 0);
         assert!(option::is_some(&bid.price), 1);
 
-        // reveal bid 2 with user 2
-        reveal_bid(
-            &mut auction,
-            1,
-            12,
-            3,
-            11112222,
-            &mut coin,
-            &time,
-            test_scenario::ctx(&mut user2_scenario)
-        );
-
-        let bid = table::borrow(&auction.bids, 1);
-        assert!(option::is_some(&bid.price), 1);
-
         // /*
         //     bids[0] => bid{100, 1, user1}
         //     ownerships[user1] => [0]
@@ -625,6 +610,107 @@ module typus_dov::sealed {
 
         let monkey = @0x8787;
         remove_bid(&mut auction, monkey, 0);
+
+        auction
+    }
+
+    #[test]
+    #[expected_failure]
+    fun test_auction_reveal_bid_fail_on_wrong_bid_info(): Auction<sui::sui::SUI> {
+        use sui::coin;
+        use sui::sui::SUI;
+        use sui::test_scenario;
+        use typus_oracle::unix_time::{Self, Time, Key};
+
+        let auction = test_auction_new_bid();
+
+        let admin = @0xFFFF;
+        let user2 = @0xBABE2;
+        let admin_scenario = test_scenario::begin(admin);
+        let user2_scenario = test_scenario::begin(user2);
+
+        ////////////////////////////////////////////////////////////////////////////////////
+        //   New Sealed Bid Auction
+        ////////////////////////////////////////////////////////////////////////////////////
+        let bid_closing_time =  1669338020;
+        let coin = coin::mint_for_testing<SUI>(1000000, test_scenario::ctx(&mut admin_scenario));
+
+        unix_time::new_time(test_scenario::ctx(&mut admin_scenario));
+        test_scenario::next_tx(&mut admin_scenario, admin);
+        let time = test_scenario::take_shared<Time>(&admin_scenario);
+        test_scenario::next_tx(&mut admin_scenario, admin);
+        let key = test_scenario::take_from_address<Key>(&admin_scenario, admin);
+
+        // update time
+        unix_time::update(&mut time, &key, bid_closing_time + 60, test_scenario::ctx(&mut admin_scenario)) ;
+        
+        // reveal bid with wrong bid info - wrong price 10. it should be 12
+        reveal_bid(
+            &mut auction,
+            1,
+            10,
+            3,
+            11112222,
+            &mut coin,
+            &time,
+            test_scenario::ctx(&mut user2_scenario)
+        );
+
+        coin::destroy_for_testing(coin);
+        test_scenario::return_to_sender(&admin_scenario, key); 
+        test_scenario::return_shared(time); 
+        test_scenario::end(admin_scenario);
+        test_scenario::end(user2_scenario);
+        auction
+    }
+
+    #[test]
+    #[expected_failure]
+    fun test_auction_reveal_bid_fail_on_wrong_owner(): Auction<sui::sui::SUI> {
+        use sui::coin;
+        use sui::sui::SUI;
+        use sui::test_scenario;
+        use typus_oracle::unix_time::{Self, Time, Key};
+
+        let auction = test_auction_new_bid();
+
+        let admin = @0xFFFF;
+        let monkey = @0x8787;
+        let admin_scenario = test_scenario::begin(admin);
+        let monkey_scenario = test_scenario::begin(monkey);
+
+        ////////////////////////////////////////////////////////////////////////////////////
+        //   New Sealed Bid Auction
+        ////////////////////////////////////////////////////////////////////////////////////
+        let bid_closing_time =  1669338020;
+        let coin = coin::mint_for_testing<SUI>(1000000, test_scenario::ctx(&mut admin_scenario));
+
+        unix_time::new_time(test_scenario::ctx(&mut admin_scenario));
+        test_scenario::next_tx(&mut admin_scenario, admin);
+        let time = test_scenario::take_shared<Time>(&admin_scenario);
+        test_scenario::next_tx(&mut admin_scenario, admin);
+        let key = test_scenario::take_from_address<Key>(&admin_scenario, admin);
+
+        // update time
+        unix_time::update(&mut time, &key, bid_closing_time + 60, test_scenario::ctx(&mut admin_scenario)) ;
+        
+        // try to reveal bid 2 with user monkey
+        reveal_bid(
+            &mut auction,
+            1,
+            12,
+            3,
+            11112222,
+            &mut coin,
+            &time,
+            test_scenario::ctx(&mut monkey_scenario)
+        );
+
+        coin::destroy_for_testing(coin);
+        test_scenario::return_to_sender(&admin_scenario, key); 
+        test_scenario::return_shared(time); 
+        test_scenario::end(admin_scenario);
+        test_scenario::end(monkey_scenario);
 
         auction
     }
