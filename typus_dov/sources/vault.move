@@ -219,7 +219,7 @@ module typus_dov::vault {
         balance: Balance<TOKEN>,
         scaled_user_shares: VecMap<address, u64>,
     ) {
-        assert!((!vault.able_to_deposit && vault.able_to_withdraw), E_NOT_YET_SETTLED);
+        assert!((vault.able_to_deposit && vault.able_to_withdraw), E_DEPOSIT_DISABLED);
 
         let sub_vault = get_mut_sub_vault<MANAGER, TOKEN>(vault, C_VAULT_ROLLING);
         balance::join(&mut sub_vault.balance, balance);
