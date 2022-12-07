@@ -332,6 +332,29 @@ module typus_covered_call::covered_call {
         );
     }
 
+    public(friend) entry fun delivery<TOKEN>(
+        manager_cap: &ManagerCap,
+        registry: &mut Registry,
+        index: u64,
+        size: u64,
+    ) {
+        let covered_call_vault = dynamic_field::borrow_mut<u64, CoveredCallVault<TOKEN>>(
+            &mut registry.id,
+            index
+        );
+        let (balance, maker_shares) = dutch::delivery<ManagerCap, TOKEN>(
+            manager_cap,
+            option::borrow_mut(&mut covered_call_vault.auction),
+            size,
+        );
+        vault::maker_deposit(
+            manager_cap,
+            &mut covered_call_vault.vault,
+            balance,
+            maker_shares,
+        );
+    }
+
     // ======== Events =========
 
     // struct RegistryCreated<phantom phantom CONFIG> has copy, drop { id: ID }
