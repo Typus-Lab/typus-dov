@@ -5,6 +5,7 @@ module typus_dov::dutch {
     use sui::table::{Self, Table};
     use sui::transfer;
     use sui::tx_context::{Self, TxContext};
+    use sui::vec_map::{Self, VecMap};
 
     use typus_oracle::unix_time::{Self, Time};
 
@@ -40,11 +41,6 @@ module typus_dov::dutch {
     struct Fund<phantom TOKEN> has store {
         coin: Coin<TOKEN>,
         owner: address,
-    }
-
-    struct Winner has store {
-        owner: address,
-        size: u64,
     }
 
     // ======== Public Functions ========
@@ -153,7 +149,7 @@ module typus_dov::dutch {
         auction: &mut Auction<MANAGER, TOKEN>,
         size: u64,
         balance: &mut Balance<TOKEN>
-    ): vector<Winner> {
+    ): VecMap<address, u64> {
         // calculate decayed price
         let delivery_price = auction.price_config.initial_price;
         let index = 0;
@@ -168,7 +164,7 @@ module typus_dov::dutch {
         };
 
         // delivery
-        let winners = vector::empty();
+        let winners = vec_map::empty();
         let index = 0;
         while (!table::is_empty(&auction.bids)) {
             if (table::contains(&auction.bids, index)) {
@@ -183,23 +179,19 @@ module typus_dov::dutch {
                     if (bid.size <= size) {
                         balance::join(balance, balance::split(coin::balance_mut(&mut coin), delivery_price * bid.size));
                         size = size - bid.size;
-                        vector::push_back(
+                        vec_map::insert(
                             &mut winners,
-                            Winner {
-                                owner,
-                                size: bid.size,
-                            },
+                            owner,
+                            bid.size,
                         );
                     }
                     // partially filled
                     else {
                         balance::join(balance, balance::split(coin::balance_mut(&mut coin), delivery_price * size));
-                        vector::push_back(
+                        vec_map::insert(
                             &mut winners,
-                            Winner {
-                                owner,
-                                size,
-                            },
+                            owner,
+                            size,
                         );
                         size = 0;
                     };
