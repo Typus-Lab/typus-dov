@@ -288,86 +288,109 @@ module typus_covered_call::test {
         test_scenario::end(scenario_val); 
     }
 
-    // #[test]
-    // fun test_unsubscribe() {
-    //     let scenario_val = test_new_vault();
-    //     let scenario = &mut scenario_val;
+    #[test]
+    fun test_unsubscribe() {
+        let scenario_val = test_new_vault();
+        let scenario = &mut scenario_val;
 
-    //     let user1 = @0xBABE1;
-    //     let user2 = @0xBABE2;
-    //     let user1_scenario = test_scenario::begin(user1);
-    //     let user2_scenario = test_scenario::begin(user2);
+        let user1 = @0xBABE1;
+        let user2 = @0xBABE2;
+        let user1_scenario = test_scenario::begin(user1);
+        let user2_scenario = test_scenario::begin(user2);
         
-    //     let registry = test_scenario::take_shared<Registry>(scenario);
-    //     let manager_cap = test_scenario::take_from_sender<ManagerCap>(scenario);
+        let registry = test_scenario::take_shared<Registry>(scenario);
+        let manager_cap = test_scenario::take_from_sender<ManagerCap>(scenario);
 
-    //     let user1_ctx = test_scenario::ctx(&mut user1_scenario);
-    //     let user2_ctx = test_scenario::ctx(&mut user2_scenario);
+        let user1_ctx = test_scenario::ctx(&mut user1_scenario);
+        let user2_ctx = test_scenario::ctx(&mut user2_scenario);
 
-    //     let (price_oracle, oracle_key) = oracle::test_new_oracle<SUI>(8, test_scenario::ctx(scenario));
-    //     oracle::update(
-    //         &mut price_oracle,
-    //         &oracle_key,
-    //         98,
-    //         10000000,
-    //         test_scenario::ctx(scenario)
-    //     );
+        let (price_oracle, oracle_key) = oracle::test_new_oracle<SUI>(8, test_scenario::ctx(scenario));
+        oracle::update(
+            &mut price_oracle,
+            &oracle_key,
+            98,
+            10000000,
+            test_scenario::ctx(scenario)
+        );
 
 
-    //     // init covered call vault 1
-    //     covered_call::new_covered_call_vault<SUI>(
-    //         &manager_cap,
-    //         &mut registry,
-    //         1,
-    //         b"BTC",
-    //         105,
-    //         &price_oracle,
-    //         test_scenario::ctx(scenario)
-    //     );
+        // init covered call vault 1
+        covered_call::new_covered_call_vault<SUI>(
+            &manager_cap,
+            &mut registry,
+            1,
+            b"BTC",
+            105,
+            &price_oracle,
+            test_scenario::ctx(scenario)
+        );
 
-    //     // user deposit
-    //     let test_coin = coin::mint_for_testing<SUI>(300000, user1_ctx);
-    //     let coin_amount = coin::value<SUI>(&test_coin);
+        // user deposit
+        let test_coin = coin::mint_for_testing<SUI>(300000, user1_ctx);
+        let coin_amount = coin::value<SUI>(&test_coin);
+        covered_call::deposit<SUI>(&mut registry, 1, &mut test_coin, coin_amount, true, user1_ctx);
+        covered_call::unsubscribe<SUI>(&mut registry, 1, user1_ctx);
+        let test_coin_1 = coin::mint_for_testing<SUI>(1000000, user1_ctx);
+        let coin_amount = coin::value<SUI>(&test_coin_1);
 
-    //     covered_call::deposit<SUI>(&mut registry, 1, &mut test_coin, coin_amount, user1_ctx);
-    //     covered_call::unsubscribe<SUI>(&mut registry, 1, user1_ctx);
-    //     let test_coin_1 = coin::mint_for_testing<SUI>(1000000, user1_ctx);
-    //     let coin_amount = coin::value<SUI>(&test_coin_1);
+        covered_call::deposit<SUI>(&mut registry, 1, &mut test_coin_1, coin_amount, true, user1_ctx);
+        let test_coin_2 = coin::mint_for_testing<SUI>(500000, user2_ctx);
+        let coin_amount = coin::value<SUI>(&test_coin_2);
+        covered_call::deposit<SUI>(&mut registry, 1, &mut test_coin_2, coin_amount, true, user2_ctx);
 
-    //     covered_call::deposit<SUI>(&mut registry, 1, &mut test_coin_1, coin_amount, user1_ctx);
-    //     let test_coin_2 = coin::mint_for_testing<SUI>(500000, user2_ctx);
-    //     let coin_amount = coin::value<SUI>(&test_coin_2);
-    //     covered_call::deposit<SUI>(&mut registry, 1, &mut test_coin_2, coin_amount, user2_ctx);
+        debug::print(&string::utf8(b"A: after deposit"));
+        vault::test_get_balance<ManagerCap, SUI>(covered_call::get_mut_vault<SUI>(
+            &mut registry,
+            1
+        ), true);
+        vault::test_get_share_supply<ManagerCap, SUI>(covered_call::get_mut_vault<SUI>(
+            &mut registry,
+            1
+        ), true);
+        vault::test_get_balance<ManagerCap, SUI>(covered_call::get_mut_vault<SUI>(
+            &mut registry,
+            1
+        ), false);
+        vault::test_get_share_supply<ManagerCap, SUI>(covered_call::get_mut_vault<SUI>(
+            &mut registry,
+            1
+        ), false);
 
-    //     debug::print(&string::utf8(b"A: after deposit"));
-    //     vault::test_get_balance<SUI, Auction<SUI>>(&mut registry, 1, true);
-    //     vault::test_get_share_supply<SUI, Auction<SUI>>(&mut registry, 1, true);
-    //     vault::test_get_balance<SUI, Auction<SUI>>(&mut registry, 1, false);
-    //     vault::test_get_share_supply<SUI, Auction<SUI>>(&mut registry, 1, false);
+        covered_call::unsubscribe<SUI>(
+            &mut registry,
+            1,
+            user1_ctx
+        );
 
-    //     covered_call::unsubscribe<SUI>(
-    //         &mut registry,
-    //         1,
-    //         user1_ctx
-    //     );
+        debug::print(&string::utf8(b"B: user1 unsubscribed"));
+        vault::test_get_balance<ManagerCap, SUI>(covered_call::get_mut_vault<SUI>(
+            &mut registry,
+            1
+        ), true);
+        vault::test_get_share_supply<ManagerCap, SUI>(covered_call::get_mut_vault<SUI>(
+            &mut registry,
+            1
+        ), true);
+        vault::test_get_balance<ManagerCap, SUI>(covered_call::get_mut_vault<SUI>(
+            &mut registry,
+            1
+        ), false);
+        vault::test_get_share_supply<ManagerCap, SUI>(covered_call::get_mut_vault<SUI>(
+            &mut registry,
+            1
+        ), false);
 
-    //     debug::print(&string::utf8(b"B: user1 unsubscribed"));
-    //     vault::test_get_balance<SUI, Auction<SUI>>(&mut registry, 1, true);
-    //     vault::test_get_share_supply<SUI, Auction<SUI>>(&mut registry, 1, true);
-    //     vault::test_get_balance<SUI, Auction<SUI>>(&mut registry, 1, false);
-    //     vault::test_get_share_supply<SUI, Auction<SUI>>(&mut registry, 1, false);
-
-    //     coin::destroy_for_testing(test_coin);
-    //     coin::destroy_for_testing(test_coin_1);
-    //     coin::destroy_for_testing(test_coin_2);
+        coin::destroy_for_testing(test_coin);
+        coin::destroy_for_testing(test_coin_1);
+        coin::destroy_for_testing(test_coin_2);
         
-    //     test_scenario::return_shared(registry); 
-    //     test_scenario::return_to_sender<ManagerCap>(scenario, manager_cap);
-    //     transfer::transfer(oracle_key, tx_context::sender(test_scenario::ctx(scenario)));
-    //     transfer::share_object(price_oracle);
+        test_scenario::return_shared(registry); 
+        test_scenario::return_to_sender<ManagerCap>(scenario, manager_cap);
+        transfer::transfer(oracle_key, tx_context::sender(test_scenario::ctx(scenario)));
+        transfer::share_object(price_oracle);
 
-    //     test_scenario::end(scenario_val); 
-    //     test_scenario::end(user1_scenario); 
-    //     test_scenario::end(user2_scenario); 
-    // }
+        test_scenario::end(scenario_val); 
+        test_scenario::end(user1_scenario); 
+        test_scenario::end(user2_scenario); 
+    }
 }
