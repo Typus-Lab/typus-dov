@@ -237,8 +237,6 @@ module typus_dov::dutch {
 
     #[test]
     fun test_decay_formula() {
-        use std::debug;
-
         let initial_price = 5000000;
         let final_price = 3000000;
         let decay_speed = 5;
@@ -254,6 +252,106 @@ module typus_dov::dutch {
             end_ts_ms,
             current_ts_ms,
         );
-        debug::print(&price);
+        assert!(price == 4937500, 1);
+    }
+
+    #[test]
+    fun test_auction_new_auction(): Auction<sui::sui::SUI> {
+        use sui::test_scenario;
+
+        let admin = @0xFFFF;
+        let admin_scenario = test_scenario::begin(admin);
+
+        ////////////////////////////////////////////////////////////////////////////////////
+        //   New Dutch Auction
+        ////////////////////////////////////////////////////////////////////////////////////
+        let start_ts_ms = 1669338020;
+        let end_ts_ms = 1669338020 + 60*60*24*2;
+        let decay_speed = 10;
+        let initial_price = 10000;
+        let final_price = 100;
+        
+        let auction = new(start_ts_ms, end_ts_ms, decay_speed, initial_price, final_price, test_scenario::ctx(&mut admin_scenario));
+        assert!(auction.start_ts_ms == start_ts_ms, 1);
+        assert!(auction.index == 0, 1);
+
+        test_scenario::end(admin_scenario);
+        auction
+    }
+
+    #[test]
+    fun test_auction_new_bid(): Auction<sui::sui::SUI> {
+        use sui::test_scenario;
+        use typus_oracle::unix_time::{Self, Time, Key};
+        use sui::coin;
+        use sui::sui::SUI;
+        use sui::table;
+        // use std::debug;
+
+        let auction = test_auction_new_auction();
+
+        let admin = @0xFFFF;
+        let user1 = @0xBABE1;
+        let user2 = @0xBABE2;
+        let admin_scenario = test_scenario::begin(admin);
+        let user1_scenario = test_scenario::begin(user1);
+        let user2_scenario = test_scenario::begin(user2);
+
+        let coin = coin::mint_for_testing<SUI>(1000000, test_scenario::ctx(&mut admin_scenario));
+
+        unix_time::new_time(test_scenario::ctx(&mut admin_scenario));
+        test_scenario::next_tx(&mut admin_scenario, admin);
+        let time = test_scenario::take_shared<Time>(&admin_scenario);
+        test_scenario::next_tx(&mut admin_scenario, admin);
+        let key = test_scenario::take_from_address<Key>(&admin_scenario, admin);
+     
+        // update time
+        unix_time::update(&mut time, &key, auction.start_ts_ms + 60, test_scenario::ctx(&mut admin_scenario)) ;
+
+        ///////////////////////////////////////////////
+        // new bid with user 1 
+        // size: 1, owner: user1
+        /////////////////////////////////////////////
+        new_bid(
+            &mut auction,
+            1,
+            &mut coin,
+            &time,
+            test_scenario::ctx(&mut user1_scenario)
+        );
+        let bid = table::borrow(&auction.bids, 0);
+        assert!(auction.index == 1, 1);
+        assert!(bid.size == 1, 1);
+        assert!(bid.price == 10000, 1);
+        // debug::print(&bid.price);
+
+        // update time
+        unix_time::update(&mut time, &key, auction.start_ts_ms + 60*60*10, test_scenario::ctx(&mut admin_scenario)) ;
+
+        ///////////////////////////////////////////////
+        // new bid with user 2
+        // size: 2, owner: user2
+        /////////////////////////////////////////////
+        new_bid(
+            &mut auction,
+            2,
+            &mut coin,
+            &time,
+            test_scenario::ctx(&mut user2_scenario)
+        );
+        let bid = table::borrow(&auction.bids, 1);
+        assert!(auction.index == 2, 1);
+        assert!(bid.size == 2, 1);
+        assert!(bid.price == 10000, 1);
+        // debug::print(&bid.price);
+
+        coin::destroy_for_testing(coin);
+        test_scenario::return_to_sender(&admin_scenario, key); 
+        test_scenario::return_shared(time); 
+        test_scenario::end(admin_scenario);
+        test_scenario::end(user1_scenario);
+        test_scenario::end(user2_scenario);
+
+        auction
     }
 }
