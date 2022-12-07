@@ -87,7 +87,7 @@ module typus_dov::sealed {
     }
 
     /// submit a bid for auction - for bidders to call
-    public entry fun new_bid<Token>(
+    public fun new_bid<Token>(
         auction: &mut Auction<Token>,
         bid_hash: vector<u8>,
         encrypted_bid: vector<u8>,
