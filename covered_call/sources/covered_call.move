@@ -150,6 +150,37 @@ module typus_covered_call::covered_call {
             next_index
         );
     }
+
+    fun new_auction_<TOKEN>(
+        manager_cap: &ManagerCap,
+        registry: &mut Registry,
+        index: u64,
+        start_ts_ms: u64,
+        end_ts_ms: u64,
+        decay_speed: u64,
+        initial_price: u64,
+        final_price: u64,
+        ctx: &mut TxContext,
+    ) {
+        let covered_call_vault = dynamic_field::borrow_mut<u64, CoveredCallVault<TOKEN>>(
+            &mut registry.id,
+            index
+        );
+        vault::disable_deposit(manager_cap, &mut covered_call_vault.vault);
+        vault::disable_withdraw(manager_cap, &mut covered_call_vault.vault);
+        option::fill(
+            &mut covered_call_vault.auction,
+            dutch::new(
+                start_ts_ms,
+                end_ts_ms,
+                decay_speed,
+                initial_price,
+                final_price,
+                ctx,
+            )
+        );
+    }
+
     // ======== Public Friend Functions =========
 
     public(friend) fun get_mut_vault<TOKEN>(
@@ -157,6 +188,13 @@ module typus_covered_call::covered_call {
         index: u64,
     ): &mut Vault<ManagerCap, TOKEN> {
         &mut dynamic_field::borrow_mut<u64, CoveredCallVault<TOKEN>>(&mut registry.id, index).vault
+    }
+
+    public(friend) fun get_mut_action<TOKEN>(
+        registry: &mut Registry,
+        index: u64,
+    ): &mut Auction<ManagerCap, TOKEN> {
+        option::borrow_mut(&mut dynamic_field::borrow_mut<u64, CoveredCallVault<TOKEN>>(&mut registry.id, index).auction)
     }
 
     // ======== Entry Functions =========
@@ -219,6 +257,36 @@ module typus_covered_call::covered_call {
     }
 
     public(friend) entry fun new_auction<TOKEN>(
+        manager_cap: &ManagerCap,
+        registry: &mut Registry,
+        index: u64,
+        start_ts_ms: u64,
+        end_ts_ms: u64,
+        decay_speed: u64,
+        initial_price: u64,
+        final_price: u64,
+        ctx: &mut TxContext,
+    ) {
+        let covered_call_vault = dynamic_field::borrow_mut<u64, CoveredCallVault<TOKEN>>(
+            &mut registry.id,
+            index
+        );
+        vault::disable_deposit(manager_cap, &mut covered_call_vault.vault);
+        vault::disable_withdraw(manager_cap, &mut covered_call_vault.vault);
+        option::fill(
+            &mut covered_call_vault.auction,
+            dutch::new(
+                start_ts_ms,
+                end_ts_ms,
+                decay_speed,
+                initial_price,
+                final_price,
+                ctx,
+            )
+        );
+    }
+
+    public(friend) entry fun new_auction_with_next_vault<TOKEN>(
         manager_cap: &ManagerCap,
         registry: &mut Registry,
         index: u64,
