@@ -236,7 +236,7 @@ module typus_covered_call::covered_call {
     }
 
     public(friend) entry fun new_manager<TOKEN>(
-        manager_cap: &ManagerCap,
+        _manager_cap: &ManagerCap,
         user: address,
         ctx: &mut TxContext
     ) {

@@ -8,4 +8,5 @@ typus_oracle = { git = "https://github.com/Typus-Lab/typus-oracle.git", rev = "m
 
 [addresses]
 typus_dov = "_"
+# typus_oracle = "0x61e04e7cc6e20f7259dcd2166486f04c178b209c"
 sui = "0000000000000000000000000000000000000002"
