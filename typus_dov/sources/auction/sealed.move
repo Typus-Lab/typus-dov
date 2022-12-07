@@ -13,6 +13,7 @@ module typus_dov::sealed {
     use sui::bcs;
     use std::hash;
     use typus_oracle::unix_time::{Self, Time};
+    use sui::event::emit;
 
     const E_ZERO_PRICE: u64 = 0;
     const E_ZERO_SIZE: u64 = 1;
@@ -23,6 +24,7 @@ module typus_dov::sealed {
     const E_REVEAL_NOT_CLOSED: u64 = 6;
     const E_OWNER_MISMATCH: u64 = 7;
     const E_BID_COMMITMENT_MISMATCH: u64 = 8;
+    const E_BID_NOT_REVEALED: u64 = 9;
 
     struct Auction<phantom Token> has key {
         id: UID,
@@ -93,7 +95,8 @@ module typus_dov::sealed {
         time: &Time,
         ctx: &mut TxContext,
     ) {
-        assert!(unix_time::get_unix_ms(time) < auction.bid_closing_time, E_AUCTION_CLOSED);
+        let current_timestamp = unix_time::get_unix_ms(time);
+        assert!(current_timestamp < auction.bid_closing_time, E_AUCTION_CLOSED);
         let index = auction.index;
         let owner = tx_context::sender(ctx);
         table::add(
@@ -133,7 +136,16 @@ module typus_dov::sealed {
                 owner,
                 ownership,
             )
-        }
+        };
+
+        emit(
+            SealedBidCreated{
+                bid_index: index,
+                owner,
+                deposit: auction.min_deposit,
+                timestamp: current_timestamp
+            }
+        )
     }
 
     /// reveal a bid
@@ -173,6 +185,17 @@ module typus_dov::sealed {
         bid.size = option::some(size);
         bid.blinding_factor = option::some(blinding_factor);
 
+        emit(
+            SealedBidRevealed{
+                bid_index,
+                owner,
+                price,
+                size,
+                blinding_factor,
+                coin_transferred: transfer_amount,
+                timestamp: current_timestamp,
+            }
+        )
     }
 
     public fun serialize_bid_info(
@@ -221,7 +244,16 @@ module typus_dov::sealed {
             coin,
             owner,
         } = table::remove(&mut auction.funds, bid_index);
+        let coin_returned = balance::value(coin::balance(&coin));
         transfer::transfer(coin, owner);
+
+        emit(
+            SealedBidRemoved{
+                bid_index,
+                owner,
+                coin_returned: coin_returned,
+            }
+        )
     }
 
     public fun get_bid_by_index<Token>(auction: &Auction<Token>, index: u64): &Bid {
@@ -239,7 +271,8 @@ module typus_dov::sealed {
         balance: &mut Balance<Token>,
         time: &Time,
     ) {
-        assert!(unix_time::get_unix_ms(time) >= auction.reveal_closing_time, E_REVEAL_NOT_CLOSED);
+        let current_timestamp = unix_time::get_unix_ms(time);
+        assert!( current_timestamp >= auction.reveal_closing_time, E_REVEAL_NOT_CLOSED);
         
         // find valid bids and unvealed bids
         let bids = vector::empty();
@@ -275,16 +308,44 @@ module typus_dov::sealed {
                 if (bid_size <= size) {
                     balance::join(balance, coin::into_balance(coin));
                     size = size - bid_size;
+                    emit(
+                        SealedBidDelivered{
+                            bid_index: bid.index,
+                            owner,
+                            price: bid_price,
+                            delivered_size: bid_size,
+                            coin_returned: 0,
+                        }
+                    )
                 }
                 // partially filled
                 else {
                     balance::join(balance, balance::split(coin::balance_mut(&mut coin), bid_price * bid_size));
+                    let coin_returned = balance::value(coin::balance(&coin));
                     transfer::transfer(coin, owner);
                     size = 0;
+                    emit(
+                        SealedBidDelivered{
+                            bid_index: bid.index,
+                            owner,
+                            price: bid_price,
+                            delivered_size: bid_size,
+                            coin_returned,
+                        }
+                    )
                 };
             }
             else {
+                let balance = balance::value(coin::balance(&coin));
                 transfer::transfer(coin, owner);
+                emit(
+                    DepositForfeited{
+                        bid_index: bid.index,
+                        owner,
+                        forfeited_amount: balance,
+                        timestamp: current_timestamp,
+                    }
+                )
             };
         };
 
@@ -297,6 +358,48 @@ module typus_dov::sealed {
             } = table::remove(&mut auction.funds, bid.index);
             balance::join(balance, coin::into_balance(coin));
         }
+    }
+
+    ////////////////////////////////////////////
+    /// Events
+    ///////////////////////////////////////////
+    
+    struct SealedBidCreated has copy, drop {
+        bid_index: u64,
+        owner: address,
+        deposit: u64,
+        timestamp: u64
+    }
+
+    struct SealedBidRemoved has copy, drop {
+        bid_index: u64,
+        owner: address,
+        coin_returned: u64,
+    }
+
+    struct SealedBidRevealed has copy, drop {
+        bid_index: u64,
+        owner: address,
+        price: u64,
+        size: u64,
+        blinding_factor: u64,
+        coin_transferred: u64,
+        timestamp: u64,
+    }
+
+    struct SealedBidDelivered has copy, drop {
+        bid_index: u64,
+        owner: address,
+        price: u64,
+        delivered_size: u64,
+        coin_returned: u64,
+    }
+
+    struct DepositForfeited has copy, drop {
+        bid_index: u64,
+        owner: address,
+        forfeited_amount: u64,
+        timestamp: u64,
     }
     
     fun selection_sort<Token>(bids: &mut vector<Bid>) {
@@ -329,8 +432,8 @@ module typus_dov::sealed {
         use sui::sui::SUI;
         // use sui::table;
         use sui::test_scenario;
-        use std::debug;
         use typus_oracle::unix_time::{Self, Time, Key};
+        use std::option;
 
         let admin = @0xFFFF;
         let user1 = @0xBABE1;
@@ -373,9 +476,9 @@ module typus_dov::sealed {
             &time,
             test_scenario::ctx(&mut user1_scenario)
         );
-        assert!(auction.index == 1, 1);
         let bid = table::borrow(&auction.bids, 0);
-        debug::print(bid);
+        assert!(bid.index == 0, 1);
+        assert!(auction.index == 1, 1);
 
         // new bid 2 with user 2
         let serialize_bid_info = serialize_bid_info(12, 3, 11112222);
@@ -390,9 +493,9 @@ module typus_dov::sealed {
             &time,
             test_scenario::ctx(&mut user2_scenario)
         );
+        let bid = table::borrow(&auction.bids, 1);
+        assert!(bid.index == 1, 1);
         assert!(auction.index == 2, 1);
-        let bid = table::borrow(&auction.bids, 0);
-        debug::print(bid);
 
         ////////////////////////////////////////////////////////////////////////////////////
         //     Reveal Bids 
@@ -414,8 +517,8 @@ module typus_dov::sealed {
         );
 
         let bid = table::borrow(&auction.bids, 0);
-        debug::print(bid);
-      
+        assert!(option::is_some(&bid.price), 1);
+
         // reveal bid 2 with user 2
         reveal_bid(
             &mut auction,
@@ -429,7 +532,7 @@ module typus_dov::sealed {
         );
 
         let bid = table::borrow(&auction.bids, 1);
-        debug::print(bid);
+        assert!(option::is_some(&bid.price), 1);
 
         // /*
         //     bids[0] => bid{100, 1, user1}
