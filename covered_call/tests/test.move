@@ -14,7 +14,6 @@ module typus_covered_call::test {
 
     use typus_dov::i64;
     use typus_dov::asset;
-    // use typus_dov::dutch::Auction;
     use typus_dov::vault;
     use typus_oracle::oracle;
 
