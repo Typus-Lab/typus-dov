@@ -194,14 +194,14 @@ module typus_dov::test_linked_list {
         linked_list::push_front(&mut linked_list, @0x4, 4);
         linked_list::push_back(&mut linked_list, @0x7, 7);
 
-        linked_list::print_list(&linked_list); 
+        // linked_list::print_list(&linked_list);
         // 4, 2, 3, 5, 7
 
         linked_list::remove(&mut linked_list, @0x5);
         linked_list::remove(&mut linked_list, @0x4);
         linked_list::remove(&mut linked_list, @0x7);
 
-        linked_list::print_list(&linked_list);
+        // linked_list::print_list(&linked_list);
         // 2, 3
 
         test_scenario::end(scenario_val);

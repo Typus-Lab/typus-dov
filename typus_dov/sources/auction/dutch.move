@@ -246,6 +246,9 @@ module typus_dov::dutch {
         initial_price - price_diff
     }
 
+    #[test_only]
+    struct FakeManagerCap { }
+
     #[test]
     fun test_decay_formula() {
         let initial_price = 5000000;
@@ -267,7 +270,7 @@ module typus_dov::dutch {
     }
 
     #[test]
-    fun test_auction_new_auction<MANAGER>(): Auction<MANAGER, sui::sui::SUI> {
+    fun test_auction_new_auction(): Auction<FakeManagerCap, sui::sui::SUI> {
         use sui::test_scenario;
 
         let admin = @0xFFFF;
@@ -291,7 +294,7 @@ module typus_dov::dutch {
     }
 
     #[test]
-    fun test_auction_new_bid<MANAGER>(): Auction<MANAGER,sui::sui::SUI> {
+    fun test_auction_new_bid(): Auction<FakeManagerCap, sui::sui::SUI> {
         use sui::test_scenario;
         use typus_oracle::unix_time::{Self, Time, Key};
         use sui::coin;
