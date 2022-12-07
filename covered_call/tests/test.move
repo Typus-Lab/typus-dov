@@ -146,7 +146,7 @@ module typus_covered_call::test {
         oracle::update(
             &mut price_oracle,
             &oracle_key,
-            100,
+            10_000_000_000,
             0,
             test_scenario::ctx(scenario)
         );
@@ -171,21 +171,21 @@ module typus_covered_call::test {
         );
 
         // user deposit
-        let test_coin = coin::mint_for_testing<SUI>(1000000, test_scenario::ctx(scenario));
+        let test_coin = coin::mint_for_testing<SUI>(10_000_000_000, test_scenario::ctx(scenario));
         let coin_amount = coin::value<SUI>(&test_coin);
         covered_call::deposit<SUI>(&mut registry, 1, &mut test_coin, coin_amount, true, test_scenario::ctx(scenario));
 
         // auction
         let option_price_decimal = 8;
         let _option_price_multiplier = utils::multiplier(option_price_decimal);
-        let initial_price = 100_000_000;
-        let final_price = 50_000_000;
+        let initial_price = 500_000_000;
+        let final_price = 100_000_000;
         let start_auction_ts_ms = expiration_ts_ms_1 - 1000;
         let end_auction_ts_ms = start_auction_ts_ms + 500;
         oracle::update(
             &mut price_oracle,
             &oracle_key,
-            100,
+            10_000_000_000,
             start_auction_ts_ms,
             test_scenario::ctx(scenario)
         );
@@ -213,10 +213,10 @@ module typus_covered_call::test {
         );
         // new maker bid
         let current_time = start_auction_ts_ms + 300;
-        let bid_size = 50000;
+        let bid_size = 1;
         let bid_coin_value = initial_price * bid_size;
         debug::print(&string::utf8(b"bid coin size:"));
-        debug::print(&bid_coin_value);
+        debug::print(&bid_size);
 
         let mm_test_coin = coin::mint_for_testing<SUI>(bid_coin_value, test_scenario::ctx(scenario));
         unix_time::update(
@@ -237,7 +237,7 @@ module typus_covered_call::test {
         let (price, price_decimal, _, _) = oracle::get_oracle<SUI>(
             &price_oracle
         );
-        let price_multiplier = utils::multiplier(price_decimal);
+        let _price_multiplier = utils::multiplier(price_decimal);
 
         // calculate sell size by vault balance value, which may actually calculate off-chain
         let vault_1_balance = vault::test_get_balance<ManagerCap, SUI>(
@@ -249,7 +249,7 @@ module typus_covered_call::test {
             b"regular"
         );
 
-        let sell_size = vault_1_balance * price_multiplier / price;
+        let sell_size = vault_1_balance / price;
         debug::print(&string::utf8(b"sell size:"));
         debug::print(&sell_size);
 
@@ -261,11 +261,11 @@ module typus_covered_call::test {
         );
 
         // after auction
-        let premium_roi = 100000;
+        let premium_roi = 100_000;
         oracle::update(
             &mut price_oracle,
             &oracle_key,
-            100,
+            10_000_000_000,
             end_auction_ts_ms,
             test_scenario::ctx(scenario)
         );
@@ -275,6 +275,9 @@ module typus_covered_call::test {
             end_auction_ts_ms,
             test_scenario::ctx(scenario)
         );
+        let (price, _price_decimal, _, _) = oracle::get_oracle<SUI>(
+            &price_oracle
+        );
         covered_call::set_strike<SUI>(&manager_cap, &mut registry, 1, price);
         covered_call::set_premium_roi<SUI>(&manager_cap, &mut registry, 1, premium_roi);
 
@@ -283,14 +286,16 @@ module typus_covered_call::test {
         covered_call::deposit<SUI>(&mut registry, 2, &mut test_coin_2, coin_amount, true, test_scenario::ctx(scenario));
 
         debug::print(&string::utf8(b"before settle"));
+        debug::print(&string::utf8(b"vault 1"));
         test_print_vault_summary(&mut registry, 1);
+        debug::print(&string::utf8(b"vault 2"));
         test_print_vault_summary(&mut registry, 2);
         
         oracle::update(
             &mut price_oracle,
             &oracle_key,
-            98,
-            0,
+            9_800_000_000,
+            expiration_ts_ms_1,
             test_scenario::ctx(scenario)
         );
         unix_time::update(
@@ -306,7 +311,9 @@ module typus_covered_call::test {
         debug::print(&string::utf8(b"B"));
 
         debug::print(&string::utf8(b"after settle"));
+        debug::print(&string::utf8(b"vault 1"));
         test_print_vault_summary(&mut registry, 1);
+        debug::print(&string::utf8(b"vault 2"));
         test_print_vault_summary(&mut registry, 2);
         
         coin::destroy_for_testing(test_coin);

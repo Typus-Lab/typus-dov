@@ -68,8 +68,6 @@ module typus_covered_call::payoff {
     /// 1. given price = 4000, payoff return = premium = 1000
     /// 2. given price = 5500, payoff return = 1000 - ROI_DECIMAL * (5500 - 5000) / 5000 = -4000 = -999_000
     public fun get_covered_call_payoff_by_price(price: u64, payoff_config: &PayoffConfig): I64{
-        use std::debug;
-        use std::string;
         // get values from PayoffConfig
         let strike = payoff_config.strike;
         let premium_roi = payoff_config.premium_roi;
@@ -80,18 +78,9 @@ module typus_covered_call::payoff {
         let strike = option::borrow<u64>(&strike);
         let premium_roi = option::borrow<u64>(&premium_roi);
 
-        debug::print(strike);
-        debug::print(premium_roi);
-        debug::print(&string::utf8(b"payoff:"));
-
         if (price < *strike) {
-            debug::print(premium_roi);
             i64::from(*premium_roi)
         } else {
-            debug::print(&i64::sub(
-                &i64::from(*premium_roi),
-                &i64::from(utils::multiplier(ROI_DECIMAL) * (price - *strike) / *strike)
-            ));
             i64::sub(
                 &i64::from(*premium_roi),
                 &i64::from(utils::multiplier(ROI_DECIMAL) * (price - *strike) / *strike)

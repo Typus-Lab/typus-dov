@@ -32,8 +32,6 @@ module typus_covered_call::settlement {
 
         let payoff_config = covered_call::get_payoff_config(config);
 
-        debug::print(payoff_config);
-
         // calculate settlement roi
         let roi = payoff::get_covered_call_payoff_by_price(price, payoff_config);
         let roi_multiplier = utils::multiplier(payoff::get_roi_decimal());
