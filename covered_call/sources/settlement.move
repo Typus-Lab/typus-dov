@@ -81,7 +81,7 @@ module typus_covered_call::settlement {
             )
         );
 
-        let next_index = covered_call::get_next_index<TOKEN>(vault_registry, expired_index);
+        let next_index = covered_call::get_next_covered_call_vault_index<TOKEN>(vault_registry, expired_index);
         let next_index = option::borrow<u64>(&next_index);
         vault::rock_n_roll<ManagerCap, TOKEN>(
             manager_cap,

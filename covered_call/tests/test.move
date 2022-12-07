@@ -158,7 +158,7 @@ module typus_covered_call::test {
             test_scenario::ctx(scenario)
         );
 
-        covered_call::set_next_index<SUI>(
+        covered_call::set_next_covered_call_vault_index<SUI>(
             &manager_cap,
             &mut registry,
             1,

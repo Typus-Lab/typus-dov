@@ -43,7 +43,7 @@ module typus_covered_call::covered_call {
         config: Config,
         vault: Vault<ManagerCap, TOKEN>,
         auction: Option<Auction<ManagerCap, TOKEN>>,
-        next_index: Option<u64>,
+        next: Option<u64>,
     }
 
     // ======== Private Functions =========
@@ -77,6 +77,75 @@ module typus_covered_call::covered_call {
         transfer::share_object(vault);
     }
 
+    fun new_covered_call_vault_<TOKEN>(
+        _manager_cap: &ManagerCap,
+        registry: &mut Registry,
+        expiration_ts: u64,
+        asset_name: vector<u8>,
+        strike_otm_pct: u64,
+        price_oracle: &Oracle<TOKEN>,
+        ctx: &mut TxContext
+    ): u64 {
+        let (price, price_decimal, _, _) = oracle::get_oracle<TOKEN>(
+            price_oracle
+        );
+
+        let payoff_config = payoff::new_payoff_config(
+            asset::new_asset(asset_name, price, price_decimal),
+            strike_otm_pct,
+            option::none(),
+            option::none(),
+        );
+
+        let config = Config { payoff_config, expiration_ts };
+        let vault = vault::new_vault<ManagerCap, TOKEN>(ctx);
+        let index = registry.num_of_vault;
+
+        dynamic_field::add(
+            &mut registry.id,
+            index,
+            CoveredCallVault {
+                config,
+                vault,
+                auction: option::none(),
+                next: option::none(),
+            }
+        );
+        registry.num_of_vault = registry.num_of_vault + 1;
+
+        index
+    }
+
+    fun new_auction_<TOKEN>(
+        manager_cap: &ManagerCap,
+        registry: &mut Registry,
+        index: u64,
+        start_ts_ms: u64,
+        end_ts_ms: u64,
+        decay_speed: u64,
+        initial_price: u64,
+        final_price: u64,
+        ctx: &mut TxContext,
+    ) {
+        let covered_call_vault = dynamic_field::borrow_mut<u64, CoveredCallVault<TOKEN>>(
+            &mut registry.id,
+            index
+        );
+        vault::disable_deposit(manager_cap, &mut covered_call_vault.vault);
+        vault::disable_withdraw(manager_cap, &mut covered_call_vault.vault);
+        option::fill(
+            &mut covered_call_vault.auction,
+            dutch::new(
+                start_ts_ms,
+                end_ts_ms,
+                decay_speed,
+                initial_price,
+                final_price,
+                ctx,
+            )
+        );
+    }
+
     // ======== Public Functions =========
 
     public fun get_config<TOKEN>(
@@ -90,11 +159,11 @@ module typus_covered_call::covered_call {
         &config.payoff_config
     }
 
-    public fun get_next_index<TOKEN>(
+    public fun get_next_covered_call_vault_index<TOKEN>(
         registry: &mut Registry,
         index: u64,
     ): Option<u64> {
-        dynamic_field::borrow<u64, CoveredCallVault<TOKEN>>(&registry.id, index).next_index
+        dynamic_field::borrow<u64, CoveredCallVault<TOKEN>>(&registry.id, index).next
     }
 
     public fun check_already_expired(config: &Config, ts_ms: u64) {
@@ -135,52 +204,6 @@ module typus_covered_call::covered_call {
         );
     }
 
-    public fun set_next_index<TOKEN>(
-        _manager_cap: &ManagerCap,
-        registry: &mut Registry,
-        index: u64,
-        next_index: u64
-    ) {
-        option::fill(
-            &mut dynamic_field::borrow_mut<u64, CoveredCallVault<TOKEN>>(
-                &mut registry.id,
-                index
-            )
-            .next_index,
-            next_index
-        );
-    }
-
-    fun new_auction_<TOKEN>(
-        manager_cap: &ManagerCap,
-        registry: &mut Registry,
-        index: u64,
-        start_ts_ms: u64,
-        end_ts_ms: u64,
-        decay_speed: u64,
-        initial_price: u64,
-        final_price: u64,
-        ctx: &mut TxContext,
-    ) {
-        let covered_call_vault = dynamic_field::borrow_mut<u64, CoveredCallVault<TOKEN>>(
-            &mut registry.id,
-            index
-        );
-        vault::disable_deposit(manager_cap, &mut covered_call_vault.vault);
-        vault::disable_withdraw(manager_cap, &mut covered_call_vault.vault);
-        option::fill(
-            &mut covered_call_vault.auction,
-            dutch::new(
-                start_ts_ms,
-                end_ts_ms,
-                decay_speed,
-                initial_price,
-                final_price,
-                ctx,
-            )
-        );
-    }
-
     // ======== Public Friend Functions =========
 
     public(friend) fun get_mut_vault<TOKEN>(
@@ -200,7 +223,7 @@ module typus_covered_call::covered_call {
     // ======== Entry Functions =========
 
     public(friend) entry fun new_covered_call_vault<TOKEN>(
-        _manager_cap: &ManagerCap,
+        manager_cap: &ManagerCap,
         registry: &mut Registry,
         expiration_ts: u64,
         asset_name: vector<u8>,
@@ -208,31 +231,15 @@ module typus_covered_call::covered_call {
         price_oracle: &Oracle<TOKEN>,
         ctx: &mut TxContext
     ) {
-        let (price, price_decimal, _, _) = oracle::get_oracle<TOKEN>(
-            price_oracle
-        );
-
-        let payoff_config = payoff::new_payoff_config(
-            asset::new_asset(asset_name, price, price_decimal),
+        new_covered_call_vault_<TOKEN>(
+            manager_cap,
+            registry,
+            expiration_ts,
+            asset_name,
             strike_otm_pct,
-            option::none(),
-            option::none(),
+            price_oracle,
+            ctx,
         );
-
-        let config = Config { payoff_config, expiration_ts };
-        let vault = vault::new_vault<ManagerCap, TOKEN>(ctx);
-
-        dynamic_field::add(
-            &mut registry.id,
-            registry.num_of_vault,
-            CoveredCallVault {
-                config,
-                vault,
-                auction: option::none(),
-                next_index: option::none(),
-            }
-        );
-        registry.num_of_vault = registry.num_of_vault + 1;
     }
 
     public(friend) entry fun deposit<TOKEN>(
@@ -267,26 +274,20 @@ module typus_covered_call::covered_call {
         final_price: u64,
         ctx: &mut TxContext,
     ) {
-        let covered_call_vault = dynamic_field::borrow_mut<u64, CoveredCallVault<TOKEN>>(
-            &mut registry.id,
-            index
-        );
-        vault::disable_deposit(manager_cap, &mut covered_call_vault.vault);
-        vault::disable_withdraw(manager_cap, &mut covered_call_vault.vault);
-        option::fill(
-            &mut covered_call_vault.auction,
-            dutch::new(
-                start_ts_ms,
-                end_ts_ms,
-                decay_speed,
-                initial_price,
-                final_price,
-                ctx,
-            )
+        new_auction_<TOKEN>(
+            manager_cap,
+            registry,
+            index,
+            start_ts_ms,
+            end_ts_ms,
+            decay_speed,
+            initial_price,
+            final_price,
+            ctx,
         );
     }
 
-    public(friend) entry fun new_auction_with_next_vault<TOKEN>(
+    public(friend) entry fun new_auction_with_next_covered_call_vault<TOKEN>(
         manager_cap: &ManagerCap,
         registry: &mut Registry,
         index: u64,
@@ -295,24 +296,39 @@ module typus_covered_call::covered_call {
         decay_speed: u64,
         initial_price: u64,
         final_price: u64,
+        expiration_ts: u64,
+        asset_name: vector<u8>,
+        strike_otm_pct: u64,
+        price_oracle: &Oracle<TOKEN>,
         ctx: &mut TxContext,
     ) {
-        let covered_call_vault = dynamic_field::borrow_mut<u64, CoveredCallVault<TOKEN>>(
-            &mut registry.id,
-            index
+        let next = new_covered_call_vault_<TOKEN>(
+            manager_cap,
+            registry,
+            expiration_ts,
+            asset_name,
+            strike_otm_pct,
+            price_oracle,
+            ctx,
         );
-        vault::disable_deposit(manager_cap, &mut covered_call_vault.vault);
-        vault::disable_withdraw(manager_cap, &mut covered_call_vault.vault);
         option::fill(
-            &mut covered_call_vault.auction,
-            dutch::new(
-                start_ts_ms,
-                end_ts_ms,
-                decay_speed,
-                initial_price,
-                final_price,
-                ctx,
+            &mut dynamic_field::borrow_mut<u64, CoveredCallVault<TOKEN>>(
+                &mut registry.id,
+                index
             )
+            .next,
+            next
+        );
+        new_auction_<TOKEN>(
+            manager_cap,
+            registry,
+            index,
+            start_ts_ms,
+            end_ts_ms,
+            decay_speed,
+            initial_price,
+            final_price,
+            ctx,
         );
     }
 
