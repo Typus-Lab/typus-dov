@@ -317,24 +317,17 @@ module typus_covered_call::test {
 
     #[test]
     fun test_unsubscribe() {
-        let price_decimal = 8;
+        let admin = @0x1;
         let scenario_val = test_new_vault();
         let scenario = &mut scenario_val;
 
-        let admin = @0x1;
         let user1 = @0xBABE1;
         let user2 = @0xBABE2;
-
-        let user1_scenario = test_scenario::begin(user1);
-        let user2_scenario = test_scenario::begin(user2);
         
         let registry = test_scenario::take_shared<Registry>(scenario);
         let manager_cap = test_scenario::take_from_sender<ManagerCap>(scenario);
 
-        let user1_ctx = test_scenario::ctx(&mut user1_scenario);
-        let user2_ctx = test_scenario::ctx(&mut user2_scenario);
-
-        oracle::new_oracle<SUI>(price_decimal, test_scenario::ctx(scenario));
+        oracle::new_oracle<SUI>(8, test_scenario::ctx(scenario));
         test_scenario::next_tx(scenario, admin);
         let price_oracle = test_scenario::take_shared<Oracle<SUI>>(scenario);
         test_scenario::next_tx(scenario, admin);
@@ -360,17 +353,21 @@ module typus_covered_call::test {
         );
 
         // user deposit
-        let test_coin = coin::mint_for_testing<SUI>(300000, user1_ctx);
+        test_scenario::next_tx(scenario, user1);
+        let test_coin = coin::mint_for_testing<SUI>(300000, test_scenario::ctx(scenario));
         let coin_amount = coin::value<SUI>(&test_coin);
-        covered_call::deposit<SUI>(&mut registry, 1, &mut test_coin, coin_amount, true, user1_ctx);
-        covered_call::unsubscribe<SUI>(&mut registry, 1, user1_ctx);
-        let test_coin_1 = coin::mint_for_testing<SUI>(1000000, user1_ctx);
-        let coin_amount = coin::value<SUI>(&test_coin_1);
+        covered_call::deposit<SUI>(&mut registry, 1, &mut test_coin, coin_amount, true, test_scenario::ctx(scenario));
+        covered_call::unsubscribe<SUI>(&mut registry, 1, test_scenario::ctx(scenario));
 
-        covered_call::deposit<SUI>(&mut registry, 1, &mut test_coin_1, coin_amount, true, user1_ctx);
-        let test_coin_2 = coin::mint_for_testing<SUI>(500000, user2_ctx);
+        test_scenario::next_tx(scenario, user1);
+        let test_coin_1 = coin::mint_for_testing<SUI>(1000000, test_scenario::ctx(scenario));
+        let coin_amount = coin::value<SUI>(&test_coin_1);
+        covered_call::deposit<SUI>(&mut registry, 1, &mut test_coin_1, coin_amount, true, test_scenario::ctx(scenario));
+
+        test_scenario::next_tx(scenario, user2);
+        let test_coin_2 = coin::mint_for_testing<SUI>(500000, test_scenario::ctx(scenario));
         let coin_amount = coin::value<SUI>(&test_coin_2);
-        covered_call::deposit<SUI>(&mut registry, 1, &mut test_coin_2, coin_amount, true, user2_ctx);
+        covered_call::deposit<SUI>(&mut registry, 1, &mut test_coin_2, coin_amount, true, test_scenario::ctx(scenario));
 
         debug::print(&string::utf8(b"A: after deposit"));
         vault::test_get_balance<ManagerCap, SUI>(covered_call::get_mut_vault<SUI>(
@@ -390,11 +387,8 @@ module typus_covered_call::test {
             1
         ), false);
 
-        covered_call::unsubscribe<SUI>(
-            &mut registry,
-            1,
-            user1_ctx
-        );
+        test_scenario::next_tx(scenario, user1);
+        covered_call::unsubscribe<SUI>(&mut registry, 1, test_scenario::ctx(scenario));
 
         debug::print(&string::utf8(b"B: user1 unsubscribed"));
         vault::test_get_balance<ManagerCap, SUI>(covered_call::get_mut_vault<SUI>(
@@ -417,15 +411,14 @@ module typus_covered_call::test {
         coin::destroy_for_testing(test_coin);
         coin::destroy_for_testing(test_coin_1);
         coin::destroy_for_testing(test_coin_2);
-        
+
         test_scenario::return_shared(registry); 
+        test_scenario::next_tx(scenario, admin);
         test_scenario::return_to_sender<ManagerCap>(scenario, manager_cap);
         transfer::transfer(oracle_key, tx_context::sender(test_scenario::ctx(scenario)));
         transfer::share_object(price_oracle);
 
-        test_scenario::end(scenario_val); 
-        test_scenario::end(user1_scenario); 
-        test_scenario::end(user2_scenario); 
+        test_scenario::end(scenario_val);
     }
 
     #[test_only]
