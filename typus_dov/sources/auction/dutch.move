@@ -77,8 +77,8 @@ module typus_dov::dutch {
         time: &Time,
         ctx: &mut TxContext,
     ) {
-        assert!(unix_time::get_unix_ms(time) >= auction.start_ts_ms, E_AUCTION_NOT_YET_STARTED);
-        assert!(unix_time::get_unix_ms(time) <= auction.end_ts_ms, E_AUCTION_CLOSED);
+        assert!(unix_time::get_ts_ms(time) >= auction.start_ts_ms, E_AUCTION_NOT_YET_STARTED);
+        assert!(unix_time::get_ts_ms(time) <= auction.end_ts_ms, E_AUCTION_CLOSED);
         assert!(size != 0, E_ZERO_SIZE);
 
         let index = auction.index;
@@ -123,8 +123,8 @@ module typus_dov::dutch {
         time: &Time,
         ctx: &mut TxContext,
     ) {
-        assert!(unix_time::get_unix_ms(time) >= auction.start_ts_ms, E_AUCTION_NOT_YET_STARTED);
-        assert!(unix_time::get_unix_ms(time) <= auction.end_ts_ms, E_AUCTION_CLOSED);
+        assert!(unix_time::get_ts_ms(time) >= auction.start_ts_ms, E_AUCTION_NOT_YET_STARTED);
+        assert!(unix_time::get_ts_ms(time) <= auction.end_ts_ms, E_AUCTION_CLOSED);
 
         let owner = tx_context::sender(ctx);
         let ownership = table::borrow_mut(&mut auction.ownerships, owner);
