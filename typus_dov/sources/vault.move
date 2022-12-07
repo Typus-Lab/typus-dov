@@ -339,6 +339,20 @@ module typus_dov::vault {
         );
     }
 
+    public fun maker_deposit<MANAGER, TOKEN>(
+        _manager_cap: &MANAGER,
+        vault: &mut Vault<MANAGER, TOKEN>,
+        balance: Balance<TOKEN>,
+        maker_shares: VecMap<address, u64>,
+    ) {
+        let sub_vault = get_mut_sub_vault<MANAGER, TOKEN>(vault, C_VAULT_ROLLING);
+        balance::join(&mut sub_vault.balance, balance);
+        while (!vec_map::is_empty(&maker_shares)) {
+            let (user, share) = vec_map::pop(&mut maker_shares);
+            add_share(sub_vault, user, share);
+        }
+    }
+
     public fun enable_deposit<MANAGER, TOKEN>(
         _manager_cap: &MANAGER,
         vault: &mut Vault<MANAGER, TOKEN>
