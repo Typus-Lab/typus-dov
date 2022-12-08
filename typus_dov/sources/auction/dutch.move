@@ -352,4 +352,29 @@ module typus_dov::dutch {
 
         auction
     }
+
+        #[test]
+    fun test_auction_remove_bid_success(): Auction<sui::sui::SUI> {
+        let auction = test_auction_new_bid();
+
+        let user1 = @0xBABE1;
+        let user2 = @0xBABE2;
+        remove_bid(&mut auction, user1, 0);
+        // remove_bid(&mut auction, user1, 2);
+        remove_bid(&mut auction, user2, 1);
+        // remove_bid(&mut auction, user2, 3);
+
+        auction
+    }
+
+    #[test]
+    #[expected_failure]
+    fun test_auction_remove_bid_fail_on_wrong_owner(): Auction<sui::sui::SUI> {
+        let auction = test_auction_new_bid();
+
+        let monkey = @0x8787;
+        remove_bid(&mut auction, monkey, 0);
+
+        auction
+    }
 }
