@@ -340,7 +340,7 @@ module typus_covered_call::covered_call {
     public(friend) entry fun withdraw<TOKEN>(
         registry: &mut Registry,
         index: u64,
-        amount: u64,
+        amount: Option<u64>,
         is_rolling: bool,
         ctx: &mut TxContext
     ) {
@@ -349,7 +349,7 @@ module typus_covered_call::covered_call {
                 registry,
                 index
             ),
-            option::some(amount),
+            amount,
             is_rolling,
             ctx
         );
