@@ -29,11 +29,11 @@ module typus_dov::vault {
     const E_NOT_YET_ACTIVATED: u64 = 6;
     const E_NOT_YET_SETTLED: u64 = 8;
     const E_ALREADY_SETTLED: u64 = 9;
+    const E_ALREADY_ACTIVATED: u64 = 10;
 
     // ======== Structs ========
 
     struct Vault<phantom MANAGER, phantom TOKEN> has store {
-        next_vault_index: Option<u64>,
         sub_vaults: Table<vector<u8>, SubVault<TOKEN>>,
         able_to_deposit: bool,
         able_to_withdraw: bool,
@@ -52,7 +52,6 @@ module typus_dov::vault {
         ctx: &mut TxContext
     ): Vault<MANAGER, TOKEN> {
         let vault = Vault<MANAGER, TOKEN> {
-            next_vault_index: option::none(),
             sub_vaults: table::new(ctx),
             able_to_deposit: true,
             able_to_withdraw: true,
@@ -89,7 +88,6 @@ module typus_dov::vault {
         share_price_decimal: u64
     ) {
         let Vault {
-            next_vault_index: _,
             sub_vaults: _,
             able_to_deposit: atd,
             able_to_withdraw: atw,
@@ -97,7 +95,7 @@ module typus_dov::vault {
         assert!(!(*atd && *atw), E_NOT_YET_ACTIVATED);
         assert!(!(!*atd && *atw), E_ALREADY_SETTLED);
 
-        let balance = balance::value(
+        let total_balance = balance::value(
             &get_sub_vault<MANAGER, TOKEN>(
                 vault, C_VAULT_ROLLING
             ).balance
@@ -107,19 +105,19 @@ module typus_dov::vault {
             ).balance
         );
 
-        let share_supply = get_sub_vault<MANAGER, TOKEN>(
+        let total_share_supply = get_sub_vault<MANAGER, TOKEN>(
             vault, C_VAULT_ROLLING
         ).share_supply + get_sub_vault<MANAGER, TOKEN>(
             vault, C_VAULT_REGULAR
         ).share_supply;
 
-        assert!(balance == share_supply, E_ALREADY_SETTLED);
+        assert!(total_balance == total_share_supply, E_ALREADY_SETTLED);
 
         let multiplier = utils::multiplier(share_price_decimal);
 
         if (settled_share_price > multiplier) {
             // user receives balance from maker
-            let payoff = balance * (settled_share_price - multiplier) / multiplier;
+            let payoff = total_balance * (settled_share_price - multiplier) / multiplier;
             // transfer balance from maker to rolling users
             let rolling_share_supply = get_sub_vault<MANAGER, TOKEN>(
                 vault, C_VAULT_ROLLING
@@ -128,7 +126,7 @@ module typus_dov::vault {
                 &mut get_mut_sub_vault<MANAGER, TOKEN>(
                     vault, C_VAULT_MAKER
                 ).balance,
-                payoff * rolling_share_supply / share_supply
+                payoff * rolling_share_supply / total_share_supply
             );
             balance::join(
                 &mut get_mut_sub_vault<MANAGER, TOKEN>(
@@ -141,7 +139,7 @@ module typus_dov::vault {
                 &mut get_mut_sub_vault<MANAGER, TOKEN>(
                     vault, C_VAULT_MAKER
                 ).balance,
-                payoff * (share_supply - rolling_share_supply) / share_supply
+                payoff * (total_share_supply - rolling_share_supply) / total_share_supply
             );
             balance::join(
                 &mut get_mut_sub_vault<MANAGER, TOKEN>(
@@ -152,35 +150,35 @@ module typus_dov::vault {
         }
         else if (settled_share_price < multiplier) {
             // maker receives balance from users
-            let payoff = balance * (multiplier - settled_share_price) / multiplier;
+            let payoff = total_balance * (multiplier - settled_share_price) / multiplier;
             // transfer balance from rolling users to maker
             let rolling_share_supply = get_sub_vault<MANAGER, TOKEN>(
                 vault, C_VAULT_ROLLING
             ).share_supply;
-            let coin = balance::split<TOKEN>(
+            let balance = balance::split<TOKEN>(
                 &mut get_mut_sub_vault<MANAGER, TOKEN>(
                     vault, C_VAULT_ROLLING
                 ).balance,
-                payoff * rolling_share_supply / share_supply
+                payoff * rolling_share_supply / total_share_supply
             );
             balance::join(
                 &mut get_mut_sub_vault<MANAGER, TOKEN>(
                     vault, C_VAULT_MAKER
                 ).balance,
-                coin
+                balance
             );
             // transfer balance from regular users to maker
-            let coin = balance::split<TOKEN>(
+            let balance = balance::split<TOKEN>(
                 &mut get_mut_sub_vault<MANAGER, TOKEN>(
                     vault, C_VAULT_REGULAR
                 ).balance,
-                payoff * (share_supply - rolling_share_supply) / share_supply
+                payoff * (total_share_supply - rolling_share_supply) / total_share_supply
             );
             balance::join(
                 &mut get_mut_sub_vault<MANAGER, TOKEN>(
                     vault, C_VAULT_MAKER
                 ).balance,
-                coin
+                balance
             );
         };
         enable_withdraw(manager_cap, vault);
@@ -219,7 +217,7 @@ module typus_dov::vault {
         balance: Balance<TOKEN>,
         scaled_user_shares: VecMap<address, u64>,
     ) {
-        assert!((vault.able_to_deposit && vault.able_to_withdraw), E_DEPOSIT_DISABLED);
+        assert!((vault.able_to_deposit && vault.able_to_withdraw), E_ALREADY_ACTIVATED);
 
         let sub_vault = get_mut_sub_vault<MANAGER, TOKEN>(vault, C_VAULT_ROLLING);
         balance::join(&mut sub_vault.balance, balance);

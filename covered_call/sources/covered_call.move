@@ -25,7 +25,7 @@ module typus_covered_call::covered_call {
 
     // ======== Structs =========
 
-    struct ManagerCap has key, store {
+    struct ManagerCap has key {
         id: UID,
     }
 
@@ -266,7 +266,6 @@ module typus_covered_call::covered_call {
             is_rolling,
             ctx
         );
-
     }
 
     public(friend) entry fun new_auction<TOKEN>(
