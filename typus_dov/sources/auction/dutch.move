@@ -293,31 +293,29 @@ module typus_dov::dutch {
         let admin = @0xFFFF;
         let user1 = @0xBABE1;
         let user2 = @0xBABE2;
-        let admin_scenario = test_scenario::begin(admin);
-        let user1_scenario = test_scenario::begin(user1);
-        let user2_scenario = test_scenario::begin(user2);
+        let scenario = test_scenario::begin(admin);
 
-        let coin = coin::mint_for_testing<SUI>(1000000, test_scenario::ctx(&mut admin_scenario));
+        let coin = coin::mint_for_testing<SUI>(1000000, test_scenario::ctx(&mut scenario));
 
-        unix_time::new_time(test_scenario::ctx(&mut admin_scenario));
-        test_scenario::next_tx(&mut admin_scenario, admin);
-        let time = test_scenario::take_shared<Time>(&admin_scenario);
-        test_scenario::next_tx(&mut admin_scenario, admin);
-        let key = test_scenario::take_from_address<Key>(&admin_scenario, admin);
+        unix_time::new_time(test_scenario::ctx(&mut scenario));
+        test_scenario::next_tx(&mut scenario, admin);
+        let time = test_scenario::take_shared<Time>(&scenario);
+        let key = test_scenario::take_from_address<Key>(&scenario, admin);
      
         // update time
-        unix_time::update(&mut time, &key, auction.start_ts_ms + 60, test_scenario::ctx(&mut admin_scenario)) ;
+        unix_time::update(&mut time, &key, auction.start_ts_ms + 60, test_scenario::ctx(&mut scenario)) ;
 
         ///////////////////////////////////////////////
         // new bid with user 1 
         // size: 1, owner: user1
         /////////////////////////////////////////////
+        test_scenario::next_tx(&mut scenario, user1);
         new_bid(
             &mut auction,
             1,
             &mut coin,
             &time,
-            test_scenario::ctx(&mut user1_scenario)
+            test_scenario::ctx(&mut scenario)
         );
         let bid = table::borrow(&auction.bids, 0);
         assert!(auction.index == 1, 1);
@@ -326,18 +324,19 @@ module typus_dov::dutch {
         // debug::print(&bid.price);
 
         // update time
-        unix_time::update(&mut time, &key, auction.start_ts_ms + 60*60*10, test_scenario::ctx(&mut admin_scenario)) ;
+        unix_time::update(&mut time, &key, auction.start_ts_ms + 60*60*10, test_scenario::ctx(&mut scenario)) ;
 
         ///////////////////////////////////////////////
         // new bid with user 2
         // size: 2, owner: user2
         /////////////////////////////////////////////
+        test_scenario::next_tx(&mut scenario, user2);
         new_bid(
             &mut auction,
             2,
             &mut coin,
             &time,
-            test_scenario::ctx(&mut user2_scenario)
+            test_scenario::ctx(&mut scenario)
         );
         let bid = table::borrow(&auction.bids, 1);
         assert!(auction.index == 2, 1);
@@ -345,12 +344,11 @@ module typus_dov::dutch {
         assert!(bid.price == 10000, 1);
         // debug::print(&bid.price);
 
+        test_scenario::next_tx(&mut scenario, admin);
         coin::destroy_for_testing(coin);
-        test_scenario::return_to_sender(&admin_scenario, key); 
+        test_scenario::return_to_sender(&scenario, key); 
         test_scenario::return_shared(time); 
-        test_scenario::end(admin_scenario);
-        test_scenario::end(user1_scenario);
-        test_scenario::end(user2_scenario);
+        test_scenario::end(scenario);
 
         auction
     }
