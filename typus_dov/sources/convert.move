@@ -171,23 +171,22 @@ module typus_dov::convert{
 
     #[test]
     fun test_string_number_string_convert() {
-        use std::debug;
         use std::string;
 
         let max = string::utf8(b"u8 max: ");
         string::append(&mut max, u8_to_string(string_to_u8(string::utf8(b"255"))));
-        debug::print(&max);
+        assert!(*string::bytes(&max) == b"u8 max: 255" , 0);
         let max = string::utf8(b"u16 max: ");
         string::append(&mut max, u16_to_string(string_to_u16(string::utf8(b"65535"))));
-        debug::print(&max);
+        assert!(*string::bytes(&max) == b"u16 max: 65535" , 0);
         let max = string::utf8(b"u32 max: ");
         string::append(&mut max, u32_to_string(string_to_u32(string::utf8(b"4294967295"))));
-        debug::print(&max);
+        assert!(*string::bytes(&max) == b"u32 max: 4294967295" , 0);
         let max = string::utf8(b"u64 max: ");
         string::append(&mut max, u64_to_string(string_to_u64(string::utf8(b"18446744073709551615"))));
-        debug::print(&max);
+        assert!(*string::bytes(&max) == b"u64 max: 18446744073709551615" , 0);
         let max = string::utf8(b"u128 max: ");
         string::append(&mut max, u128_to_string(string_to_u128(string::utf8(b"340282366920938463463374607431768211455"))));
-        debug::print(&max);
+        assert!(*string::bytes(&max) == b"u128 max: 340282366920938463463374607431768211455" , 0);
     }
 }

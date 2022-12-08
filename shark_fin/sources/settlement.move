@@ -43,7 +43,7 @@
 
 //         // internal transfer
 //         if (i64::compare(&user_total_payoff, &i64::zero()) != 0) {
-//             if (i64::is_neg(&user_total_payoff)){
+//             if (i64::is_neg(&user_total_payoff)) {
 //                 // Also rolling_user_payoff & regular_user_payoff are negative
 //                 // split user payoff and transfer to mm
 //                 let payoff_u64 = i64::as_u64(&i64::abs(&rolling_user_payoff));
@@ -52,7 +52,7 @@
 //                 let payoff_u64 = i64::as_u64(&i64::abs(&regular_user_payoff));
 //                 let coin = vault::extract_subvault_deposit<T, Config>(vault_registry, expired_index, string::utf8(b"regular"), payoff_u64);
 //                 vault::join_subvault_deposit<T, Config>(vault_registry, expired_index, string::utf8(b"maker"), coin);
-//             } else if (i64::is_neg(&user_total_payoff)){
+//             } else if (i64::is_neg(&user_total_payoff)) {
 //                 // Also rolling_user_payoff & regular_user_payoff are positive
 //                 // split mm payoff and transfer to users
 //                 let coin = vault::extract_subvault_deposit<T, Config>(vault_registry, expired_index, string::utf8(b"maker"), i64::as_u64(&rolling_user_payoff));
@@ -68,7 +68,7 @@
 //         vault_registry: &mut VaultRegistry<Config>,
 //         expired_index: u64,
 //         new_index: u64,
-//     ){
+//     ) {
 //         // transfer deposit to new vault
 //         let rolling_user_balance_value_at_expired = vault::get_vault_deposit_value<T, Config>(vault_registry, expired_index, string::utf8(b"rolling"));
 //         let coin = vault::extract_subvault_deposit<T, Config>(vault_registry, expired_index, string::utf8(b"rolling"), rolling_user_balance_value_at_expired);
@@ -98,7 +98,7 @@
 //                     * share_price 
 //                     / share_price_multiplier;
 
-//                 if (table::contains<address, u64>(vault::get_mut_vault_users_table<T, Config>(vault_registry, new_index, string::utf8(b"rolling")), user_address)){
+//                 if (table::contains<address, u64>(vault::get_mut_vault_users_table<T, Config>(vault_registry, new_index, string::utf8(b"rolling")), user_address)) {
 //                     let user_share = vault::get_mut_user_share<T, Config>(vault_registry, new_index, string::utf8(b"rolling"), user_address);
 //                     *user_share = *user_share + adjusted_shares_in_expired_pool;
 //                 } else {
@@ -119,7 +119,7 @@
 //     public entry fun settle_without_roll_over<T>(
 //         vault_registry: &mut VaultRegistry<Config>,
 //         expired_index: u64,
-//     ){
+//     ) {
 //         settle_internal<T>(vault_registry, expired_index);
 //     }
 

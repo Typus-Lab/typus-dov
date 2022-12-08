@@ -1,278 +1,122 @@
 module typus_covered_call::settlement {
     use std::string;
     use std::debug;
-    use sui::table;
+    use std::option;
     
     use typus_dov::utils;
     use typus_dov::i64;
-    use typus_dov::vault::{Self, VaultRegistry};
-    use typus_dov::dutch::Auction;
+    use typus_dov::vault;
 
     use typus_covered_call::payoff;
-    use typus_covered_call::covered_call::{Self, Config};
+    use typus_covered_call::covered_call::{Self, ManagerCap, Registry};
 
     use typus_oracle::oracle::{Self, Oracle};
+    use typus_oracle::unix_time::{Self, Time};
 
     const E_VAULT_HAS_BEEN_SETTLED: u64 = 666;
-
     // ======== Functions =========
 
-    fun settle_internal<T>(
-        vault_registry: &mut VaultRegistry<Config>,
+    fun settle_internal<TOKEN>(
+        manager_cap: &ManagerCap,
+        vault_registry: &mut Registry,
         expired_index: u64,
-        price_oracle: &Oracle<T>
+        price_oracle: &Oracle<TOKEN>,
+        time_oracle: &Time
     ) {
-        let config = vault::get_config<T, Config, Auction<T>>(vault_registry, expired_index);
+        let config = covered_call::get_config<TOKEN>(vault_registry, expired_index); 
 
-        let (price, _decimal, unix_ms, _epoch) = oracle::get_oracle<T>(price_oracle);
+        let (price, _decimal, _unix_ms, _epoch) = oracle::get_oracle<TOKEN>(price_oracle);
 
-        covered_call::check_already_expired(config, unix_ms);
+        let current_ts_ms = unix_time::get_ts_ms(time_oracle);
+        covered_call::check_already_expired(config, current_ts_ms);
 
         let payoff_config = covered_call::get_payoff_config(config);
 
-        debug::print(payoff_config);
-
         // calculate settlement roi
         let roi = payoff::get_covered_call_payoff_by_price(price, payoff_config);
-        let roi_multiplier = i64::from(utils::multiplier(payoff::get_roi_decimal()));
+        let roi_multiplier = utils::multiplier(payoff::get_roi_decimal());
 
         debug::print(&string::utf8(b"roi"));
         debug::print(&roi);
 
-        // calculate payoff for vault user
-        // -> mm payoff = - user total payoff
-        let user_balance_value = vault::get_vault_deposit_value<T, Config, Auction<T>>(
-            vault_registry,
-            expired_index,
-            string::utf8(b"rolling")
-        ) + vault::get_vault_deposit_value<T, Config, Auction<T>>(
-            vault_registry,
-            expired_index,
-            string::utf8(b"regular")
-        );
-        let rolling_share_supply = vault::get_vault_share_supply<T, Config, Auction<T>>(
-            vault_registry,
-            expired_index,
-            string::utf8(b"rolling")
-        );
-        let regular_share_supply = vault::get_vault_share_supply<T, Config, Auction<T>>(
-            vault_registry,
-            expired_index,
-            string::utf8(b"regular")
-        );
-        let share_supply = rolling_share_supply + regular_share_supply;
+        let share_price_decimal = 8;
+        let settled_share_price = if (!i64::is_neg(&roi)) {
+            utils::multiplier(share_price_decimal) * (roi_multiplier + i64::as_u64(&roi)) / roi_multiplier
+        } else {
+            utils::multiplier(share_price_decimal) * (roi_multiplier + i64::as_u64(&i64::abs(&roi))) / roi_multiplier
+        };
 
-        assert!(user_balance_value == share_supply, E_VAULT_HAS_BEEN_SETTLED);
+        let expired_vault = covered_call::get_mut_vault<TOKEN>(
+            vault_registry,
+            expired_index
+        );
 
-        debug::print(&string::utf8(b"user_balance_value"));
-        debug::print(&user_balance_value);
-
-        let user_final_balance = i64::add(
-            &i64::from(user_balance_value),
-            &i64::div(
-                &i64::mul(&i64::from(user_balance_value),&roi),
-                &roi_multiplier
-            )
+        vault::settle_fund<ManagerCap, TOKEN>(
+            manager_cap,
+            expired_vault,
+            settled_share_price,
+            share_price_decimal
         );
         
-        let user_total_payoff = i64::sub(&user_final_balance, &i64::from(user_balance_value));
-        let rolling_user_payoff = i64::div(
-            &i64::mul(
-                &user_total_payoff,
-                &i64::from(rolling_share_supply)
-            ),
-            &i64::from(share_supply)
-        );
-        let regular_user_payoff = i64::sub(&user_total_payoff, &rolling_user_payoff);
-
-        debug::print(&string::utf8(b"user_final_balance"));
-        debug::print(&user_final_balance);
-
-        debug::print(&string::utf8(b"rolling_user_payoff"));
-        debug::print(&rolling_user_payoff);
-
-        // internal transfer
-        if (i64::compare(&user_total_payoff, &i64::zero()) != 0) {
-            if (i64::is_neg(&user_total_payoff)){
-                // Also rolling_user_payoff & regular_user_payoff are negative
-                // split user payoff and transfer to mm
-                let payoff_u64 = i64::as_u64(&i64::abs(&rolling_user_payoff));
-                let coin = vault::extract_subvault_deposit<T, Config, Auction<T>>(
-                    vault_registry,
-                    expired_index,
-                    string::utf8(b"rolling"),
-                    payoff_u64
-                );
-                vault::join_subvault_deposit<T, Config, Auction<T>>(
-                    vault_registry,
-                    expired_index,
-                    string::utf8(b"maker"),
-                    coin
-                );
-                let payoff_u64 = i64::as_u64(&i64::abs(&regular_user_payoff));
-                let coin = vault::extract_subvault_deposit<T, Config, Auction<T>>(
-                    vault_registry,
-                    expired_index,
-                    string::utf8(b"regular"),
-                    payoff_u64
-                );
-                vault::join_subvault_deposit<T, Config, Auction<T>>(
-                    vault_registry,
-                    expired_index,
-                    string::utf8(b"maker"),
-                    coin
-                );
-            } else if (!i64::is_neg(&user_total_payoff)){
-                // Also rolling_user_payoff & regular_user_payoff are positive
-                // split mm payoff and transfer to users
-                let coin = vault::extract_subvault_deposit<T, Config, Auction<T>>(
-                    vault_registry,
-                    expired_index,
-                    string::utf8(b"maker"),
-                    i64::as_u64(&rolling_user_payoff)
-                );
-                vault::join_subvault_deposit<T, Config, Auction<T>>(
-                    vault_registry,
-                    expired_index,
-                    string::utf8(b"rolling"),
-                    coin
-                );
-                let coin = vault::extract_subvault_deposit<T, Config, Auction<T>>(
-                    vault_registry,
-                    expired_index,
-                    string::utf8(b"maker"),
-                    i64::as_u64(&regular_user_payoff)
-                );
-                vault::join_subvault_deposit<T, Config, Auction<T>>(
-                    vault_registry,
-                    expired_index,
-                    string::utf8(b"regular"),
-                    coin
-                );
-            }
-        }
         // TODO: calculate performance fee
     }
 
-    fun settle_roll_over<T>(
-        vault_registry: &mut VaultRegistry<Config>,
+    fun settle_roll_over<TOKEN>(
+        manager_cap: &ManagerCap,
+        vault_registry: &mut Registry,
         expired_index: u64,
-        new_index: u64,
-        price_oracle: &Oracle<T>
-    ){
-        let config = vault::get_config<T, Config, Auction<T>>(vault_registry, expired_index);
+        price_oracle: &Oracle<TOKEN>,
+        time_oracle: &Time
+    ) {
 
-        let (_price, _decimal, unix_ms, _epoch) = oracle::get_oracle<T>(price_oracle);
+        let config = covered_call::get_config<TOKEN>(vault_registry, expired_index); 
 
-        covered_call::check_already_expired(config, unix_ms);
+        let (_price, _decimal, _unix_ms, _epoch) = oracle::get_oracle<TOKEN>(price_oracle);
 
-        // transfer deposit to new vault
-        let rolling_user_balance_value_at_expired = vault::get_vault_deposit_value<T, Config, Auction<T>>(
-            vault_registry,
-            expired_index,
-            string::utf8(b"rolling")
-        );
-        let coin = vault::extract_subvault_deposit<T, Config, Auction<T>>(
-            vault_registry, expired_index, string::utf8(b"rolling"),
-            rolling_user_balance_value_at_expired
-        );
-        vault::join_subvault_deposit<T, Config, Auction<T>>(vault_registry, new_index, string::utf8(b"rolling"), coin);
+        let current_ts_ms = unix_time::get_ts_ms(time_oracle);
+        covered_call::check_already_expired(config, current_ts_ms);
 
-        // transfer shares to new vault
-        // adjust the shares for new coming users and combine with table of old users
-
-        let rolling_user_share_supply_at_expired = vault::get_vault_share_supply<T, Config, Auction<T>>(
-            vault_registry,
-            expired_index,
-            string::utf8(b"rolling")
+        let (balance, scaled_user_shares) = vault::prepare_rolling<ManagerCap, TOKEN>(
+            manager_cap,
+            covered_call::get_mut_vault<TOKEN>(
+                vault_registry,
+                expired_index
+            )
         );
 
-        // combine share supply: use expired balance value instead of expired share
-        vault::add_share_supply<T, Config, Auction<T>>(
-            vault_registry,
-            new_index,
-            string::utf8(b"rolling"),
-            rolling_user_balance_value_at_expired
-        );
-
-        // adjust user share
-
-        let i = 0;
-        let n = vault::get_vault_num_user<T, Config, Auction<T>>(vault_registry, expired_index, string::utf8(b"rolling"));
-        while (i < n) {
-            let contains = table::contains<u64, address>(
-                vault::get_vault_user_map<T, Config, Auction<T>>(vault_registry, expired_index, string::utf8(b"rolling")),
-                i
-            );
-            if (contains) {
-                let user_address = vault::get_user_address<T, Config, Auction<T>>(
-                    vault_registry,
-                    expired_index,
-                    string::utf8(b"rolling"),
-                    i
-                );
-                let old_shares_at_expired = vault::get_user_share<T, Config, Auction<T>>(
-                    vault_registry,
-                    expired_index,
-                    string::utf8(b"rolling"),
-                    user_address
-                );
-                let user_balance_value_at_expired = (
-                    rolling_user_balance_value_at_expired
-                    * old_shares_at_expired
-                    / rolling_user_share_supply_at_expired
-                );
-                // if this user also deposit in new vault
-                if (
-                    table::contains<address, u64>(
-                        vault::get_mut_vault_users_table<T, Config, Auction<T>>(vault_registry, new_index, string::utf8(b"rolling")),
-                        user_address
-                    )
-                ){
-                    let user_share = vault::get_mut_user_share<T, Config, Auction<T>>(
-                        vault_registry,
-                        new_index,
-                        string::utf8(b"rolling"),
-                        user_address
-                    );
-                    *user_share = *user_share + user_balance_value_at_expired;
-                } else {
-                    // if this user didn't deposit in new vault
-                    table::add<address, u64>(
-                        vault::get_mut_vault_users_table<T, Config, Auction<T>>(vault_registry, new_index, string::utf8(b"rolling")),
-                        user_address,
-                        user_balance_value_at_expired
-                    );
-                };
-            };
-            
-            i = i + 1;
-        };
+        let next_index = covered_call::get_next_covered_call_vault_index<TOKEN>(vault_registry, expired_index);
+        let next_index = option::borrow<u64>(&next_index);
+        vault::rock_n_roll<ManagerCap, TOKEN>(
+            manager_cap,
+            covered_call::get_mut_vault<TOKEN>(
+                vault_registry,
+                *next_index
+            ),
+            balance,
+            scaled_user_shares
+        ); 
         
     }
 
-    // fun adjust_vault_stage<T>(dov: &mut Vault<T, Config>, stage: u64) {
-        // let dov_stage = get mut stage
-        // dov_stage = stage;
-    // }
-
-    public entry fun settle_without_roll_over<T>(
-        vault_registry: &mut VaultRegistry<Config>,
+    public entry fun settle_without_roll_over<TOKEN>(
+        manager_cap: &ManagerCap,
+        vault_registry: &mut Registry,
         expired_index: u64,
-        price_oracle: &Oracle<T>
-    ){
-        settle_internal<T>(vault_registry, expired_index, price_oracle);
+        price_oracle: &Oracle<TOKEN>,
+        time_oracle: &Time
+    ) {
+        settle_internal<TOKEN>(manager_cap, vault_registry, expired_index, price_oracle, time_oracle);
     }
 
-    public entry fun settle_with_roll_over<T>(
-        vault_registry: &mut VaultRegistry<Config>,
+    public entry fun settle_with_roll_over<TOKEN>(
+        manager_cap: &ManagerCap,
+        vault_registry: &mut Registry,
         expired_index: u64,
-        new_index: u64,
-        price_oracle: &Oracle<T>
+        price_oracle: &Oracle<TOKEN>,
+        time_oracle: &Time
     ) {
-        settle_internal<T>(vault_registry, expired_index, price_oracle);
-        // TODO: new_index should be removed in the future
-        settle_roll_over<T>(vault_registry, expired_index, new_index, price_oracle);
+        settle_internal<TOKEN>(manager_cap, vault_registry, expired_index, price_oracle, time_oracle);
+        settle_roll_over<TOKEN>(manager_cap, vault_registry, expired_index, price_oracle, time_oracle);
     }
 
     // ======== Events =========

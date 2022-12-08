@@ -1,445 +1,504 @@
 module typus_dov::vault {
     use std::option::{Self, Option};
-    use std::string::{Self, String};
     use sui::balance::{Self, Balance};
-    use sui::coin::Coin;
-    use sui::dynamic_field;
+    use sui::coin::{Self, Coin};
     use sui::event::emit;
-    use sui::object::{Self, UID, ID};
     use sui::table::{Self, Table};
     use sui::transfer;
     use sui::tx_context::{Self, TxContext};
+    use sui::vec_map::{Self, VecMap};
 
+    use typus_dov::linked_list::{Self, LinkedList};
     use typus_dov::utils;
 
-    const E_USER_NOT_EXISTS: u64 = 777;
-    const E_USER_ALREADY_EXISTS: u64 = 778;
-    const E_SHARE_INSUFFICIENT : u64 = 888;
 
-    // ======== Structs =========
+    // ======== Constants ========
 
-    struct ManagerCap<phantom C> has key, store { id: UID }
+    const C_VAULT_ROLLING: vector<u8> = b"rolling";
+    const C_VAULT_REGULAR: vector<u8> = b"regular";
+    const C_VAULT_MAKER: vector<u8> = b"maker";
 
-    struct VaultRegistry<phantom C> has key {
-        id: UID,
-        num_of_vault: u64,
+    // ======== Errors ========
+
+    const E_ZERO_AMOUNT: u64 = 0;
+    const E_DEPOSIT_DISABLED: u64 = 1;
+    const E_WITHDRAW_DISABLED: u64 = 2;
+    const E_SUBSCRIBE_DISABLED: u64 = 3;
+    const E_UNSUBSCRIBE_DISABLED: u64 = 4;
+    const E_NEXT_VAULT_NOT_EXISTS: u64 = 5;
+    const E_NOT_YET_ACTIVATED: u64 = 6;
+    const E_NOT_YET_SETTLED: u64 = 8;
+    const E_ALREADY_SETTLED: u64 = 9;
+    const E_ALREADY_ACTIVATED: u64 = 10;
+
+    // ======== Structs ========
+
+    struct Vault<phantom MANAGER, phantom TOKEN> has store {
+        sub_vaults: Table<vector<u8>, SubVault<TOKEN>>,
+        able_to_deposit: bool,
+        able_to_withdraw: bool,
     }
 
-    struct Vault<phantom T, C: store, A: store> has store {
-        config: C,
-        auction: Option<A>,
-        next_vault_index: Option<u64>,
-        sub_vaults: Table<String, SubVault<T>>
-    }
-
-    struct SubVault<phantom T> has store {
-        deposit: Balance<T>,
+    struct SubVault<phantom TOKEN> has store {
+        balance: Balance<TOKEN>,
         share_supply: u64,
-        num_of_user: u64,
-        user_map: Table<u64, address>,
-        users_table: Table<address, u64>
+        user_shares: LinkedList<address, u64>,
     }
 
-    // ======== Functions =========
+    // ======== Public Functions ========
 
-    public fun new_manager_cap<C>(
+    /// Add a new Vault to Vault and return the Vault index
+    public fun new_vault<MANAGER, TOKEN>(
         ctx: &mut TxContext
-    ): ManagerCap<C> {
-        ManagerCap<C> { id: object::new(ctx) } 
-    }
-
-    public fun new_vault_registry<C>(
-        ctx: &mut TxContext
-    ) {
-        let id = object::new(ctx);
-
-        emit(RegistryCreated<C> { id: object::uid_to_inner(&id) });
-
-        let vault = VaultRegistry<C> { id, num_of_vault: 0 };
-
-        transfer::share_object(vault);
-    }
-
-    public fun new_vault<T, C: store, A: store>(
-        vault_registry: &mut VaultRegistry<C>,
-        // vault_config: VaultConfig,
-        config: C,
-        ctx: &mut TxContext
-    ): u64 {
-        let vault = Vault<T, C, A> {
-            config,
-            auction: option::none(),
-            next_vault_index: option::none(),
-            sub_vaults: table::new<String, SubVault<T>>(ctx),
+    ): Vault<MANAGER, TOKEN> {
+        let vault = Vault<MANAGER, TOKEN> {
+            sub_vaults: table::new(ctx),
+            able_to_deposit: true,
+            able_to_withdraw: true,
         };
-        let n = vault_registry.num_of_vault;
-        dynamic_field::add(&mut vault_registry.id, n, vault);
-        vault_registry.num_of_vault = vault_registry.num_of_vault + 1;
-        n
-    }
-
-    public fun new_sub_vault<T, C: store, A: store>(
-        vault_registry: &mut VaultRegistry<C>,
-        index: u64, 
-        name: String,
-        ctx: &mut TxContext
-    ) {
-        let vault = get_mut_vault<T, C, A>(vault_registry, index);
-
-        let sub_vault = SubVault<T> {
-            deposit: balance::zero<T>(),
+        
+        let rolling_vault = SubVault<TOKEN> {
+            balance: balance::zero<TOKEN>(),
             share_supply: 0,
-            num_of_user: 0,
-            user_map: table::new<u64, address>(ctx),
-            users_table: table::new<address, u64>(ctx),
+            user_shares: linked_list::new(ctx),
+        };
+        table::add(&mut vault.sub_vaults, C_VAULT_ROLLING, rolling_vault);
+        
+        let regular_vault = SubVault<TOKEN> {
+            balance: balance::zero<TOKEN>(),
+            share_supply: 0,
+            user_shares: linked_list::new(ctx),
+        };
+        table::add(&mut vault.sub_vaults, C_VAULT_REGULAR, regular_vault);
+        
+        let maker_vault = SubVault<TOKEN> {
+            balance: balance::zero<TOKEN>(),
+            share_supply: 0,
+            user_shares: linked_list::new(ctx),
+        };
+        table::add(&mut vault.sub_vaults, C_VAULT_MAKER, maker_vault);
+
+        vault
+    }
+
+    public fun settle_fund<MANAGER, TOKEN>(
+        manager_cap: &MANAGER,
+        vault: &mut Vault<MANAGER, TOKEN>,
+        settled_share_price: u64,
+        share_price_decimal: u64
+    ) {
+        let Vault {
+            sub_vaults: _,
+            able_to_deposit: atd,
+            able_to_withdraw: atw,
+        } = vault;
+        assert!(!(*atd && *atw), E_NOT_YET_ACTIVATED);
+        assert!(!(!*atd && *atw), E_ALREADY_SETTLED);
+
+        let total_balance = balance::value(
+            &get_sub_vault<MANAGER, TOKEN>(
+                vault, C_VAULT_ROLLING
+            ).balance
+        ) + balance::value(
+            &get_sub_vault<MANAGER, TOKEN>(
+                vault, C_VAULT_REGULAR
+            ).balance
+        );
+
+        let total_share_supply = get_sub_vault<MANAGER, TOKEN>(
+            vault, C_VAULT_ROLLING
+        ).share_supply + get_sub_vault<MANAGER, TOKEN>(
+            vault, C_VAULT_REGULAR
+        ).share_supply;
+
+        assert!(total_balance == total_share_supply, E_ALREADY_SETTLED);
+
+        let multiplier = utils::multiplier(share_price_decimal);
+
+        if (settled_share_price > multiplier) {
+            // user receives balance from maker
+            let payoff = total_balance * (settled_share_price - multiplier) / multiplier;
+            // transfer balance from maker to rolling users
+            let rolling_share_supply = get_sub_vault<MANAGER, TOKEN>(
+                vault, C_VAULT_ROLLING
+            ).share_supply;
+            let balance = balance::split<TOKEN>(
+                &mut get_mut_sub_vault<MANAGER, TOKEN>(
+                    vault, C_VAULT_MAKER
+                ).balance,
+                payoff * rolling_share_supply / total_share_supply
+            );
+            balance::join(
+                &mut get_mut_sub_vault<MANAGER, TOKEN>(
+                    vault, C_VAULT_ROLLING
+                ).balance,
+                balance
+            );
+            // transfer balance from maker to regular users
+            let balance = balance::split<TOKEN>(
+                &mut get_mut_sub_vault<MANAGER, TOKEN>(
+                    vault, C_VAULT_MAKER
+                ).balance,
+                payoff * (total_share_supply - rolling_share_supply) / total_share_supply
+            );
+            balance::join(
+                &mut get_mut_sub_vault<MANAGER, TOKEN>(
+                    vault, C_VAULT_REGULAR
+                ).balance,
+                balance
+            );
+        }
+        else if (settled_share_price < multiplier) {
+            // maker receives balance from users
+            let payoff = total_balance * (multiplier - settled_share_price) / multiplier;
+            // transfer balance from rolling users to maker
+            let rolling_share_supply = get_sub_vault<MANAGER, TOKEN>(
+                vault, C_VAULT_ROLLING
+            ).share_supply;
+            let balance = balance::split<TOKEN>(
+                &mut get_mut_sub_vault<MANAGER, TOKEN>(
+                    vault, C_VAULT_ROLLING
+                ).balance,
+                payoff * rolling_share_supply / total_share_supply
+            );
+            balance::join(
+                &mut get_mut_sub_vault<MANAGER, TOKEN>(
+                    vault, C_VAULT_MAKER
+                ).balance,
+                balance
+            );
+            // transfer balance from regular users to maker
+            let balance = balance::split<TOKEN>(
+                &mut get_mut_sub_vault<MANAGER, TOKEN>(
+                    vault, C_VAULT_REGULAR
+                ).balance,
+                payoff * (total_share_supply - rolling_share_supply) / total_share_supply
+            );
+            balance::join(
+                &mut get_mut_sub_vault<MANAGER, TOKEN>(
+                    vault, C_VAULT_MAKER
+                ).balance,
+                balance
+            );
+        };
+        enable_withdraw(manager_cap, vault);
+    }
+
+    public fun prepare_rolling<MANAGER, TOKEN>(
+        _manager_cap: &MANAGER,
+        vault: &mut Vault<MANAGER, TOKEN>,
+    ): (Balance<TOKEN>, VecMap<address, u64>) {
+        assert!((!vault.able_to_deposit && vault.able_to_withdraw), E_NOT_YET_SETTLED);
+
+        let SubVault {
+            balance,
+            share_supply,
+            user_shares,
+        } = get_mut_sub_vault<MANAGER, TOKEN>(vault, C_VAULT_ROLLING);
+        let index = linked_list::first(user_shares);
+        let total_balance = balance::value(balance);
+        let scaled_user_shares = vec_map::empty();
+        while (option::is_some(&index)) {
+            let user = option::borrow(&index);
+            vec_map::insert(
+                &mut scaled_user_shares,
+                *user,
+                *linked_list::borrow(user_shares, *user) * total_balance / *share_supply
+            );
+            index = linked_list::next(user_shares, *user);
         };
 
-        table::add(&mut vault.sub_vaults, name, sub_vault);
+        (balance::split(balance, total_balance), scaled_user_shares)
     }
 
-    public fun new_auction<T, C: store, A: store>(
-        vault_registry: &mut VaultRegistry<C>,
-        index: u64, 
-        auction: A,
+    public fun rock_n_roll<MANAGER, TOKEN>(
+        _manager_cap: &MANAGER,
+        vault: &mut Vault<MANAGER, TOKEN>,
+        balance: Balance<TOKEN>,
+        scaled_user_shares: VecMap<address, u64>,
     ) {
-        let vault = get_mut_vault<T, C, A>(vault_registry, index);
-        option::fill(&mut vault.auction, auction);
+        assert!((vault.able_to_deposit && vault.able_to_withdraw), E_ALREADY_ACTIVATED);
+
+        let sub_vault = get_mut_sub_vault<MANAGER, TOKEN>(vault, C_VAULT_ROLLING);
+        balance::join(&mut sub_vault.balance, balance);
+        while (!vec_map::is_empty(&scaled_user_shares)) {
+            let (user, share) = vec_map::pop(&mut scaled_user_shares);
+            add_share(sub_vault, user, share);
+        }
     }
 
-    public fun deposit<T, C: store, A: store>(
-        vault_registry: &mut VaultRegistry<C>,
-        index: u64,
-        name: String,
-        coin: &mut Coin<T>,
+    public fun deposit<MANAGER, TOKEN>(
+        vault: &mut Vault<MANAGER, TOKEN>,
+        coin: &mut Coin<TOKEN>,
         amount: u64,
+        is_rolling: bool,
+        ctx: &mut TxContext,
     ) {
-        assert!(amount > 0, EZeroAmount);
+        assert!(vault.able_to_deposit, E_DEPOSIT_DISABLED);
+        assert!(amount > 0, E_ZERO_AMOUNT);
 
-        let sub_vault = get_mut_sub_vault<T, C, A>(vault_registry, index, name);
-        let balance = utils::extract_balance_from_coin(coin, amount);
-        balance::join(&mut sub_vault.deposit, balance);
+        let user = tx_context::sender(ctx);
+        let sub_vault_type = if (is_rolling) {
+            deposit_<MANAGER, TOKEN>(
+                vault,
+                C_VAULT_ROLLING,
+                balance::split(coin::balance_mut(coin), amount),
+                user,
+            );
+
+            C_VAULT_ROLLING
+        }
+        else {
+            deposit_<MANAGER, TOKEN>(
+                vault,
+                C_VAULT_REGULAR,
+                balance::split(coin::balance_mut(coin), amount),
+                user,
+            );
+
+            C_VAULT_REGULAR
+        };
+
+        emit(UserDeposit<MANAGER, TOKEN> { user, sub_vault_type, amount });
     }
 
-    public fun withdraw<T, C: store, A: store>(
-        vault_registry: &mut VaultRegistry<C>,
-        index: u64,
-        name: String,
-        amount: u64,
-    ): Balance<T> {
-        assert!(amount > 0, EZeroAmount);
-        let sub_vault = get_mut_sub_vault<T, C, A>(vault_registry, index, name);
-        balance::split<T>(&mut sub_vault.deposit, amount)
+    public fun withdraw<MANAGER, TOKEN>(
+        vault: &mut Vault<MANAGER, TOKEN>,
+        amount: Option<u64>,
+        is_rolling: bool,
+        ctx: &mut TxContext,
+    ) {
+        assert!(vault.able_to_withdraw, E_WITHDRAW_DISABLED);
+        let user = tx_context::sender(ctx);
+        let (balance, sub_vault_type, share, amount) = if (is_rolling) {
+            let (share, balance) = withdraw_<MANAGER, TOKEN>(
+                vault,
+                C_VAULT_ROLLING,
+                amount,
+                user,
+            );
+            let amount = balance::value(&balance);
+
+            (balance, C_VAULT_ROLLING, share, amount)
+        }
+        else {
+            let (share, balance) = withdraw_<MANAGER, TOKEN>(
+                vault,
+                C_VAULT_REGULAR,
+                amount,
+                user,
+            );
+            let amount = balance::value(&balance);
+
+            (balance, C_VAULT_REGULAR, share, amount)
+        };
+        transfer::transfer(coin::from_balance(balance, ctx), user);
+
+        emit(UserWithdraw<MANAGER, TOKEN> { user, sub_vault_type, share, amount });
     }
 
-    public fun add_share<T, C: store, A: store>(
-        vault_registry: &mut VaultRegistry<C>,
-        index: u64,
-        name: String,
-        value: u64,
+    public fun subscribe<MANAGER, TOKEN>(
+        vault: &mut Vault<MANAGER, TOKEN>,
         ctx: &mut TxContext
     ) {
-        let sender = tx_context::sender(ctx);
-        let sub_vault = get_mut_sub_vault<T, C, A>(vault_registry, index, name);
+        assert!((vault.able_to_deposit && vault.able_to_withdraw) || (!vault.able_to_deposit && !vault.able_to_withdraw), E_SUBSCRIBE_DISABLED);
 
-        sub_vault.share_supply = sub_vault.share_supply + value;
+        let user = tx_context::sender(ctx);
+        let (_, balance) = withdraw_<MANAGER, TOKEN>(
+            vault,
+            C_VAULT_REGULAR,
+            option::none(),
+            user,
+        );
+        deposit_<MANAGER, TOKEN>(
+            vault,
+            C_VAULT_ROLLING,
+            balance,
+            user,
+        );
+    }
 
-        // check exist
-        if (table::contains(& sub_vault.users_table, sender)){
-            let v = table::borrow_mut(&mut sub_vault.users_table, sender);
-            *v = *v + value;
+    public fun unsubscribe<MANAGER, TOKEN>(
+        vault: &mut Vault<MANAGER, TOKEN>,
+        ctx: &mut TxContext
+    ) {
+        assert!((vault.able_to_deposit && vault.able_to_withdraw) || (!vault.able_to_deposit && !vault.able_to_withdraw), E_UNSUBSCRIBE_DISABLED);
+
+        let user = tx_context::sender(ctx);
+        let (_, balance) = withdraw_<MANAGER, TOKEN>(
+            vault,
+            C_VAULT_ROLLING,
+            option::none(),
+            user,
+        );
+        deposit_<MANAGER, TOKEN>(
+            vault,
+            C_VAULT_REGULAR,
+            balance,
+            user,
+        );
+    }
+
+    public fun maker_deposit<MANAGER, TOKEN>(
+        _manager_cap: &MANAGER,
+        vault: &mut Vault<MANAGER, TOKEN>,
+        balance: Balance<TOKEN>,
+        maker_shares: VecMap<address, u64>,
+    ) {
+        let sub_vault = get_mut_sub_vault<MANAGER, TOKEN>(vault, C_VAULT_MAKER);
+        balance::join(&mut sub_vault.balance, balance);
+        while (!vec_map::is_empty(&maker_shares)) {
+            let (user, share) = vec_map::pop(&mut maker_shares);
+            add_share(sub_vault, user, share);
+        }
+    }
+
+    public fun enable_deposit<MANAGER, TOKEN>(
+        _manager_cap: &MANAGER,
+        vault: &mut Vault<MANAGER, TOKEN>
+    ) {
+        vault.able_to_deposit = true;
+    }
+
+    public fun disable_deposit<MANAGER, TOKEN>(
+        _manager_cap: &MANAGER,
+        vault: &mut Vault<MANAGER, TOKEN>
+    ) {
+        vault.able_to_deposit = false;
+    }
+
+    public fun enable_withdraw<MANAGER, TOKEN>(
+        _manager_cap: &MANAGER,
+        vault: &mut Vault<MANAGER, TOKEN>
+    ) {
+        vault.able_to_withdraw = true;
+    }
+
+    public fun disable_withdraw<MANAGER, TOKEN>(
+        _manager_cap: &MANAGER,
+        vault: &mut Vault<MANAGER, TOKEN>
+    ) {
+        vault.able_to_withdraw = false;
+    }
+
+    // ======== Private Functions ========
+
+    fun get_sub_vault<MANAGER, TOKEN>(
+        vault: &Vault<MANAGER, TOKEN>,
+        sub_vault_type: vector<u8>
+    ): &SubVault<TOKEN> {
+        table::borrow(&vault.sub_vaults, sub_vault_type)
+    }
+
+    fun get_mut_sub_vault<MANAGER, TOKEN>(
+        vault: &mut Vault<MANAGER, TOKEN>,
+        sub_vault_type: vector<u8>
+    ): &mut SubVault<TOKEN> {
+        table::borrow_mut(&mut vault.sub_vaults, sub_vault_type)
+    }
+
+    fun deposit_<MANAGER, TOKEN>(
+        vault: &mut Vault<MANAGER, TOKEN>,
+        sub_vault_type: vector<u8>,
+        balance: Balance<TOKEN>,
+        user: address,
+    ) {
+        let sub_vault = get_mut_sub_vault<MANAGER, TOKEN>(vault, sub_vault_type);
+        let share = balance::value(&balance);
+        // join balance
+        balance::join(&mut sub_vault.balance, balance);
+        // add share
+        add_share(sub_vault, user, share);
+    }
+
+    fun withdraw_<MANAGER, TOKEN>(
+        vault: &mut Vault<MANAGER, TOKEN>,
+        sub_vault_type: vector<u8>,
+        share: Option<u64>,
+        user: address,
+    ): (u64, Balance<TOKEN>) {
+        let sub_vault = get_mut_sub_vault<MANAGER, TOKEN>(vault, sub_vault_type);
+        let share_supply = sub_vault.share_supply;
+        // remove share
+        let share = remove_share(sub_vault, user, share);
+        // extract balance
+        let balance_amount = balance::value(&sub_vault.balance) * share / share_supply;
+        (share, balance::split<TOKEN>(&mut sub_vault.balance, balance_amount))
+    }
+
+    fun add_share<TOKEN>(sub_vault: &mut SubVault<TOKEN>, user: address, share: u64) {
+        sub_vault.share_supply = sub_vault.share_supply + share;
+        if (linked_list::contains(&sub_vault.user_shares, user)) {
+            let user_share = linked_list::borrow_mut(&mut sub_vault.user_shares, user);
+            *user_share = *user_share + share;
         } else {
-            table::add(&mut sub_vault.users_table, sender, value);
+            linked_list::push_back(&mut sub_vault.user_shares, user, share);
         };
     }
 
-    public fun remove_share<T, C: store, A: store>(
-        vault_registry: &mut VaultRegistry<C>,
-        index: u64,
-        name: String,
-        value: u64,
-        ctx: &mut TxContext
-    ) {
-        let sender = tx_context::sender(ctx);
-        let sub_vault = get_mut_sub_vault<T, C, A>(vault_registry, index, name);
-
-        sub_vault.share_supply = sub_vault.share_supply - value;
-
-        // check exist
-        assert!(table::contains(& sub_vault.users_table, sender), E_USER_NOT_EXISTS);
-        assert!(
-            *table::borrow(&mut sub_vault.users_table, sender) >= value,
-            E_SHARE_INSUFFICIENT
-        );
-        let v = table::borrow_mut(&mut sub_vault.users_table, sender);
-        *v = *v - value;
-        if (*v == 0) {
-            table::remove<address, u64>(&mut sub_vault.users_table, sender);
-        } 
+    fun remove_share<TOKEN>(sub_vault: &mut SubVault<TOKEN>, user: address, share: Option<u64>): u64 {
+        if (option::is_some(&share)) {
+            let share = option::extract(&mut share);
+            if (share < *linked_list::borrow(&mut sub_vault.user_shares, user)) {
+                let user_share = linked_list::borrow_mut(&mut sub_vault.user_shares, user);
+                *user_share = *user_share - share;
+                sub_vault.share_supply = sub_vault.share_supply - share;
+                share
+            }
+            else {
+                let user_share = linked_list::remove(&mut sub_vault.user_shares, user);
+                sub_vault.share_supply = sub_vault.share_supply - user_share;
+                user_share
+            }
+        }
+        else {
+            let user_share = linked_list::remove(&mut sub_vault.user_shares, user);
+            sub_vault.share_supply = sub_vault.share_supply - user_share;
+            user_share
+        }
     }
-
-    public fun unsubscribe_user<T, C: store, A: store>(
-        vault_registry: &mut VaultRegistry<C>,
-        index: u64,
-        ctx: &mut TxContext
-    ){
-        let sender = tx_context::sender(ctx);
-        let contains_in_rolling = table::contains<address, u64>(
-            get_vault_users_table<T, C, A>(
-                vault_registry,
-                index,
-                string::utf8(b"rolling")
-            ),
-            sender
-        );
-        assert!(contains_in_rolling == true, E_USER_NOT_EXISTS);
-
-        let sub_vault = get_mut_sub_vault<T, C, A>(
-            vault_registry,
-            index,
-            string::utf8(b"rolling")
-        );
-        let user_share = table::borrow<address, u64>(
-            &sub_vault.users_table,
-            sender
-        );
-        // remove from rolling
-        let extracted_balance = balance::split<T>(
-            &mut sub_vault.deposit,
-            *user_share
-        );
-        let extracted_balance_value = balance::value<T>(&extracted_balance);
-        remove_share<T, C, A>(
-            vault_registry,
-            index,
-            string::utf8(b"rolling"),
-            extracted_balance_value,
-            ctx
-        );
-
-        // deposit into regular
-        let sub_vault = get_mut_sub_vault<T, C, A>(
-            vault_registry,
-            index,
-            string::utf8(b"regular")
-        );
-        balance::join(&mut sub_vault.deposit, extracted_balance);
-        add_share<T, C, A>(
-            vault_registry,
-            index,
-            string::utf8(b"regular"),
-            extracted_balance_value,
-            ctx
-        );
-    }
-
-    fun get_mut_vault<T, C: store, A: store>(
-        vault_registry: &mut VaultRegistry<C>,
-        index: u64,
-    ): &mut Vault<T, C, A> {
-        dynamic_field::borrow_mut<u64, Vault<T, C, A>>(&mut vault_registry.id, index)
-    }
-
-    public fun get_vault<T, C: store, A: store>(
-        vault_registry: &VaultRegistry<C>,
-        index: u64,
-    ): &Vault<T, C, A> {
-        dynamic_field::borrow<u64, Vault<T, C, A>>(&vault_registry.id, index)
-    }
-
-    public fun get_sub_vault<T, C: store, A: store>(
-        vault_registry: &VaultRegistry<C>,
-        index: u64,
-        name: String
-    ): & SubVault<T> {
-        let vault = get_vault<T, C, A>(vault_registry, index);
-        table::borrow(&vault.sub_vaults, name)
-    }
-
-    public fun get_mut_sub_vault<T, C: store, A: store>(
-        vault_registry: &mut VaultRegistry<C>,
-        index: u64,
-        name: String
-    ): &mut SubVault<T> {
-        let vault = get_mut_vault<T, C, A>(vault_registry, index);
-        table::borrow_mut(&mut vault.sub_vaults, name)
-    }
-
-    public fun get_config<T, C: store, A: store>(
-        vault_registry: &VaultRegistry<C>,
-        index: u64,
-    ): &C {
-        let vault = get_vault<T, C, A>(vault_registry, index);
-        &vault.config
-    }
-
-    public fun get_mut_config<T, C: store, A: store>(
-        _: &ManagerCap<C>,
-        vault_registry: &mut VaultRegistry<C>,
-        index: u64,
-    ): &mut C {
-        let vault = get_mut_vault<T, C, A>(vault_registry, index);
-        &mut vault.config
-    }
-
-    public fun get_vault_deposit_value<T, C: store, A: store>(
-        vault_registry: &VaultRegistry<C>,
-        index: u64,
-        name: String,    
-    ): u64 {
-        let sub_vault = get_sub_vault<T, C, A>(vault_registry, index, name);
-        balance::value<T>(&sub_vault.deposit)
-    }
-    
-    public fun extract_subvault_deposit<T, C: store, A: store>(
-        vault_registry: &mut VaultRegistry<C>,
-        index: u64,
-        name: String, 
-        value: u64
-    ): Balance<T> {
-        let sub_vault = get_mut_sub_vault<T, C, A>(vault_registry, index, name);
-        balance::split<T>(&mut sub_vault.deposit, value)
-    }
-
-    public fun join_subvault_deposit<T, C: store, A: store>(
-        vault_registry: &mut VaultRegistry<C>,
-        index: u64,
-        name: String, 
-        coin: Balance<T>
-    ): u64 {
-        let sub_vault = get_mut_sub_vault<T, C, A>(vault_registry, index, name);
-        balance::join<T>(&mut sub_vault.deposit, coin)
-    }
-    
-    public fun get_vault_share_supply<T, C: store, A: store>(
-        vault_registry: &mut VaultRegistry<C>,
-        index: u64,
-        name: String, 
-    ): u64 {
-        let sub_vault = get_mut_sub_vault<T, C, A>(vault_registry, index, name);
-        sub_vault.share_supply
-    }
-
-    public fun get_vault_users_table<T, C: store, A: store>(
-        vault_registry: &mut VaultRegistry<C>,
-        index: u64,
-        name: String,     
-    ): &Table<address, u64> {
-        let sub_vault = get_sub_vault<T, C, A>(vault_registry, index, name);
-        &sub_vault.users_table
-    }
-
-    public fun get_mut_vault_users_table<T, C: store, A: store>(
-        vault_registry: &mut VaultRegistry<C>,
-        index: u64,
-        name: String,     
-    ): &mut Table<address, u64> {
-        let sub_vault = get_mut_sub_vault<T, C, A>(vault_registry, index, name);
-        &mut sub_vault.users_table
-    }
-
-    public fun get_vault_num_user<T, C: store, A: store>(
-        vault_registry: &VaultRegistry<C>,
-        index: u64,
-        name: String,     
-    ): u64 {
-        let sub_vault = get_sub_vault<T, C, A>(vault_registry, index, name);
-        sub_vault.num_of_user
-    }
-
-    public fun get_vault_user_map<T, C: store, A: store>(
-        vault_registry: &mut VaultRegistry<C>,
-        index: u64,
-        name: String,
-    ): &Table<u64, address> {
-        let sub_vault = get_mut_sub_vault<T, C, A>(vault_registry, index, name);
-        &sub_vault.user_map
-    }
-
-    public fun add_share_supply<T, C: store, A: store>(
-        vault_registry: &mut VaultRegistry<C>,
-        index: u64,
-        name: String,         
-        shares: u64
-    ) {
-        let sub_vault = get_mut_sub_vault<T, C, A>(vault_registry, index, name);
-        sub_vault.share_supply = sub_vault.share_supply + shares;
-    }
-
-    public fun get_user_address<T, C: store, A: store>(
-        vault_registry: & VaultRegistry<C>,
-        index: u64,
-        name: String,         
-        i: u64
-    ): address {
-        let sub_vault = get_sub_vault<T, C, A>(vault_registry, index, name);
-        *table::borrow<u64, address>(&sub_vault.user_map, i)
-    }
-
-    public fun get_user_share<T, C: store, A: store>(
-        vault_registry: & VaultRegistry<C>,
-        index: u64,
-        name: String,         
-        user: address
-    ): u64 {
-        let sub_vault = get_sub_vault<T, C, A>(vault_registry, index, name);
-        *table::borrow<address, u64>(&sub_vault.users_table, user)
-    }
-
-    public fun get_mut_user_share<T, C: store, A: store>(
-        vault_registry: &mut VaultRegistry<C>,
-        index: u64,
-        name: String,         
-        user: address
-    ): &mut u64 {
-        let sub_vault = get_mut_sub_vault<T, C, A>(vault_registry, index, name);
-        table::borrow_mut<address, u64>(&mut sub_vault.users_table, user)
-    }
-
 
     // ======== Events =========
 
-    struct RegistryCreated<phantom C> has copy, drop { id: ID }
-
-    // ======== Errors =========
-
-    /// For when supplied Coin is zero.
-    const EZeroAmount: u64 = 0;
-
-    /// For when someone attempts to add more liquidity than u128 Math allows.
-    const EVaultFull: u64 = 1;
-
-    // ======== TestFunctions ==
-    #[test_only]
-    public fun test_only_new_vault_registry<C>(
-        ctx: &mut TxContext
-    ): VaultRegistry<C> {
-        let id = object::new(ctx);
-
-        emit(RegistryCreated<C> { id: object::uid_to_inner(&id) });
-
-        let vault = VaultRegistry<C> { id, num_of_vault: 0 };
-        // transfer::share_object(vault);
-       vault
-    }
-    // #[test_only]
-    // public fun test_only_distroy_vault_registry<C>(
-    //     vault_registry: VaultRegistry<C>
-    // ) {
-    //     let _ = vault_registry;
-    // }
-
+    struct UserDeposit<phantom MANAGER, phantom TOKEN> has copy, drop { user: address, sub_vault_type: vector<u8>, amount: u64 }
     
-    #[test]
-    fun test_new_vault_registry_success(): VaultRegistry<sui::sui::SUI> {
-        use sui::test_scenario;
+    struct UserWithdraw<phantom MANAGER, phantom TOKEN> has copy, drop { user: address, sub_vault_type: vector<u8>, share: u64, amount: u64 }
 
-        let admin = @0xFFFF;
-        let scenario = test_scenario::begin(admin);
+    // ======== Test =========
 
-        let vault_registry = test_only_new_vault_registry(test_scenario::ctx(&mut scenario));
-        assert!(vault_registry.num_of_vault == 0, 1);
+    #[test_only]
+    public fun test_get_user_share<MANAGER, TOKEN>(
+        vault: &Vault<MANAGER, TOKEN>,
+        sub_vault_type: vector<u8>,
+        user: address
+    ): u64 {
+        *linked_list::borrow<address, u64>(
+            &get_sub_vault<MANAGER, TOKEN>(
+                vault, sub_vault_type
+            ).user_shares,
+            user
+        )
+    }
 
-        test_scenario::end(scenario);
-        vault_registry
+    #[test_only]
+    public fun test_get_balance<MANAGER, TOKEN>(
+        vault: &Vault<MANAGER, TOKEN>,
+        sub_vault_type: vector<u8>,
+    ): u64 {
+        let balance = &get_sub_vault<MANAGER, TOKEN>(
+            vault, sub_vault_type
+        ).balance;
+        balance::value<TOKEN>(balance)
+    }
+
+    #[test_only]
+    public fun test_get_share_supply<MANAGER, TOKEN>(
+        vault: &Vault<MANAGER, TOKEN>,
+        sub_vault_type: vector<u8>,
+    ): u64 {
+        let share_supply = &get_sub_vault<MANAGER, TOKEN>(
+            vault, sub_vault_type
+        ).share_supply;
+        *share_supply
     }
 }

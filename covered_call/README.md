@@ -1,0 +1,7 @@
+# Covered Call Vault
+
+**PACKAGE**
+`0xcbb5ace454e15350a25f58fa7a0349301e6beb7d`
+
+**REGISTRY**
+`0x8807e9f07b08168509e9449a31eb63489e222a36`

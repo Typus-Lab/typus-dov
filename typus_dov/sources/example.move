@@ -1,3 +1,4 @@
+#[test_only]
 module typus_dov::example {
     // Part 1: imports
     use sui::object::{Self, UID};

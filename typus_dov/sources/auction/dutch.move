@@ -5,18 +5,26 @@ module typus_dov::dutch {
     use sui::table::{Self, Table};
     use sui::transfer;
     use sui::tx_context::{Self, TxContext};
+    use sui::vec_map::{Self, VecMap};
+
     use typus_oracle::unix_time::{Self, Time};
+
+    // ======== Errors ========
 
     const E_ZERO_SIZE: u64 = 0;
     const E_BID_NOT_EXISTS: u64 = 1;
+    const E_AUCTION_NOT_YET_STARTED: u64 = 2;
+    const E_AUCTION_CLOSED: u64 = 3;
 
-    struct Auction<phantom T> has store {
+    // ======== Structs ========
+
+    struct Auction<phantom MANAGER, phantom TOKEN> has store {
         start_ts_ms: u64,
         end_ts_ms: u64,
         price_config: PriceConfig,
         index: u64,
         bids: Table<u64, Bid>,
-        funds: Table<u64, Fund<T>>,
+        funds: Table<u64, Fund<TOKEN>>,
         ownerships: Table<address, vector<u64>>
     }
 
@@ -32,24 +40,21 @@ module typus_dov::dutch {
         ts_ms: u64,
     }
 
-    struct Fund<phantom T> has store {
-        coin: Coin<T>,
+    struct Fund<phantom TOKEN> has store {
+        coin: Coin<TOKEN>,
         owner: address,
     }
 
-    struct Winner has store {
-        owner: address,
-        size: u64,
-    }
+    // ======== Public Functions ========
 
-    public fun new<T>(
+    public fun new<MANAGER, TOKEN>(
         start_ts_ms: u64,
         end_ts_ms: u64,
         decay_speed: u64,
         initial_price: u64,
         final_price: u64,
         ctx: &mut TxContext,
-    ): Auction<T> {
+    ): Auction<MANAGER, TOKEN> {
         Auction {
             start_ts_ms,
             end_ts_ms,
@@ -65,14 +70,17 @@ module typus_dov::dutch {
         }
     }
 
-    public fun new_bid<T>(
-        auction: &mut Auction<T>,
+    public fun new_bid<MANAGER, TOKEN>(
+        auction: &mut Auction<MANAGER, TOKEN>,
         size: u64,
-        coin: &mut Coin<T>,
+        coin: &mut Coin<TOKEN>,
         time: &Time,
         ctx: &mut TxContext,
     ) {
+        assert!(unix_time::get_ts_ms(time) >= auction.start_ts_ms, E_AUCTION_NOT_YET_STARTED);
+        assert!(unix_time::get_ts_ms(time) <= auction.end_ts_ms, E_AUCTION_CLOSED);
         assert!(size != 0, E_ZERO_SIZE);
+
         let index = auction.index;
         let owner = tx_context::sender(ctx);
         let price = get_decayed_price(auction, time);
@@ -109,11 +117,16 @@ module typus_dov::dutch {
         }
     }
 
-    public fun remove_bid<T>(
-        auction: &mut Auction<T>,
-        owner: address,
+    public fun remove_bid<MANAGER, TOKEN>(
+        auction: &mut Auction<MANAGER, TOKEN>,
         bid_index: u64,
+        time: &Time,
+        ctx: &mut TxContext,
     ) {
+        assert!(unix_time::get_ts_ms(time) >= auction.start_ts_ms, E_AUCTION_NOT_YET_STARTED);
+        assert!(unix_time::get_ts_ms(time) <= auction.end_ts_ms, E_AUCTION_CLOSED);
+
+        let owner = tx_context::sender(ctx);
         let ownership = table::borrow_mut(&mut auction.ownerships, owner);
         let (bid_exist, index) = vector::index_of(ownership, &bid_index);
         assert!(bid_exist, E_BID_NOT_EXISTS);
@@ -126,15 +139,10 @@ module typus_dov::dutch {
         transfer::transfer(coin, owner);
     }
 
-    public fun get_bid_by_index<T>(auction: &Auction<T>, index: u64): &Bid {
-        table::borrow(&auction.bids, index)
-    }
-
-    public fun get_bids_index_by_address<T>(auction: &Auction<T>, owner: address): &vector<u64> {
-        table::borrow(&auction.ownerships, owner)
-    }
-
-    public fun get_decayed_price<T>(auction: &Auction<T>, time: &Time): u64 {
+    public fun get_decayed_price<MANAGER, TOKEN>(
+        auction: &Auction<MANAGER, TOKEN>,
+        time: &Time
+    ): u64 {
         decay_formula(
             auction.price_config.initial_price,
             auction.price_config.final_price,
@@ -144,6 +152,74 @@ module typus_dov::dutch {
             unix_time::get_ts_ms(time),
         )
     }
+
+    public fun delivery<MANAGER, TOKEN>(
+        _manager_cap: &MANAGER,
+        auction: &mut Auction<MANAGER, TOKEN>,
+        size: u64,
+    ): (Balance<TOKEN>, VecMap<address, u64>) {
+        let balance = balance::zero();
+        // calculate decayed price
+        let delivery_price = auction.price_config.initial_price;
+        let index = 0;
+        let sum = 0;
+        while (sum < size && index < auction.index) {
+            if (table::contains(&auction.bids, index)) {
+                let bid = table::borrow(&auction.bids, index);
+                sum = sum + bid.size;
+                delivery_price = bid.price;
+            };
+            index = index + 1;
+        };
+
+        // delivery
+        let winners = vec_map::empty();
+        let index = 0;
+        while (!table::is_empty(&auction.bids)) {
+            if (table::contains(&auction.bids, index)) {
+                // get market maker bid and fund
+                let bid = table::remove(&mut auction.bids, index);
+                let Fund {
+                    coin,
+                    owner
+                } = table::remove(&mut auction.funds, index);
+                if (size > 0) {
+                    // filled
+                    if (bid.size <= size) {
+                        balance::join(&mut balance, balance::split(coin::balance_mut(&mut coin), delivery_price * bid.size));
+                        size = size - bid.size;
+                        vec_map::insert(
+                            &mut winners,
+                            owner,
+                            bid.size,
+                        );
+                    }
+                    // partially filled
+                    else {
+                        balance::join(&mut balance, balance::split(coin::balance_mut(&mut coin), delivery_price * size));
+                        vec_map::insert(
+                            &mut winners,
+                            owner,
+                            size,
+                        );
+                        size = 0;
+                    };
+
+                };
+                if (coin::value(&coin) != 0) {
+                    transfer::transfer(coin, owner);
+                }
+                else {
+                    coin::destroy_zero(coin);
+                };
+            };
+            index = index + 1;
+        };
+
+        (balance, winners)
+    }
+
+    // ======== Private Functions ========
 
     /// decayed_price = 
     ///     initial_price -
@@ -170,70 +246,8 @@ module typus_dov::dutch {
         initial_price - price_diff
     }
 
-    public fun delivery<T>(auction: &mut Auction<T>, size: u64, balance: &mut Balance<T>): vector<Winner> {
-        // calculate decayed price
-        let delivery_price = auction.price_config.initial_price;
-        let index = 0;
-        let sum = 0;
-        while (sum < size && index < auction.index) {
-            if (table::contains(&auction.bids, index)) {
-                let bid = table::borrow(&auction.bids, index);
-                sum = sum + bid.size;
-                delivery_price = bid.price;
-            };
-            index = index + 1;
-        };
-
-        // delivery
-        let winners = vector::empty();
-        let index = 0;
-        while (!table::is_empty(&auction.bids)) {
-            if (table::contains(&auction.bids, index)) {
-                // get market maker bid and fund
-                let bid = table::remove(&mut auction.bids, index);
-                let Fund {
-                    coin,
-                    owner
-                } = table::remove(&mut auction.funds, index);
-                if (size > 0) {
-                    // filled
-                    if (bid.size <= size) {
-                        balance::join(balance, balance::split(coin::balance_mut(&mut coin), delivery_price * bid.size));
-                        size = size - bid.size;
-                        vector::push_back(
-                            &mut winners,
-                            Winner {
-                                owner,
-                                size: bid.size,
-                            },
-                        );
-                    }
-                    // partially filled
-                    else {
-                        balance::join(balance, balance::split(coin::balance_mut(&mut coin), delivery_price * size));
-                        vector::push_back(
-                            &mut winners,
-                            Winner {
-                                owner,
-                                size,
-                            },
-                        );
-                        size = 0;
-                    };
-
-                };
-                if (coin::value(&coin) != 0) {
-                    transfer::transfer(coin, owner);
-                }
-                else {
-                    coin::destroy_zero(coin);
-                };
-            };
-            index = index + 1;
-        };
-
-        winners
-    }
+    #[test_only]
+    struct TestManagerCap { }
 
     #[test]
     fun test_decay_formula() {
@@ -256,7 +270,7 @@ module typus_dov::dutch {
     }
 
     #[test]
-    fun test_auction_new_auction(): Auction<sui::sui::SUI> {
+    fun test_auction_new_auction(): Auction<TestManagerCap, sui::sui::SUI> {
         use sui::test_scenario;
 
         let admin = @0xFFFF;
@@ -280,7 +294,7 @@ module typus_dov::dutch {
     }
 
     #[test]
-    fun test_auction_new_bid(): Auction<sui::sui::SUI> {
+    fun test_auction_new_bid(): Auction<TestManagerCap, sui::sui::SUI> {
         use sui::test_scenario;
         use typus_oracle::unix_time::{Self, Time, Key};
         use sui::coin;
@@ -353,28 +367,30 @@ module typus_dov::dutch {
         auction
     }
 
-    #[test]
-    fun test_auction_remove_bid_success(): Auction<sui::sui::SUI> {
-        let auction = test_auction_new_bid();
+    // #[test]
+    // fun test_auction_remove_bid_success(): Auction<TestManagerCap, sui::sui::SUI> {
+    //     use typus_oracle::unix_time::{Self, Time, Key};
 
-        let user1 = @0xBABE1;
-        let user2 = @0xBABE2;
-        remove_bid(&mut auction, user1, 0);
-        // remove_bid(&mut auction, user1, 2);
-        remove_bid(&mut auction, user2, 1);
-        // remove_bid(&mut auction, user2, 3);
+    //     let auction = test_auction_new_bid();
+    //     let user1 = @0xBABE1;
+    //     let user2 = @0xBABE2;
+    //     remove_bid(&mut auction, user1, 0);
+    //     // remove_bid(&mut auction, user1, 2);
+    //     remove_bid(&mut auction, user2, 1);
+    //     // remove_bid(&mut auction, user2, 3);
 
-        auction
-    }
+    //     auction
+    // }
 
-    #[test]
-    #[expected_failure]
-    fun test_auction_remove_bid_fail_on_wrong_owner(): Auction<sui::sui::SUI> {
-        let auction = test_auction_new_bid();
+    // #[test]
+    // #[expected_failure]
+    // fun test_auction_remove_bid_fail_on_wrong_owner(): Auction<TestManagerCap, sui::sui::SUI> {
+    //     use typus_oracle::unix_time::{Self, Time, Key};
 
-        let monkey = @0x8787;
-        remove_bid(&mut auction, monkey, 0);
+    //     let auction = test_auction_new_bid();
+    //     let monkey = @0x8787;
+    //     remove_bid(&mut auction, monkey, 0);
 
-        auction
-    }
+    //     auction
+    // }
 }

@@ -19,8 +19,7 @@ module typus_dov::utils {
 
     // extract balance from coin
     public fun extract_balance_from_coin<Token>(coin: &mut Coin<Token>, value: u64): Balance<Token> {
-        let balance = coin::balance_mut(coin);
-        balance::split(balance, value)
+        balance::split(coin::balance_mut(coin), value)
     }
 
     public fun merge_coins<Token>(coins: vector<Coin<Token>>): Coin<Token> {
@@ -36,20 +35,20 @@ module typus_dov::utils {
         merged
     }
 
-    #[test]
-    public fun test_i64() {
-        use typus_dov::i64;
-        use std::debug;
-        let a = i64::from(10);
-        let b = i64::from(6);
-        let a1 = i64::from(4);
-        let b1 = i64::from(0);
-        let d = i64::sub(&b, &a);
-        let d1 = i64::sub(&b1, &a1);
-        let d2 = i64::add(&d, &i64::from(4));
-        debug::print(&a,);
-        debug::print(&d1);
-        debug::print(&d2);
-        // debug::print(&i64::as_u64(&d1));
-    }
+    // #[test]
+    // public fun test_i64() {
+    //     use typus_dov::i64;
+    //     use std::debug;
+    //     let a = i64::from(10);
+    //     let b = i64::from(6);
+    //     let a1 = i64::from(4);
+    //     let b1 = i64::from(0);
+    //     let d = i64::sub(&b, &a);
+    //     let d1 = i64::sub(&b1, &a1);
+    //     let d2 = i64::add(&d, &i64::from(4));
+    //     debug::print(&a,);
+    //     debug::print(&d1);
+    //     debug::print(&d2);
+    //     // debug::print(&i64::as_u64(&d1));
+    // }
 }

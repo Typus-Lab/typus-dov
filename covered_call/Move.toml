@@ -4,11 +4,10 @@ version = "0.0.1"
 
 [dependencies]
 Sui = { git = "https://github.com/MystenLabs/sui.git", subdir = "crates/sui-framework", rev = "devnet" }
-typus_oracle = { git = "https://github.com/Typus-Lab/typus-oracle.git", rev = "main"}
-typus_dov = { local ="../typus_dov" }
+typus_oracle = { git = "https://github.com/Typus-Lab/typus-oracle.git", rev = "main" }
+typus_dov = { git = "https://github.com/Typus-Lab/typus-dov.git", subdir = "typus_dov", rev = "refactor/manager_cap" }
+
 
 [addresses]
-typus_covered_call =  "0x0"
-sui =  "0000000000000000000000000000000000000002"
-# typus_oracle = "0x0870508caaa0859321f3f5c8335243bd79356230"
-# typus_dov = "0x52fb70335019d429797708b2855cbcf635c3ec5c"
+typus_covered_call = "0x0"
+sui = "0000000000000000000000000000000000000002"
