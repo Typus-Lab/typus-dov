@@ -6,6 +6,7 @@ module typus_covered_call::covered_call {
     use sui::object::{Self, UID};
     use sui::transfer;
     use sui::tx_context::{Self, TxContext};
+    use sui::vec_map::{Self, VecMap};
 
     use typus_covered_call::payoff::{Self, PayoffConfig};
     use typus_dov::asset;
@@ -353,6 +354,25 @@ module typus_covered_call::covered_call {
             is_rolling,
             ctx
         );
+    }
+
+    public(friend) entry fun withdraw_all<TOKEN>(
+        registry: &mut Registry,
+        indexes: VecMap<u64, bool>,
+        ctx: &mut TxContext
+    ) {
+        while (!vec_map::is_empty(&indexes)){
+            let (index, is_rolling) = vec_map::pop(&mut indexes);
+            vault::withdraw<ManagerCap, TOKEN>(
+                get_mut_vault<TOKEN>(
+                    registry,
+                    index
+                ),
+                option::none(),
+                is_rolling,
+                ctx
+            );
+        }
     }
 
     public(friend) entry fun subscribe<TOKEN>(
