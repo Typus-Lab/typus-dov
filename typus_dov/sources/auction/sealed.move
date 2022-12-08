@@ -438,32 +438,30 @@ module typus_dov::sealed {
         let admin = @0xFFFF;
         let user1 = @0xBABE1;
         let user2 = @0xBABE2;
-        let admin_scenario = test_scenario::begin(admin);
-        let user1_scenario = test_scenario::begin(user1);
-        let user2_scenario = test_scenario::begin(user2);
-
+        let scenario = test_scenario::begin(admin);
+     
         ////////////////////////////////////////////////////////////////////////////////////
         //   New Sealed Bid Auction
         ////////////////////////////////////////////////////////////////////////////////////
         let bid_closing_time =  1669338020;
         let reveal_closing_time = bid_closing_time + 60*60*24;
-        let coin = coin::mint_for_testing<SUI>(1000000, test_scenario::ctx(&mut admin_scenario));
-        let auction = new(20, bid_closing_time, reveal_closing_time, test_scenario::ctx(&mut admin_scenario));
+        let coin = coin::mint_for_testing<SUI>(1000000, test_scenario::ctx(&mut scenario));
+        let auction = new(20, bid_closing_time, reveal_closing_time, test_scenario::ctx(&mut scenario));
 
-        unix_time::new_time(test_scenario::ctx(&mut admin_scenario));
-        test_scenario::next_tx(&mut admin_scenario, admin);
-        let time = test_scenario::take_shared<Time>(&admin_scenario);
-        test_scenario::next_tx(&mut admin_scenario, admin);
-        let key = test_scenario::take_from_address<Key>(&admin_scenario, admin);
+        unix_time::new_time(test_scenario::ctx(&mut scenario));
+        test_scenario::next_tx(&mut scenario, admin);
+        let time = test_scenario::take_shared<Time>(&scenario);
+        test_scenario::next_tx(&mut scenario, admin);
+        let key = test_scenario::take_from_address<Key>(&scenario, admin);
      
         ////////////////////////////////////////////////////////////////////////////////////
         //   New Bids
         ////////////////////////////////////////////////////////////////////////////////////
        
         // update time
-        unix_time::update(&mut time, &key, bid_closing_time - 60*60*12, test_scenario::ctx(&mut admin_scenario)) ;
-
+        unix_time::update(&mut time, &key, bid_closing_time - 60*60*12, test_scenario::ctx(&mut scenario)) ;
         // new bid 1 with user 1
+        test_scenario::next_tx(&mut scenario, user1);
         let serialize_bid_info = serialize_bid_info(10, 1, 124930);
         let bid_hash = hash::sha3_256(serialize_bid_info);
         // the encryption should be done in sdk
@@ -474,13 +472,14 @@ module typus_dov::sealed {
             encrypted_bid,
             &mut coin,
             &time,
-            test_scenario::ctx(&mut user1_scenario)
+            test_scenario::ctx(&mut scenario)
         );
         let bid = table::borrow(&auction.bids, 0);
         assert!(bid.index == 0, 1);
         assert!(auction.index == 1, 1);
 
         // new bid 2 with user 2
+        test_scenario::next_tx(&mut scenario, user2);
         let serialize_bid_info = serialize_bid_info(12, 3, 11112222);
         let bid_hash = hash::sha3_256(serialize_bid_info);
         // the encryption should be done in sdk
@@ -491,7 +490,7 @@ module typus_dov::sealed {
             encrypted_bid,
             &mut coin,
             &time,
-            test_scenario::ctx(&mut user2_scenario)
+            test_scenario::ctx(&mut scenario)
         );
         let bid = table::borrow(&auction.bids, 1);
         assert!(bid.index == 1, 1);
@@ -502,9 +501,10 @@ module typus_dov::sealed {
         ////////////////////////////////////////////////////////////////////////////////////
        
         // update time
-        unix_time::update(&mut time, &key, bid_closing_time + 60, test_scenario::ctx(&mut admin_scenario)) ;
+        unix_time::update(&mut time, &key, bid_closing_time + 60, test_scenario::ctx(&mut scenario)) ;
         
         // reveal bid 1 with user 1
+        test_scenario::next_tx(&mut scenario, user1);
         reveal_bid(
             &mut auction,
             0,
@@ -513,7 +513,7 @@ module typus_dov::sealed {
             124930,
             &mut coin,
             &time,
-            test_scenario::ctx(&mut user1_scenario)
+            test_scenario::ctx(&mut scenario)
         );
 
         let bid = table::borrow(&auction.bids, 0);
@@ -580,12 +580,11 @@ module typus_dov::sealed {
         // let bid_index = vector::borrow(ownership, 1);
         // assert!(*bid_index == 3, 18);
 
+        test_scenario::next_tx(&mut scenario, admin);
         coin::destroy_for_testing(coin);
-        test_scenario::return_to_sender(&admin_scenario, key); 
+        test_scenario::return_to_sender(&scenario, key); 
         test_scenario::return_shared(time); 
-        test_scenario::end(admin_scenario);
-        test_scenario::end(user1_scenario);
-        test_scenario::end(user2_scenario);
+        test_scenario::end(scenario);
         auction
     }
 
@@ -626,25 +625,25 @@ module typus_dov::sealed {
 
         let admin = @0xFFFF;
         let user2 = @0xBABE2;
-        let admin_scenario = test_scenario::begin(admin);
-        let user2_scenario = test_scenario::begin(user2);
+        let scenario = test_scenario::begin(admin);
 
         ////////////////////////////////////////////////////////////////////////////////////
         //   New Sealed Bid Auction
         ////////////////////////////////////////////////////////////////////////////////////
         let bid_closing_time =  1669338020;
-        let coin = coin::mint_for_testing<SUI>(1000000, test_scenario::ctx(&mut admin_scenario));
+        let coin = coin::mint_for_testing<SUI>(1000000, test_scenario::ctx(&mut scenario));
 
-        unix_time::new_time(test_scenario::ctx(&mut admin_scenario));
-        test_scenario::next_tx(&mut admin_scenario, admin);
-        let time = test_scenario::take_shared<Time>(&admin_scenario);
-        test_scenario::next_tx(&mut admin_scenario, admin);
-        let key = test_scenario::take_from_address<Key>(&admin_scenario, admin);
+        unix_time::new_time(test_scenario::ctx(&mut scenario));
+        test_scenario::next_tx(&mut scenario, admin);
+        let time = test_scenario::take_shared<Time>(&scenario);
+        test_scenario::next_tx(&mut scenario, admin);
+        let key = test_scenario::take_from_address<Key>(&scenario, admin);
 
         // update time
-        unix_time::update(&mut time, &key, bid_closing_time + 60, test_scenario::ctx(&mut admin_scenario)) ;
+        unix_time::update(&mut time, &key, bid_closing_time + 60, test_scenario::ctx(&mut scenario)) ;
         
         // reveal bid with wrong bid info - wrong price 10. it should be 12
+        test_scenario::next_tx(&mut scenario, user2);
         reveal_bid(
             &mut auction,
             1,
@@ -653,14 +652,14 @@ module typus_dov::sealed {
             11112222,
             &mut coin,
             &time,
-            test_scenario::ctx(&mut user2_scenario)
+            test_scenario::ctx(&mut scenario)
         );
 
+        test_scenario::next_tx(&mut scenario, admin);
         coin::destroy_for_testing(coin);
-        test_scenario::return_to_sender(&admin_scenario, key); 
+        test_scenario::return_to_sender(&scenario, key); 
         test_scenario::return_shared(time); 
-        test_scenario::end(admin_scenario);
-        test_scenario::end(user2_scenario);
+        test_scenario::end(scenario);
         auction
     }
 
@@ -676,25 +675,25 @@ module typus_dov::sealed {
 
         let admin = @0xFFFF;
         let monkey = @0x8787;
-        let admin_scenario = test_scenario::begin(admin);
-        let monkey_scenario = test_scenario::begin(monkey);
+        let scenario = test_scenario::begin(admin);
 
         ////////////////////////////////////////////////////////////////////////////////////
         //   New Sealed Bid Auction
         ////////////////////////////////////////////////////////////////////////////////////
         let bid_closing_time =  1669338020;
-        let coin = coin::mint_for_testing<SUI>(1000000, test_scenario::ctx(&mut admin_scenario));
+        let coin = coin::mint_for_testing<SUI>(1000000, test_scenario::ctx(&mut scenario));
 
-        unix_time::new_time(test_scenario::ctx(&mut admin_scenario));
-        test_scenario::next_tx(&mut admin_scenario, admin);
-        let time = test_scenario::take_shared<Time>(&admin_scenario);
-        test_scenario::next_tx(&mut admin_scenario, admin);
-        let key = test_scenario::take_from_address<Key>(&admin_scenario, admin);
+        unix_time::new_time(test_scenario::ctx(&mut scenario));
+        test_scenario::next_tx(&mut scenario, admin);
+        let time = test_scenario::take_shared<Time>(&scenario);
+        test_scenario::next_tx(&mut scenario, admin);
+        let key = test_scenario::take_from_address<Key>(&scenario, admin);
 
         // update time
-        unix_time::update(&mut time, &key, bid_closing_time + 60, test_scenario::ctx(&mut admin_scenario)) ;
+        unix_time::update(&mut time, &key, bid_closing_time + 60, test_scenario::ctx(&mut scenario)) ;
         
         // try to reveal bid 2 with user monkey
+        test_scenario::next_tx(&mut scenario, monkey);
         reveal_bid(
             &mut auction,
             1,
@@ -703,14 +702,14 @@ module typus_dov::sealed {
             11112222,
             &mut coin,
             &time,
-            test_scenario::ctx(&mut monkey_scenario)
+            test_scenario::ctx(&mut scenario)
         );
 
+        test_scenario::next_tx(&mut scenario, admin);
         coin::destroy_for_testing(coin);
-        test_scenario::return_to_sender(&admin_scenario, key); 
+        test_scenario::return_to_sender(&scenario, key); 
         test_scenario::return_shared(time); 
-        test_scenario::end(admin_scenario);
-        test_scenario::end(monkey_scenario);
+        test_scenario::end(scenario);
 
         auction
     }
