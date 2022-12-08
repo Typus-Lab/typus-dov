@@ -86,7 +86,7 @@ module typus_covered_call::test {
 
         test_scenario::next_tx(scenario, admin);
 
-        let current_vault = covered_call::get_mut_vault<SUI>(
+        let current_vault = covered_call::test_get_vault<SUI>(
             &mut registry,
             0
         );
@@ -243,11 +243,11 @@ module typus_covered_call::test {
 
         // calculate sell size by vault balance value, which may actually calculate off-chain
         let vault_1_balance = vault::test_get_balance<ManagerCap, SUI>(
-            covered_call::get_mut_vault<SUI>(&mut registry, 1),
+            covered_call::test_get_vault<SUI>(&mut registry, 1),
             b"rolling"
         );
         vault_1_balance = vault_1_balance + vault::test_get_balance<ManagerCap, SUI>(
-            covered_call::get_mut_vault<SUI>(&mut registry, 1),
+            covered_call::test_get_vault<SUI>(&mut registry, 1),
             b"regular"
         );
 
@@ -280,8 +280,7 @@ module typus_covered_call::test {
         let (price, _price_decimal, _, _) = oracle::get_oracle<SUI>(
             &price_oracle
         );
-        covered_call::set_strike<SUI>(&manager_cap, &mut registry, 1, price);
-        covered_call::set_premium_roi<SUI>(&manager_cap, &mut registry, 1, premium_roi);
+        covered_call::update_payoff_config<SUI>(&manager_cap, &mut registry, 1, price, premium_roi);
 
         let test_coin_2 = coin::mint_for_testing<SUI>(500000, test_scenario::ctx(scenario));
         let coin_amount = coin::value<SUI>(&test_coin_2);
@@ -308,7 +307,7 @@ module typus_covered_call::test {
         );
 
         // settle internal
-        covered_call::settle_without_roll_over<SUI>(&manager_cap,&mut registry, 1, &price_oracle, &time_oracle);
+        covered_call::settle<SUI>(&manager_cap,&mut registry, 1, &price_oracle, &time_oracle);
         // covered_call::settle_with_roll_over<SUI>(&manager_cap, &mut registry, 1, &price_oracle, &time_oracle);
         debug::print(&string::utf8(b"B"));
 
@@ -408,27 +407,27 @@ module typus_covered_call::test {
 
     #[test_only]
     fun test_print_vault_summary(registry: &mut Registry, index: u64) {
-        let balance_rolling = vault::test_get_balance<ManagerCap, SUI>(covered_call::get_mut_vault<SUI>(
+        let balance_rolling = vault::test_get_balance<ManagerCap, SUI>(covered_call::test_get_vault<SUI>(
             registry,
             index
         ), b"rolling");
-        let share_rolling = vault::test_get_share_supply<ManagerCap, SUI>(covered_call::get_mut_vault<SUI>(
+        let share_rolling = vault::test_get_share_supply<ManagerCap, SUI>(covered_call::test_get_vault<SUI>(
             registry,
             index
         ), b"rolling");
-        let balance_regular = vault::test_get_balance<ManagerCap, SUI>(covered_call::get_mut_vault<SUI>(
+        let balance_regular = vault::test_get_balance<ManagerCap, SUI>(covered_call::test_get_vault<SUI>(
             registry,
             index
         ), b"regular");
-        let share_regular = vault::test_get_share_supply<ManagerCap, SUI>(covered_call::get_mut_vault<SUI>(
+        let share_regular = vault::test_get_share_supply<ManagerCap, SUI>(covered_call::test_get_vault<SUI>(
             registry,
             index
         ), b"regular");
-        let balance_maker = vault::test_get_balance<ManagerCap, SUI>(covered_call::get_mut_vault<SUI>(
+        let balance_maker = vault::test_get_balance<ManagerCap, SUI>(covered_call::test_get_vault<SUI>(
             registry,
             index
         ), b"maker");
-        let share_maker = vault::test_get_share_supply<ManagerCap, SUI>(covered_call::get_mut_vault<SUI>(
+        let share_maker = vault::test_get_share_supply<ManagerCap, SUI>(covered_call::test_get_vault<SUI>(
             registry,
             index
         ), b"maker");

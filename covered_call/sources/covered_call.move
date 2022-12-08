@@ -552,4 +552,12 @@ module typus_covered_call::covered_call {
         init_(ctx);
     }
 
+    #[test_only]
+    public fun test_get_vault<TOKEN>(
+        registry: &Registry,
+        index: u64,
+    ): &Vault<ManagerCap, TOKEN> {
+        &dynamic_field::borrow<u64, CoveredCallVault<TOKEN>>(&registry.id, index).vault
+    }
+
 }
