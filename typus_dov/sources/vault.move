@@ -11,7 +11,6 @@ module typus_dov::vault {
     use typus_dov::linked_list::{Self, LinkedList};
     use typus_dov::utils;
 
-
     // ======== Constants ========
 
     const C_VAULT_ROLLING: vector<u8> = b"rolling";
@@ -460,7 +459,7 @@ module typus_dov::vault {
     fun vault_activated<MANAGER, TOKEN>(vault: &Vault<MANAGER, TOKEN>): bool {
         !vault.able_to_deposit && !vault.able_to_withdraw
     }
-    
+
     fun vault_settled<MANAGER, TOKEN>(vault: &Vault<MANAGER, TOKEN>): bool {
         !vault.able_to_deposit && vault.able_to_withdraw
     }

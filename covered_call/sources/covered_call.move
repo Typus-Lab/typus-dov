@@ -1,7 +1,6 @@
 module typus_covered_call::covered_call {
     use std::option::{Self, Option};
 
-    use sui::balance::Balance;
     use sui::coin::Coin;
     use sui::dynamic_field;
     use sui::object::{Self, UID};
@@ -20,6 +19,10 @@ module typus_covered_call::covered_call {
 
     #[test_only]
     friend typus_covered_call::test;
+
+    // ======== Constants ========
+
+    const C_SHARE_PRICE_DECIMAL: u64 = 8;
 
     // ======== Errors ========
     const E_VAULT_NOT_EXPIRED_YET: u64 = 0;
@@ -154,130 +157,57 @@ module typus_covered_call::covered_call {
         dynamic_field::borrow_mut<u64, CoveredCallVault<TOKEN>>(&mut registry.id, index)
     }
 
-    fun settle_rock_n_roll<TOKEN>(
+    fun settle_<TOKEN>(
         manager_cap: &ManagerCap,
-        registry: &mut Registry,
-        expired_index: u64,
-        balance: Balance<TOKEN>,
-        scaled_user_shares: VecMap<address, u64>
-    ) {
-        let next_index = get_next_covered_call_vault_index<TOKEN>(registry, expired_index);
-        let next_index = option::borrow<u64>(&next_index);
-
-        let new_vault = get_mut_vault<TOKEN>(
-            registry,
-            *next_index
-        );
-
-        vault::rock_n_roll<ManagerCap, TOKEN>(
-            manager_cap,
-            new_vault,
-            balance,
-            scaled_user_shares
-        );   
-    }
-
-    fun settle_internal<TOKEN>(
-        manager_cap: &ManagerCap,
-        expired_vault: &mut Vault<ManagerCap, TOKEN>,
-        payoff_config: &PayoffConfig,
-        expiration_ts_ms: u64,
+        covered_call_vault: &mut CoveredCallVault<TOKEN>,
         price_oracle: &Oracle<TOKEN>,
         time_oracle: &Time
     ) {
         let (price, _decimal, _unix_ms, _epoch) = oracle::get_oracle<TOKEN>(price_oracle);
 
         let current_ts_ms = unix_time::get_ts_ms(time_oracle);
-        check_already_expired(expiration_ts_ms, current_ts_ms);
+        check_already_expired(covered_call_vault.config.expiration_ts_ms, current_ts_ms);
 
         // calculate settlement roi
-        let roi = payoff::get_covered_call_payoff_by_price(price, payoff_config);
+        let roi = payoff::get_covered_call_payoff_by_price(price, &covered_call_vault.config.payoff_config);
         let roi_multiplier = utils::multiplier(payoff::get_roi_decimal());
 
-        // debug::print(&string::utf8(b"roi"));
-        // debug::print(&roi);
-
-        let share_price_decimal = 8;
         let settled_share_price = if (!i64::is_neg(&roi)) {
-            utils::multiplier(share_price_decimal) * (roi_multiplier + i64::as_u64(&roi)) / roi_multiplier
+            utils::multiplier(C_SHARE_PRICE_DECIMAL) * (roi_multiplier + i64::as_u64(&roi)) / roi_multiplier
         } else {
-            utils::multiplier(share_price_decimal) * (roi_multiplier + i64::as_u64(&i64::abs(&roi))) / roi_multiplier
+            utils::multiplier(C_SHARE_PRICE_DECIMAL) * (roi_multiplier + i64::as_u64(&i64::abs(&roi))) / roi_multiplier
         };
 
         vault::settle_fund<ManagerCap, TOKEN>(
             manager_cap,
-            expired_vault,
+            &mut covered_call_vault.vault,
             settled_share_price,
-            share_price_decimal
+            C_SHARE_PRICE_DECIMAL
         );
         // TODO: calculate performance fee
     }
 
-    // ======== Public Functions =========
-
-    public fun get_config<TOKEN>(
+    fun roll_over_<TOKEN>(
+        manager_cap: &ManagerCap,
         registry: &mut Registry,
         index: u64,
-    ): &Config {
-        &dynamic_field::borrow<u64, CoveredCallVault<TOKEN>>(&registry.id, index).config
-    }
-
-    public fun get_payoff_config(config: &Config): &PayoffConfig {
-        &config.payoff_config
-    }
-
-    public fun get_next_covered_call_vault_index<TOKEN>(
-        registry: &mut Registry,
-        index: u64,
-    ): Option<u64> {
-        dynamic_field::borrow<u64, CoveredCallVault<TOKEN>>(&registry.id, index).next
-    }
-
-    public fun set_strike<TOKEN>(
-        _manager_cap: &ManagerCap,
-        registry: &mut Registry,
-        index: u64,
-        price: u64
     ) {
-        payoff::set_strike(
-            &mut dynamic_field::borrow_mut<u64, CoveredCallVault<TOKEN>>(
-                &mut registry.id,
-                index
-            )
-            .config
-            .payoff_config,
-            price
+        let (balance, scaled_user_shares) = vault::prepare_rolling<ManagerCap, TOKEN>(
+            manager_cap,
+            &mut get_mut_covered_call_vault<TOKEN>(registry, index).vault,
+        );
+
+        let next = *option::borrow(&get_mut_covered_call_vault<TOKEN>(registry, index).next);
+        vault::rock_n_roll<ManagerCap, TOKEN>(
+            manager_cap,
+            &mut get_mut_covered_call_vault<TOKEN>(registry, next).vault,
+            balance,
+            scaled_user_shares
         );
     }
 
-    public fun set_premium_roi<TOKEN>(
-        _manager_cap: &ManagerCap,
-        registry: &mut Registry,
-        index: u64,
-        premium_roi: u64
-    ) {
-        payoff::set_premium_roi(
-            &mut dynamic_field::borrow_mut<u64, CoveredCallVault<TOKEN>>(
-                &mut registry.id,
-                index
-            )
-            .config
-            .payoff_config,
-            premium_roi
-        );
-    }
-
-    public fun check_already_expired(expiration_ts_ms: u64, ts_ms: u64) {
+    fun check_already_expired(expiration_ts_ms: u64, ts_ms: u64) {
         assert!(ts_ms >= expiration_ts_ms, E_VAULT_NOT_EXPIRED_YET);
-    }
-
-    // ======== Public Friend Functions =========
-
-    public(friend) fun get_mut_vault<TOKEN>(
-        registry: &mut Registry,
-        index: u64,
-    ): &mut Vault<ManagerCap, TOKEN> {
-        &mut dynamic_field::borrow_mut<u64, CoveredCallVault<TOKEN>>(&mut registry.id, index).vault
     }
 
     // ======== Entry Functions =========
@@ -315,24 +245,38 @@ module typus_covered_call::covered_call {
         );
     }
 
-    public(friend) entry fun set_payoff_config<TOKEN>(
-        manager_cap: &ManagerCap,
+    public(friend) entry fun remove_manager(
+        manager_cap: ManagerCap,
+    ) {
+        let ManagerCap { id } = manager_cap;
+        object::delete(id);
+    }
+
+    public(friend) entry fun update_payoff_config<TOKEN>(
+        _manager_cap: &ManagerCap,
         registry: &mut Registry,
         index: u64,
         price: u64,
         premium_roi: u64
     ) {
-        set_strike<TOKEN>(
-            manager_cap,
-            registry,
-            index,
+        
+        payoff::set_strike(
+            &mut dynamic_field::borrow_mut<u64, CoveredCallVault<TOKEN>>(
+                &mut registry.id,
+                index
+            )
+            .config
+            .payoff_config,
             price
         );
 
-        set_premium_roi<TOKEN>(
-            manager_cap,
-            registry,
-            index,
+        payoff::set_premium_roi(
+            &mut dynamic_field::borrow_mut<u64, CoveredCallVault<TOKEN>>(
+                &mut registry.id,
+                index
+            )
+            .config
+            .payoff_config,
             premium_roi
         );
     }
@@ -346,10 +290,7 @@ module typus_covered_call::covered_call {
         ctx: &mut TxContext
     ) {
         vault::deposit<ManagerCap, TOKEN>(
-            get_mut_vault<TOKEN>(
-                registry,
-                index
-            ),
+            &mut get_mut_covered_call_vault<TOKEN>(registry, index).vault,
             coin,
             amount,
             is_rolling,
@@ -434,10 +375,7 @@ module typus_covered_call::covered_call {
         ctx: &mut TxContext
     ) {
         vault::withdraw<ManagerCap, TOKEN>(
-            get_mut_vault<TOKEN>(
-                registry,
-                index
-            ),
+            &mut get_mut_covered_call_vault<TOKEN>(registry, index).vault,
             amount,
             is_rolling,
             ctx
@@ -452,10 +390,7 @@ module typus_covered_call::covered_call {
         while (!vec_map::is_empty(&indexes)){
             let (index, is_rolling) = vec_map::pop(&mut indexes);
             vault::withdraw<ManagerCap, TOKEN>(
-                get_mut_vault<TOKEN>(
-                    registry,
-                    index
-                ),
+                &mut get_mut_covered_call_vault<TOKEN>(registry, index).vault,
                 option::none(),
                 is_rolling,
                 ctx
@@ -469,10 +404,7 @@ module typus_covered_call::covered_call {
         ctx: &mut TxContext
     ) {
         vault::subscribe<ManagerCap, TOKEN>(
-            get_mut_vault<TOKEN>(
-                registry,
-                index
-            ),
+            &mut get_mut_covered_call_vault<TOKEN>(registry, index).vault,
             ctx,
         );
     }
@@ -483,10 +415,7 @@ module typus_covered_call::covered_call {
         ctx: &mut TxContext
     ) {
         vault::unsubscribe<ManagerCap, TOKEN>(
-            get_mut_vault<TOKEN>(
-                registry,
-                index
-            ),
+            &mut get_mut_covered_call_vault<TOKEN>(registry, index).vault,
             ctx,
         );
     }
@@ -552,60 +481,50 @@ module typus_covered_call::covered_call {
         );
     }
 
-    public entry fun settle_without_roll_over<TOKEN>(
+    public(friend) entry fun settle<TOKEN>(
         manager_cap: &ManagerCap,
         registry: &mut Registry,
-        expired_index: u64,
+        index: u64,
         price_oracle: &Oracle<TOKEN>,
         time_oracle: &Time
     ) {
-        let covered_call_vault = get_mut_covered_call_vault<TOKEN>(
-            registry,
-            expired_index
-        );
-
-        settle_internal<TOKEN>(
+        settle_<TOKEN>(
             manager_cap,
-            &mut covered_call_vault.vault,
-            &covered_call_vault.config.payoff_config,
-            covered_call_vault.config.expiration_ts_ms,
+            get_mut_covered_call_vault<TOKEN>(registry, index),
             price_oracle,
             time_oracle
         );
     }
 
-    public entry fun settle_prepare_rolling<TOKEN>(
+    public(friend) entry fun roll_over<TOKEN>(
         manager_cap: &ManagerCap,
         registry: &mut Registry,
-        expired_index: u64,
+        index: u64,
+    ) {
+        roll_over_<TOKEN>(
+            manager_cap,
+            registry,
+            index,
+        );
+    }
+
+    public(friend) entry fun settle_with_roll_over<TOKEN>(
+        manager_cap: &ManagerCap,
+        registry: &mut Registry,
+        index: u64,
         price_oracle: &Oracle<TOKEN>,
         time_oracle: &Time
     ) {
-        let covered_call_vault = get_mut_covered_call_vault<TOKEN>(
-            registry,
-            expired_index
-        );
-
-        settle_internal<TOKEN>(
+        settle_(
             manager_cap,
-            &mut covered_call_vault.vault,
-            &covered_call_vault.config.payoff_config,
-            covered_call_vault.config.expiration_ts_ms,
+            get_mut_covered_call_vault<TOKEN>(registry, index),
             price_oracle,
-            time_oracle
+            time_oracle,
         );
-
-        let (balance, scaled_user_shares) = vault::prepare_rolling<ManagerCap, TOKEN>(
-            manager_cap,
-            &mut covered_call_vault.vault
-        );
-
-        settle_rock_n_roll<TOKEN>(
+        roll_over_<TOKEN>(
             manager_cap,
             registry,
-            expired_index,
-            balance,
-            scaled_user_shares
+            index,
         );
     }
 
