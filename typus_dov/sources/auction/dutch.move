@@ -367,30 +367,69 @@ module typus_dov::dutch {
         auction
     }
 
-    // #[test]
-    // fun test_auction_remove_bid_success(): Auction<TestManagerCap, sui::sui::SUI> {
-    //     use typus_oracle::unix_time::{Self, Time, Key};
+    #[test]
+    fun test_auction_remove_bid_success(): Auction<TestManagerCap, sui::sui::SUI> {
+        use typus_oracle::unix_time::{Self, Time, Key};
+        use sui::test_scenario;
 
-    //     let auction = test_auction_new_bid();
-    //     let user1 = @0xBABE1;
-    //     let user2 = @0xBABE2;
-    //     remove_bid(&mut auction, user1, 0);
-    //     // remove_bid(&mut auction, user1, 2);
-    //     remove_bid(&mut auction, user2, 1);
-    //     // remove_bid(&mut auction, user2, 3);
+        let auction = test_auction_new_bid();
+        let admin = @0xFFFF;
+        let user1 = @0xBABE1;
+        let user2 = @0xBABE2;
 
-    //     auction
-    // }
+        let scenario = test_scenario::begin(admin);
+        unix_time::new_time(test_scenario::ctx(&mut scenario));
+        test_scenario::next_tx(&mut scenario, admin);
+        let time = test_scenario::take_shared<Time>(&scenario);
+        let key = test_scenario::take_from_address<Key>(&scenario, admin);
+     
+        // update time
+        unix_time::update(&mut time, &key, auction.start_ts_ms + 60*2, test_scenario::ctx(&mut scenario)) ;
 
-    // #[test]
-    // #[expected_failure]
-    // fun test_auction_remove_bid_fail_on_wrong_owner(): Auction<TestManagerCap, sui::sui::SUI> {
-    //     use typus_oracle::unix_time::{Self, Time, Key};
+        // remove bid 0 with user1
+        test_scenario::next_tx(&mut scenario, user1);
+        remove_bid(&mut auction, 0, &time, test_scenario::ctx(&mut scenario));
+      
+        // remove bid 1 with user2
+        test_scenario::next_tx(&mut scenario, user2);
+        remove_bid(&mut auction, 1, &time, test_scenario::ctx(&mut scenario));
 
-    //     let auction = test_auction_new_bid();
-    //     let monkey = @0x8787;
-    //     remove_bid(&mut auction, monkey, 0);
+        test_scenario::next_tx(&mut scenario, admin);
+        test_scenario::return_to_sender(&scenario, key); 
+        test_scenario::return_shared(time); 
+        test_scenario::end(scenario);
 
-    //     auction
-    // }
+        auction
+    }
+
+    #[test]
+    #[expected_failure]
+    fun test_auction_remove_bid_fail_on_wrong_owner(): Auction<TestManagerCap, sui::sui::SUI> {
+        use typus_oracle::unix_time::{Self, Time, Key};
+        use sui::test_scenario;
+
+        let auction = test_auction_new_bid();
+        let admin = @0xFFFF;
+        let monkey = @0x8787;
+
+        let scenario = test_scenario::begin(admin);
+        unix_time::new_time(test_scenario::ctx(&mut scenario));
+        test_scenario::next_tx(&mut scenario, admin);
+        let time = test_scenario::take_shared<Time>(&scenario);
+        let key = test_scenario::take_from_address<Key>(&scenario, admin);
+     
+        // update time
+        unix_time::update(&mut time, &key, auction.start_ts_ms + 60*2, test_scenario::ctx(&mut scenario)) ;
+
+        // try to remove bid 0 with monkey
+        test_scenario::next_tx(&mut scenario, monkey);
+        remove_bid(&mut auction, 0, &time, test_scenario::ctx(&mut scenario));
+      
+        test_scenario::next_tx(&mut scenario, admin);
+        test_scenario::return_to_sender(&scenario, key); 
+        test_scenario::return_shared(time); 
+        test_scenario::end(scenario);
+
+        auction
+    }
 }
