@@ -87,13 +87,8 @@ module typus_dov::vault {
         settled_share_price: u64,
         share_price_decimal: u64
     ) {
-        let Vault {
-            sub_vaults: _,
-            able_to_deposit: atd,
-            able_to_withdraw: atw,
-        } = vault;
-        assert!(!(*atd && *atw), E_NOT_YET_ACTIVATED);
-        assert!(!(!*atd && *atw), E_ALREADY_SETTLED);
+        assert!(!vault_initialized(vault), E_NOT_YET_ACTIVATED);
+        assert!(!vault_settled(vault), E_ALREADY_SETTLED);
 
         let total_balance = balance::value(
             &get_sub_vault<MANAGER, TOKEN>(
@@ -188,7 +183,7 @@ module typus_dov::vault {
         _manager_cap: &MANAGER,
         vault: &mut Vault<MANAGER, TOKEN>,
     ): (Balance<TOKEN>, VecMap<address, u64>) {
-        assert!((!vault.able_to_deposit && vault.able_to_withdraw), E_NOT_YET_SETTLED);
+        assert!(vault_settled(vault), E_NOT_YET_SETTLED);
 
         let SubVault {
             balance,
@@ -217,7 +212,7 @@ module typus_dov::vault {
         balance: Balance<TOKEN>,
         scaled_user_shares: VecMap<address, u64>,
     ) {
-        assert!((vault.able_to_deposit && vault.able_to_withdraw), E_ALREADY_ACTIVATED);
+        assert!(vault_initialized(vault), E_ALREADY_ACTIVATED);
 
         let sub_vault = get_mut_sub_vault<MANAGER, TOKEN>(vault, C_VAULT_ROLLING);
         balance::join(&mut sub_vault.balance, balance);
@@ -301,7 +296,7 @@ module typus_dov::vault {
         vault: &mut Vault<MANAGER, TOKEN>,
         ctx: &mut TxContext
     ) {
-        assert!((vault.able_to_deposit && vault.able_to_withdraw) || (!vault.able_to_deposit && !vault.able_to_withdraw), E_SUBSCRIBE_DISABLED);
+        assert!(vault_initialized(vault) || vault_activated(vault), E_SUBSCRIBE_DISABLED);
 
         let user = tx_context::sender(ctx);
         let (_, balance) = withdraw_<MANAGER, TOKEN>(
@@ -322,7 +317,7 @@ module typus_dov::vault {
         vault: &mut Vault<MANAGER, TOKEN>,
         ctx: &mut TxContext
     ) {
-        assert!((vault.able_to_deposit && vault.able_to_withdraw) || (!vault.able_to_deposit && !vault.able_to_withdraw), E_UNSUBSCRIBE_DISABLED);
+        assert!(vault_initialized(vault) || vault_activated(vault), E_UNSUBSCRIBE_DISABLED);
 
         let user = tx_context::sender(ctx);
         let (_, balance) = withdraw_<MANAGER, TOKEN>(
@@ -456,6 +451,18 @@ module typus_dov::vault {
             sub_vault.share_supply = sub_vault.share_supply - user_share;
             user_share
         }
+    }
+
+    fun vault_initialized<MANAGER, TOKEN>(vault: &Vault<MANAGER, TOKEN>): bool {
+        vault.able_to_deposit && vault.able_to_withdraw
+    }
+
+    fun vault_activated<MANAGER, TOKEN>(vault: &Vault<MANAGER, TOKEN>): bool {
+        !vault.able_to_deposit && !vault.able_to_withdraw
+    }
+    
+    fun vault_settled<MANAGER, TOKEN>(vault: &Vault<MANAGER, TOKEN>): bool {
+        !vault.able_to_deposit && vault.able_to_withdraw
     }
 
     // ======== Events =========
