@@ -5,7 +5,6 @@ module typus_covered_call::payoff {
     use typus_dov::asset::Asset;
 
     friend typus_covered_call::covered_call;
-    friend typus_covered_call::settlement;
 
     #[test_only]
     friend typus_covered_call::test;
