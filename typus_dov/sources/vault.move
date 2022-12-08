@@ -427,4 +427,19 @@ module typus_dov::vault {
     // ) {
     //     let _ = vault_registry;
     // }
+
+    
+    #[test]
+    fun test_new_vault_registry_success(): VaultRegistry<sui::sui::SUI> {
+        use sui::test_scenario;
+
+        let admin = @0xFFFF;
+        let scenario = test_scenario::begin(admin);
+
+        let vault_registry = test_only_new_vault_registry(test_scenario::ctx(&mut scenario));
+        assert!(vault_registry.num_of_vault == 0, 1);
+
+        test_scenario::end(scenario);
+        vault_registry
+    }
 }

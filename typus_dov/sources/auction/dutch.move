@@ -353,7 +353,7 @@ module typus_dov::dutch {
         auction
     }
 
-        #[test]
+    #[test]
     fun test_auction_remove_bid_success(): Auction<sui::sui::SUI> {
         let auction = test_auction_new_bid();
 
