@@ -1,12 +1,12 @@
 module typus_covered_call::covered_call {
     use std::option::{Self, Option};
+    use std::vector;
 
     use sui::coin::Coin;
     use sui::dynamic_field;
     use sui::object::{Self, UID};
     use sui::transfer;
     use sui::tx_context::{Self, TxContext};
-    use sui::vec_map::{Self, VecMap};
 
     use typus_covered_call::payoff::{Self, PayoffConfig};
     use typus_dov::asset;
@@ -26,6 +26,7 @@ module typus_covered_call::covered_call {
 
     // ======== Errors ========
     const E_VAULT_NOT_EXPIRED_YET: u64 = 0;
+    const E_INDEX_AND_FLAG_LENGTH_MISMATCH: u64 = 1;
 
     // ======== Structs =========
 
@@ -384,11 +385,15 @@ module typus_covered_call::covered_call {
 
     public(friend) entry fun withdraw_all<TOKEN>(
         registry: &mut Registry,
-        indexes: VecMap<u64, bool>,
+        index: vector<u64>,
+        is_rolling: vector<bool>,
         ctx: &mut TxContext
     ) {
-        while (!vec_map::is_empty(&indexes)){
-            let (index, is_rolling) = vec_map::pop(&mut indexes);
+        assert!(vector::length(&index) == vector::length(&is_rolling), E_INDEX_AND_FLAG_LENGTH_MISMATCH);
+
+        while (!vector::is_empty(&index)){
+            let index = vector::pop_back(&mut index);
+            let is_rolling = vector::pop_back(&mut is_rolling);
             vault::withdraw<ManagerCap, TOKEN>(
                 &mut get_mut_covered_call_vault<TOKEN>(registry, index).vault,
                 option::none(),
