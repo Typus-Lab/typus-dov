@@ -473,9 +473,20 @@ module typus_dov::vault {
     // ======== Test =========
 
     #[test_only]
-    struct TestManager has key {
+    struct TestManagerCap has key {
         id: sui::object::UID,
     }
+
+    #[test_only]
+    fun init_test_manager(ctx: &mut TxContext) {
+        transfer::transfer(
+            TestManagerCap {
+                id: sui::object::new(ctx)
+            },
+            tx_context::sender(ctx)
+        );
+    }
+
 
     #[test_only]
     public fun test_get_user_share<MANAGER, TOKEN>(
@@ -514,7 +525,7 @@ module typus_dov::vault {
     }
 
     #[test]
-    public fun test_new_vault(): Vault<TestManager, sui::sui::SUI>  {
+    public fun test_new_vault(): Vault<TestManagerCap, sui::sui::SUI>  {
         use sui::test_scenario;
         use sui::table;
 
@@ -529,7 +540,7 @@ module typus_dov::vault {
     }
 
     #[test]
-    public fun test_deposit_success(): Vault<TestManager, sui::sui::SUI>  {
+    public fun test_deposit_success(): Vault<TestManagerCap, sui::sui::SUI>  {
         use sui::test_scenario;
         use sui::coin;
         use sui::sui::SUI;
@@ -548,12 +559,12 @@ module typus_dov::vault {
         let add_amount = 200;
         // deposit for the first time
         deposit(&mut vault, &mut coin, init_amount, true, test_scenario::ctx(&mut scenario) );
-        let sub_vault = get_mut_sub_vault<TestManager, sui::sui::SUI>(&mut vault, C_VAULT_ROLLING);
+        let sub_vault = get_mut_sub_vault<TestManagerCap, sui::sui::SUI>(&mut vault, C_VAULT_ROLLING);
         assert!(balance::value(&sub_vault.balance) == init_amount, 1);
        
         // deposit for second time
         deposit(&mut vault, &mut coin, add_amount, true, test_scenario::ctx(&mut scenario) );
-        let sub_vault = get_mut_sub_vault<TestManager, sui::sui::SUI>(&mut vault, C_VAULT_ROLLING);
+        let sub_vault = get_mut_sub_vault<TestManagerCap, sui::sui::SUI>(&mut vault, C_VAULT_ROLLING);
         assert!(balance::value(&sub_vault.balance) == init_amount + add_amount, 2);
 
         let user1_share = linked_list::borrow(&sub_vault.user_shares, user1);
@@ -565,7 +576,66 @@ module typus_dov::vault {
     }
 
     #[test]
-    public fun test_withdraw_success(): Vault<TestManager, sui::sui::SUI>  {
+    #[expected_failure]
+    public fun test_deposit_fail_with_deposit_disabled(): Vault<TestManagerCap, sui::sui::SUI>  {
+        use sui::test_scenario;
+        use sui::coin;
+        use sui::sui::SUI;
+ 
+        let vault = test_new_vault();
+
+        let admin = @0xFFFF;
+        let user1 = @0xBABE1;
+        let scenario = test_scenario::begin(admin);
+
+        init_test_manager(test_scenario::ctx(&mut scenario));
+        test_scenario::next_tx(&mut scenario, admin);
+        let manager_cap = test_scenario::take_from_sender<TestManagerCap>(&scenario);
+       
+        // admin disables withdraw
+        disable_deposit(&manager_cap, &mut vault);
+
+        let coin = coin::mint_for_testing<SUI>(1000000, test_scenario::ctx(&mut scenario));
+        // try to deposit
+        test_scenario::next_tx(&mut scenario, user1);
+        let deposit_amount = 100;
+        deposit(&mut vault, &mut coin, deposit_amount, true, test_scenario::ctx(&mut scenario) );
+   
+        coin::destroy_for_testing(coin);
+        test_scenario::next_tx(&mut scenario, admin);
+        test_scenario::return_to_sender<TestManagerCap>(&scenario, manager_cap);
+        test_scenario::end(scenario);
+       
+        vault
+    }
+
+    #[test]
+    #[expected_failure]
+    public fun test_deposit_failure_with_insufficient_fund(): Vault<TestManagerCap, sui::sui::SUI>  {
+        use sui::test_scenario;
+        use sui::coin;
+        use sui::sui::SUI;
+   
+        let vault = test_new_vault();
+
+        let admin = @0xFFFF;
+        let user1 = @0xBABE1;
+        let scenario = test_scenario::begin(admin);
+        let balance = 1000;
+        let coin = coin::mint_for_testing<SUI>(balance, test_scenario::ctx(&mut scenario));
+
+        // try to deposit more than the balance
+        let deposit_amount = balance + 1;
+        test_scenario::next_tx(&mut scenario, user1);
+        deposit(&mut vault, &mut coin, deposit_amount, true, test_scenario::ctx(&mut scenario) );
+        
+        coin::destroy_for_testing(coin);
+        test_scenario::end(scenario);
+        vault
+    }
+
+    #[test]
+    public fun test_withdraw_success(): Vault<TestManagerCap, sui::sui::SUI>  {
         use sui::test_scenario;
         use sui::coin;
         use sui::sui::SUI;
@@ -584,20 +654,20 @@ module typus_dov::vault {
         let withdraw_amount_first = 50;
        
         // withdraw for the first time
-        let sub_vault_before = get_mut_sub_vault<TestManager, sui::sui::SUI>(&mut vault, C_VAULT_ROLLING);
+        let sub_vault_before = get_mut_sub_vault<TestManagerCap, sui::sui::SUI>(&mut vault, C_VAULT_ROLLING);
         let sub_vault_before_bal = balance::value(&sub_vault_before.balance);
         withdraw(&mut vault, option::some(withdraw_amount_first), true, test_scenario::ctx(&mut scenario));
-        let sub_vault = get_mut_sub_vault<TestManager, sui::sui::SUI>(&mut vault, C_VAULT_ROLLING);
+        let sub_vault = get_mut_sub_vault<TestManagerCap, sui::sui::SUI>(&mut vault, C_VAULT_ROLLING);
         assert!(sub_vault_before_bal - balance::value(&sub_vault.balance) == withdraw_amount_first, 1);
        
         let user1_share = linked_list::borrow(&sub_vault.user_shares, user1);
         assert!(*user1_share == deposit_amount - withdraw_amount_first, 2);
         
         // withdraw for the second time
-        let sub_vault_before = get_mut_sub_vault<TestManager, sui::sui::SUI>(&mut vault, C_VAULT_ROLLING);
+        let sub_vault_before = get_mut_sub_vault<TestManagerCap, sui::sui::SUI>(&mut vault, C_VAULT_ROLLING);
         let sub_vault_before_bal = balance::value(&sub_vault_before.balance);
         withdraw(&mut vault, option::none(), true, test_scenario::ctx(&mut scenario));
-        let sub_vault = get_mut_sub_vault<TestManager, sui::sui::SUI>(&mut vault, C_VAULT_ROLLING);
+        let sub_vault = get_mut_sub_vault<TestManagerCap, sui::sui::SUI>(&mut vault, C_VAULT_ROLLING);
         assert!(sub_vault_before_bal - balance::value(&sub_vault.balance) == deposit_amount - withdraw_amount_first, 3);
         assert!(balance::value(&sub_vault.balance) == 0, 4);
 
@@ -609,7 +679,7 @@ module typus_dov::vault {
     }
 
     #[test]
-    public fun test_withdraw_success_with_larger_amount(): Vault<TestManager, sui::sui::SUI>  {
+    public fun test_withdraw_success_with_larger_amount(): Vault<TestManagerCap, sui::sui::SUI>  {
         use sui::test_scenario;
         use typus_dov::linked_list;
 
@@ -623,7 +693,7 @@ module typus_dov::vault {
        
         // withdraw with amount larger than previous deposit amount
         withdraw(&mut vault, option::some(withdraw_amount), true, test_scenario::ctx(&mut scenario));
-        let sub_vault = get_mut_sub_vault<TestManager, sui::sui::SUI>(&mut vault, C_VAULT_ROLLING);
+        let sub_vault = get_mut_sub_vault<TestManagerCap, sui::sui::SUI>(&mut vault, C_VAULT_ROLLING);
         assert!(balance::value(&sub_vault.balance) == 0, 1);
         assert!(!linked_list::contains(&sub_vault.user_shares, user1), 2);
         
@@ -633,9 +703,8 @@ module typus_dov::vault {
 
     #[test]
     #[expected_failure]
-    public fun test_withdraw_fail(): Vault<TestManager, sui::sui::SUI>  {
+    public fun test_withdraw_fail(): Vault<TestManagerCap, sui::sui::SUI>  {
         use sui::test_scenario;
-        use sui::object;
 
         let vault = test_deposit_success();
 
@@ -643,25 +712,19 @@ module typus_dov::vault {
         let user1 = @0xBABE1;
         let scenario = test_scenario::begin(admin);
         
-        transfer::transfer(
-            TestManager {
-                id: object::new(test_scenario::ctx(&mut scenario))
-            },
-            tx_context::sender(test_scenario::ctx(&mut scenario))
-        );
+        init_test_manager(test_scenario::ctx(&mut scenario));
         test_scenario::next_tx(&mut scenario, admin);
-        let manager_cap = test_scenario::take_from_sender<TestManager>(&scenario);
+        let manager_cap = test_scenario::take_from_sender<TestManagerCap>(&scenario);
        
         // admin disables withdraw
-        disable_withdraw(&manager_cap, &mut vault );
+        disable_withdraw(&manager_cap, &mut vault);
 
- 
         // try to withdraw when withdraw is disabled
         test_scenario::next_tx(&mut scenario, user1);
         withdraw(&mut vault, option::none(), true, test_scenario::ctx(&mut scenario));
 
         test_scenario::next_tx(&mut scenario, admin);
-        test_scenario::return_to_sender<TestManager>(&scenario, manager_cap);
+        test_scenario::return_to_sender<TestManagerCap>(&scenario, manager_cap);
 
         test_scenario::end(scenario);
         vault
