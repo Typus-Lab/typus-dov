@@ -228,7 +228,7 @@ module typus_dov::vault {
         is_rolling: bool,
         ctx: &mut TxContext,
     ) {
-        assert!(vault.able_to_deposit, E_DEPOSIT_DISABLED);
+        assert!(vault_initialized(vault), E_ALREADY_ACTIVATED);
         assert!(amount > 0, E_ZERO_AMOUNT);
 
         let user = tx_context::sender(ctx);
@@ -262,7 +262,44 @@ module typus_dov::vault {
         is_rolling: bool,
         ctx: &mut TxContext,
     ) {
-        assert!(vault.able_to_withdraw, E_WITHDRAW_DISABLED);
+        assert!(vault_initialized(vault), E_ALREADY_ACTIVATED);
+
+        let user = tx_context::sender(ctx);
+        let (balance, sub_vault_type, share, amount) = if (is_rolling) {
+            let (share, balance) = withdraw_<MANAGER, TOKEN>(
+                vault,
+                C_VAULT_ROLLING,
+                amount,
+                user,
+            );
+            let amount = balance::value(&balance);
+
+            (balance, C_VAULT_ROLLING, share, amount)
+        }
+        else {
+            let (share, balance) = withdraw_<MANAGER, TOKEN>(
+                vault,
+                C_VAULT_REGULAR,
+                amount,
+                user,
+            );
+            let amount = balance::value(&balance);
+
+            (balance, C_VAULT_REGULAR, share, amount)
+        };
+        transfer::transfer(coin::from_balance(balance, ctx), user);
+
+        emit(UserWithdraw<MANAGER, TOKEN> { user, sub_vault_type, share, amount });
+    }
+
+    public fun claim<MANAGER, TOKEN>(
+        vault: &mut Vault<MANAGER, TOKEN>,
+        amount: Option<u64>,
+        is_rolling: bool,
+        ctx: &mut TxContext,
+    ) {
+        assert!(vault_settled(vault), E_NOT_YET_SETTLED);
+        
         let user = tx_context::sender(ctx);
         let (balance, sub_vault_type, share, amount) = if (is_rolling) {
             let (share, balance) = withdraw_<MANAGER, TOKEN>(
@@ -339,12 +376,36 @@ module typus_dov::vault {
         balance: Balance<TOKEN>,
         maker_shares: VecMap<address, u64>,
     ) {
+        assert!(!vault_initialized(vault), E_NOT_YET_ACTIVATED);
+        assert!(!vault_settled(vault), E_ALREADY_SETTLED);
+
         let sub_vault = get_mut_sub_vault<MANAGER, TOKEN>(vault, C_VAULT_MAKER);
         balance::join(&mut sub_vault.balance, balance);
         while (!vec_map::is_empty(&maker_shares)) {
             let (user, share) = vec_map::pop(&mut maker_shares);
             add_share(sub_vault, user, share);
         }
+    }
+
+    public fun maker_claim<MANAGER, TOKEN>(
+        vault: &mut Vault<MANAGER, TOKEN>,
+        amount: Option<u64>,
+        ctx: &mut TxContext,
+    ) {
+        assert!(vault_settled(vault), E_NOT_YET_SETTLED);
+
+        let user = tx_context::sender(ctx);
+        let (share, balance) = withdraw_<MANAGER, TOKEN>(
+            vault,
+            C_VAULT_MAKER,
+            amount,
+            user,
+        );
+        let amount = balance::value(&balance);
+
+        transfer::transfer(coin::from_balance(balance, ctx), user);
+
+        emit(UserWithdraw<MANAGER, TOKEN> { user, sub_vault_type: C_VAULT_MAKER, share, amount });
     }
 
     public fun enable_deposit<MANAGER, TOKEN>(
@@ -431,13 +492,20 @@ module typus_dov::vault {
     }
 
     fun remove_share<TOKEN>(sub_vault: &mut SubVault<TOKEN>, user: address, share: Option<u64>): u64 {
-        if (option::is_some(&share)) {
-            let share = option::extract(&mut share);
-            if (share < *linked_list::borrow(&mut sub_vault.user_shares, user)) {
-                let user_share = linked_list::borrow_mut(&mut sub_vault.user_shares, user);
-                *user_share = *user_share - share;
-                sub_vault.share_supply = sub_vault.share_supply - share;
-                share
+        if (linked_list::contains(&sub_vault.user_shares, user)) {
+            if (option::is_some(&share)) {
+                let share = option::extract(&mut share);
+                if (share < *linked_list::borrow(&mut sub_vault.user_shares, user)) {
+                    let user_share = linked_list::borrow_mut(&mut sub_vault.user_shares, user);
+                    *user_share = *user_share - share;
+                    sub_vault.share_supply = sub_vault.share_supply - share;
+                    share
+                }
+                else {
+                    let user_share = linked_list::remove(&mut sub_vault.user_shares, user);
+                    sub_vault.share_supply = sub_vault.share_supply - user_share;
+                    user_share
+                }
             }
             else {
                 let user_share = linked_list::remove(&mut sub_vault.user_shares, user);
@@ -446,9 +514,7 @@ module typus_dov::vault {
             }
         }
         else {
-            let user_share = linked_list::remove(&mut sub_vault.user_shares, user);
-            sub_vault.share_supply = sub_vault.share_supply - user_share;
-            user_share
+            0
         }
     }
 
