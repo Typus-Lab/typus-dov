@@ -525,4 +525,40 @@ module typus_dov::vault {
         test_scenario::end(scenario);
         vault
     }
+
+    #[test]
+    public fun test_deposit_success(): Vault<TestManager, sui::sui::SUI>  {
+        use sui::test_scenario;
+        use sui::coin;
+        use sui::sui::SUI;
+        // use std::debug;
+        use typus_dov::linked_list;
+
+        let vault = test_new_vault();
+
+        let admin = @0xFFFF;
+        let user1 = @0xBABE1;
+        let scenario = test_scenario::begin(admin);
+        let coin = coin::mint_for_testing<SUI>(1000000, test_scenario::ctx(&mut scenario));
+        test_scenario::next_tx(&mut scenario, user1);
+
+        let init_amount = 100;
+        let add_amount = 200;
+        // deposit for the first time
+        deposit(&mut vault, &mut coin, init_amount, true, test_scenario::ctx(&mut scenario) );
+        let sub_vault = get_mut_sub_vault<TestManager, sui::sui::SUI>(&mut vault, C_VAULT_ROLLING);
+        assert!(balance::value(&sub_vault.balance) == init_amount, 1);
+       
+        // deposit for second time
+        deposit(&mut vault, &mut coin, add_amount, true, test_scenario::ctx(&mut scenario) );
+        let sub_vault = get_mut_sub_vault<TestManager, sui::sui::SUI>(&mut vault, C_VAULT_ROLLING);
+        assert!(balance::value(&sub_vault.balance) == init_amount + add_amount, 2);
+
+        let user1_share = linked_list::borrow(&sub_vault.user_shares, user1);
+        assert!(*user1_share == init_amount + add_amount, 3);
+        
+        coin::destroy_for_testing(coin);
+        test_scenario::end(scenario);
+        vault
+    }
 }
