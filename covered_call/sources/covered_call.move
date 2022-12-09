@@ -383,7 +383,22 @@ module typus_covered_call::covered_call {
         );
     }
 
-    public(friend) entry fun withdraw_all<TOKEN>(
+    public(friend) entry fun claim<TOKEN>(
+        registry: &mut Registry,
+        index: u64,
+        amount: Option<u64>,
+        is_rolling: bool,
+        ctx: &mut TxContext
+    ) {
+        vault::claim<ManagerCap, TOKEN>(
+            &mut get_mut_covered_call_vault<TOKEN>(registry, index).vault,
+            amount,
+            is_rolling,
+            ctx
+        );
+    }
+
+    public(friend) entry fun claim_all<TOKEN>(
         registry: &mut Registry,
         index: vector<u64>,
         is_rolling: vector<bool>,
@@ -394,10 +409,38 @@ module typus_covered_call::covered_call {
         while (!vector::is_empty(&index)){
             let index = vector::pop_back(&mut index);
             let is_rolling = vector::pop_back(&mut is_rolling);
-            vault::withdraw<ManagerCap, TOKEN>(
+            vault::claim<ManagerCap, TOKEN>(
                 &mut get_mut_covered_call_vault<TOKEN>(registry, index).vault,
                 option::none(),
                 is_rolling,
+                ctx
+            );
+        }
+    }
+
+    public(friend) entry fun maker_claim<TOKEN>(
+        registry: &mut Registry,
+        index: u64,
+        amount: Option<u64>,
+        ctx: &mut TxContext
+    ) {
+        vault::maker_claim<ManagerCap, TOKEN>(
+            &mut get_mut_covered_call_vault<TOKEN>(registry, index).vault,
+            amount,
+            ctx
+        );
+    }
+
+    public(friend) entry fun maker_claim_all<TOKEN>(
+        registry: &mut Registry,
+        index: vector<u64>,
+        ctx: &mut TxContext
+    ) {
+        while (!vector::is_empty(&index)){
+            let index = vector::pop_back(&mut index);
+            vault::maker_claim<ManagerCap, TOKEN>(
+                &mut get_mut_covered_call_vault<TOKEN>(registry, index).vault,
+                option::none(),
                 ctx
             );
         }
