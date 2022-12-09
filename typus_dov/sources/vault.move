@@ -590,6 +590,47 @@ module typus_dov::vault {
         *share_supply
     }
 
+    #[test_only]
+    public fun test_maker_deposit(vault: &mut Vault<TestManagerCap, sui::sui::SUI>){
+        use sui::test_scenario;
+        use sui::coin;
+        use sui::sui::SUI;
+
+        let admin = @0xFFFF;
+        let maker1 = @0xBABA1;
+        let maker2 = @0xBABA2;
+
+        let scenario = test_scenario::begin(admin);
+        let coin = coin::mint_for_testing<SUI>(1000000, test_scenario::ctx(&mut scenario));
+        let coin2 = coin::mint_for_testing<SUI>(1000000, test_scenario::ctx(&mut scenario));
+        test_scenario::next_tx(&mut scenario, admin);
+        init_test_manager(test_scenario::ctx(&mut scenario));
+        test_scenario::next_tx(&mut scenario, admin);
+        let manager_cap = test_scenario::take_from_sender<TestManagerCap>(&scenario);
+        
+        // admin disables deposit
+        disable_deposit(&manager_cap, vault);
+        // admin disables withdraw
+        disable_withdraw(&manager_cap, vault);
+        
+        let maker_shares = vec_map::empty();
+        vec_map::insert(&mut maker_shares, maker1, 10);
+        vec_map::insert(&mut maker_shares, maker2, 15);
+
+        test_scenario::next_tx(&mut scenario, maker1);
+        maker_deposit(&manager_cap, vault, coin::into_balance(coin),  maker_shares);
+       
+        test_scenario::next_tx(&mut scenario, maker2);
+        maker_deposit(&manager_cap, vault, coin::into_balance(coin2),  maker_shares);
+       
+        let sub_vault = get_mut_sub_vault<TestManagerCap, sui::sui::SUI>(vault, C_VAULT_MAKER);
+        assert!(balance::value(&sub_vault.balance) == 2000000, 2);
+
+        test_scenario::next_tx(&mut scenario, admin);
+        test_scenario::return_to_sender<TestManagerCap>(&scenario, manager_cap);
+        test_scenario::end(scenario);
+    }
+
     #[test]
     public fun test_new_vault(): Vault<TestManagerCap, sui::sui::SUI>  {
         use sui::test_scenario;
@@ -658,7 +699,7 @@ module typus_dov::vault {
         test_scenario::next_tx(&mut scenario, admin);
         let manager_cap = test_scenario::take_from_sender<TestManagerCap>(&scenario);
        
-        // admin disables withdraw
+        // admin disables deposit
         disable_deposit(&manager_cap, &mut vault);
 
         let coin = coin::mint_for_testing<SUI>(1000000, test_scenario::ctx(&mut scenario));
@@ -769,7 +810,7 @@ module typus_dov::vault {
 
     #[test]
     #[expected_failure]
-    public fun test_withdraw_fail(): Vault<TestManagerCap, sui::sui::SUI>  {
+    public fun test_withdraw_fail(): Vault<TestManagerCap, sui::sui::SUI> {
         use sui::test_scenario;
 
         let vault = test_deposit_success();
@@ -791,7 +832,44 @@ module typus_dov::vault {
 
         test_scenario::next_tx(&mut scenario, admin);
         test_scenario::return_to_sender<TestManagerCap>(&scenario, manager_cap);
+        test_scenario::end(scenario);
+        vault
+    }
 
+    #[test]
+    public fun test_maker_deposit_success(): Vault<TestManagerCap, sui::sui::SUI> {
+        let vault = test_new_vault();
+        test_maker_deposit(&mut vault);
+        vault
+    }
+
+    #[test]
+    public fun test_settle_fund_success(): Vault<TestManagerCap, sui::sui::SUI>  {
+        use sui::test_scenario;
+        // use std::debug;
+
+        let vault = test_deposit_success();
+        test_maker_deposit(&mut vault);
+
+        let admin = @0xFFFF;
+        let user1 = @0xBABE1;
+        let scenario = test_scenario::begin(admin);
+
+        init_test_manager(test_scenario::ctx(&mut scenario));
+        test_scenario::next_tx(&mut scenario, admin);
+        let manager_cap = test_scenario::take_from_sender<TestManagerCap>(&scenario);
+        
+        // admin disables deposit
+        disable_deposit(&manager_cap, &mut vault);
+        // admin disables withdraw
+        disable_withdraw(&manager_cap, &mut vault);
+ 
+        test_scenario::next_tx(&mut scenario, user1);
+        let settled_share_price = 10000;
+        let share_price_decimal = 3;
+        settle_fund(&manager_cap, &mut vault, settled_share_price, share_price_decimal);
+        test_scenario::next_tx(&mut scenario, admin);
+        test_scenario::return_to_sender<TestManagerCap>(&scenario, manager_cap);
         test_scenario::end(scenario);
         vault
     }
