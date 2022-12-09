@@ -473,7 +473,9 @@ module typus_dov::vault {
     // ======== Test =========
 
     #[test_only]
-    struct TestManager{ }
+    struct TestManager has key {
+        id: sui::object::UID,
+    }
 
     #[test_only]
     public fun test_get_user_share<MANAGER, TOKEN>(
@@ -609,17 +611,12 @@ module typus_dov::vault {
     #[test]
     public fun test_withdraw_success_with_larger_amount(): Vault<TestManager, sui::sui::SUI>  {
         use sui::test_scenario;
-        use sui::coin;
-        use sui::sui::SUI;
         use typus_dov::linked_list;
 
         let vault = test_deposit_success();
 
-        let admin = @0xFFFF;
         let user1 = @0xBABE1;
-        let scenario = test_scenario::begin(admin);
-        let coin = coin::mint_for_testing<SUI>(1000000, test_scenario::ctx(&mut scenario));
-        test_scenario::next_tx(&mut scenario, user1);
+        let scenario = test_scenario::begin(user1);
 
         let deposit_amount = 300;
         let withdraw_amount = deposit_amount + 1;
@@ -630,7 +627,42 @@ module typus_dov::vault {
         assert!(balance::value(&sub_vault.balance) == 0, 1);
         assert!(!linked_list::contains(&sub_vault.user_shares, user1), 2);
         
-        coin::destroy_for_testing(coin);
+        test_scenario::end(scenario);
+        vault
+    }
+
+    #[test]
+    #[expected_failure]
+    public fun test_withdraw_fail(): Vault<TestManager, sui::sui::SUI>  {
+        use sui::test_scenario;
+        use sui::object;
+
+        let vault = test_deposit_success();
+
+        let admin = @0xFFFF;
+        let user1 = @0xBABE1;
+        let scenario = test_scenario::begin(admin);
+        
+        transfer::transfer(
+            TestManager {
+                id: object::new(test_scenario::ctx(&mut scenario))
+            },
+            tx_context::sender(test_scenario::ctx(&mut scenario))
+        );
+        test_scenario::next_tx(&mut scenario, admin);
+        let manager_cap = test_scenario::take_from_sender<TestManager>(&scenario);
+       
+        // admin disables withdraw
+        disable_withdraw(&manager_cap, &mut vault );
+
+ 
+        // try to withdraw when withdraw is disabled
+        test_scenario::next_tx(&mut scenario, user1);
+        withdraw(&mut vault, option::none(), true, test_scenario::ctx(&mut scenario));
+
+        test_scenario::next_tx(&mut scenario, admin);
+        test_scenario::return_to_sender<TestManager>(&scenario, manager_cap);
+
         test_scenario::end(scenario);
         vault
     }
