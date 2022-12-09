@@ -561,4 +561,77 @@ module typus_dov::vault {
         test_scenario::end(scenario);
         vault
     }
+
+    #[test]
+    public fun test_withdraw_success(): Vault<TestManager, sui::sui::SUI>  {
+        use sui::test_scenario;
+        use sui::coin;
+        use sui::sui::SUI;
+        // use std::debug;
+        use typus_dov::linked_list;
+        
+        let vault = test_deposit_success();
+
+        let admin = @0xFFFF;
+        let user1 = @0xBABE1;
+        let scenario = test_scenario::begin(admin);
+        let coin = coin::mint_for_testing<SUI>(1000000, test_scenario::ctx(&mut scenario));
+        test_scenario::next_tx(&mut scenario, user1);
+
+        let deposit_amount = 300;
+        let withdraw_amount_first = 50;
+       
+        // withdraw for the first time
+        let sub_vault_before = get_mut_sub_vault<TestManager, sui::sui::SUI>(&mut vault, C_VAULT_ROLLING);
+        let sub_vault_before_bal = balance::value(&sub_vault_before.balance);
+        withdraw(&mut vault, option::some(withdraw_amount_first), true, test_scenario::ctx(&mut scenario));
+        let sub_vault = get_mut_sub_vault<TestManager, sui::sui::SUI>(&mut vault, C_VAULT_ROLLING);
+        assert!(sub_vault_before_bal - balance::value(&sub_vault.balance) == withdraw_amount_first, 1);
+       
+        let user1_share = linked_list::borrow(&sub_vault.user_shares, user1);
+        assert!(*user1_share == deposit_amount - withdraw_amount_first, 2);
+        
+        // withdraw for the second time
+        let sub_vault_before = get_mut_sub_vault<TestManager, sui::sui::SUI>(&mut vault, C_VAULT_ROLLING);
+        let sub_vault_before_bal = balance::value(&sub_vault_before.balance);
+        withdraw(&mut vault, option::none(), true, test_scenario::ctx(&mut scenario));
+        let sub_vault = get_mut_sub_vault<TestManager, sui::sui::SUI>(&mut vault, C_VAULT_ROLLING);
+        assert!(sub_vault_before_bal - balance::value(&sub_vault.balance) == deposit_amount - withdraw_amount_first, 3);
+        assert!(balance::value(&sub_vault.balance) == 0, 4);
+
+        assert!(!linked_list::contains(&sub_vault.user_shares, user1), 5);
+        
+        coin::destroy_for_testing(coin);
+        test_scenario::end(scenario);
+        vault
+    }
+
+    #[test]
+    public fun test_withdraw_success_with_larger_amount(): Vault<TestManager, sui::sui::SUI>  {
+        use sui::test_scenario;
+        use sui::coin;
+        use sui::sui::SUI;
+        use typus_dov::linked_list;
+
+        let vault = test_deposit_success();
+
+        let admin = @0xFFFF;
+        let user1 = @0xBABE1;
+        let scenario = test_scenario::begin(admin);
+        let coin = coin::mint_for_testing<SUI>(1000000, test_scenario::ctx(&mut scenario));
+        test_scenario::next_tx(&mut scenario, user1);
+
+        let deposit_amount = 300;
+        let withdraw_amount = deposit_amount + 1;
+       
+        // withdraw with amount larger than previous deposit amount
+        withdraw(&mut vault, option::some(withdraw_amount), true, test_scenario::ctx(&mut scenario));
+        let sub_vault = get_mut_sub_vault<TestManager, sui::sui::SUI>(&mut vault, C_VAULT_ROLLING);
+        assert!(balance::value(&sub_vault.balance) == 0, 1);
+        assert!(!linked_list::contains(&sub_vault.user_shares, user1), 2);
+        
+        coin::destroy_for_testing(coin);
+        test_scenario::end(scenario);
+        vault
+    }
 }
