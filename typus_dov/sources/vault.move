@@ -514,14 +514,12 @@ module typus_dov::vault {
     #[test]
     public fun test_new_vault(): Vault<TestManager, sui::sui::SUI>  {
         use sui::test_scenario;
-        use std::debug;
         use sui::table;
 
         let admin = @0xFFFF;
         let scenario = test_scenario::begin(admin);
 
         let vault = new_vault(test_scenario::ctx(&mut scenario));
-        debug::print(&vault);
         assert!(table::length(&vault.sub_vaults) == 3, 1);
         assert!(vault.able_to_deposit && vault.able_to_withdraw, 2);
         test_scenario::end(scenario);
