@@ -143,9 +143,9 @@ module typus_dov::dutch {
 
         let owner = tx_context::sender(ctx);
         let ownership = table::borrow_mut(&mut auction.ownerships, owner);
-        let (bid_exist, index) = vector::index_of(ownership, &index);
+        let (bid_exist, vector_index) = vector::index_of(ownership, &index);
         assert!(bid_exist, E_BID_NOT_EXISTS);
-        vector::swap_remove(ownership, index);
+        vector::swap_remove(ownership, vector_index);
         table::remove(&mut auction.bids, index);
         let Fund {
             coin,
