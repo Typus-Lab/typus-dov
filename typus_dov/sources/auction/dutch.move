@@ -120,19 +120,20 @@ module typus_dov::dutch {
                 ownership,
             )
         };
-        emit(NewBid{
+
+        emit(NewBid<TOKEN>{
+            index,
             price,
             size,
-            ts_ms,
             coin_value,
-            index,
+            ts_ms,
             owner
         });
     }
 
     public fun remove_bid<MANAGER, TOKEN>(
         auction: &mut Auction<MANAGER, TOKEN>,
-        bid_index: u64,
+        index: u64,
         time: &Time,
         ctx: &mut TxContext,
     ) {
@@ -142,20 +143,21 @@ module typus_dov::dutch {
 
         let owner = tx_context::sender(ctx);
         let ownership = table::borrow_mut(&mut auction.ownerships, owner);
-        let (bid_exist, index) = vector::index_of(ownership, &bid_index);
+        let (bid_exist, index) = vector::index_of(ownership, &index);
         assert!(bid_exist, E_BID_NOT_EXISTS);
         vector::swap_remove(ownership, index);
-        table::remove(&mut auction.bids, bid_index);
+        table::remove(&mut auction.bids, index);
         let Fund {
             coin,
             owner,
-        } = table::remove(&mut auction.funds, bid_index);
+        } = table::remove(&mut auction.funds, index);
         let coin_value = coin::value(&coin);
         transfer::transfer(coin, owner);
-        emit(RemoveBid{
-            ts_ms,
+
+        emit(RemoveBid<TOKEN>{
+            index,
             coin_value,
-            index: bid_index,
+            ts_ms,
             owner
         });
     }
@@ -247,19 +249,19 @@ module typus_dov::dutch {
 
     // ======== Events =========
 
-    struct NewBid has copy, drop {
+    struct NewBid<phantom TOKEN> has copy, drop {
+        index: u64,
         price: u64,
         size: u64,
-        ts_ms: u64,
         coin_value: u64,
-        index: u64,
+        ts_ms: u64,
         owner: address,
     }
 
-    struct RemoveBid has copy, drop {
-        ts_ms: u64,
-        coin_value: u64,
+    struct RemoveBid<phantom TOKEN> has copy, drop {
         index: u64,
+        coin_value: u64,
+        ts_ms: u64,
         owner: address,
     }
 
