@@ -510,7 +510,6 @@ module typus_covered_call::covered_call {
             time,
             ctx,
         );
-        // TODO: we should add emit event in the dutch module (with price)
     }
 
     public(friend) entry fun remove_bid<TOKEN>(
@@ -529,7 +528,6 @@ module typus_covered_call::covered_call {
             time,
             ctx,
         );
-        // TODO: we should add emit event in the dutch module (with price)
     }
 
     public(friend) entry fun delivery<TOKEN>(
@@ -543,7 +541,6 @@ module typus_covered_call::covered_call {
             &mut registry.id,
             index
         );
-        // TODO: missing time check in `dutch::delivery`
         let (balance, maker_shares) = dutch::delivery<ManagerCap, TOKEN>(
             manager_cap,
             option::borrow_mut(&mut covered_call_vault.auction),
