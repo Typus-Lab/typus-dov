@@ -103,6 +103,8 @@ module typus_covered_call::covered_call {
             option::none(),
         );
 
+        // TODO: should check expiration_ts_ms > now
+
         let config = Config { payoff_config, expiration_ts_ms };
         let vault = vault::new_vault<ManagerCap, TOKEN>(ctx);
         let index = registry.num_of_vault;
@@ -148,6 +150,11 @@ module typus_covered_call::covered_call {
         );
         vault::disable_deposit(manager_cap, &mut covered_call_vault.vault);
         vault::disable_withdraw(manager_cap, &mut covered_call_vault.vault);
+
+        // TODO: should check start_ts_ms > now
+        // TODO: should check end_ts_ms > start_ts_ms
+        // TODO: should check initial_price > final_price
+
         option::fill(
             &mut covered_call_vault.auction,
             dutch::new(
