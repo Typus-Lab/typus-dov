@@ -231,27 +231,16 @@ module typus_dov::vault {
         assert!(amount > 0, E_ZERO_AMOUNT);
 
         let user = tx_context::sender(ctx);
-        let sub_vault_type = if (is_rolling) {
-            deposit_<MANAGER, TOKEN>(
-                vault,
-                C_VAULT_ROLLING,
-                balance::split(coin::balance_mut(coin), amount),
-                user,
-            );
 
-            C_VAULT_ROLLING
-        }
-        else {
-            deposit_<MANAGER, TOKEN>(
-                vault,
-                C_VAULT_REGULAR,
-                balance::split(coin::balance_mut(coin), amount),
-                user,
-            );
+        let sub_vault_type = if (is_rolling) C_VAULT_ROLLING else C_VAULT_REGULAR;
 
-            C_VAULT_REGULAR
-        };
-
+        deposit_<MANAGER, TOKEN>(
+            vault,
+            sub_vault_type,
+            balance::split(coin::balance_mut(coin), amount),
+            user,
+        );
+        
         emit(UserDeposit<MANAGER, TOKEN> { user, sub_vault_type, amount });
     }
 
@@ -264,28 +253,17 @@ module typus_dov::vault {
         assert!(vault_initialized(vault), E_ALREADY_ACTIVATED);
 
         let user = tx_context::sender(ctx);
-        let (balance, sub_vault_type, share, amount) = if (is_rolling) {
-            let (share, balance) = withdraw_<MANAGER, TOKEN>(
-                vault,
-                C_VAULT_ROLLING,
-                amount,
-                user,
-            );
-            let amount = balance::value(&balance);
 
-            (balance, C_VAULT_ROLLING, share, amount)
-        }
-        else {
-            let (share, balance) = withdraw_<MANAGER, TOKEN>(
-                vault,
-                C_VAULT_REGULAR,
-                amount,
-                user,
-            );
-            let amount = balance::value(&balance);
+        let sub_vault_type = if (is_rolling) C_VAULT_ROLLING else C_VAULT_REGULAR;
 
-            (balance, C_VAULT_REGULAR, share, amount)
-        };
+        let (share, balance) = withdraw_<MANAGER, TOKEN>(
+            vault,
+            sub_vault_type,
+            amount,
+            user,
+        );
+        let amount = balance::value(&balance);
+
         transfer::transfer(coin::from_balance(balance, ctx), user);
 
         emit(UserWithdraw<MANAGER, TOKEN> { user, sub_vault_type, share, amount });
@@ -300,28 +278,18 @@ module typus_dov::vault {
         assert!(vault_settled(vault), E_NOT_YET_SETTLED);
         
         let user = tx_context::sender(ctx);
-        let (balance, sub_vault_type, share, amount) = if (is_rolling) {
-            let (share, balance) = withdraw_<MANAGER, TOKEN>(
-                vault,
-                C_VAULT_ROLLING,
-                amount,
-                user,
-            );
-            let amount = balance::value(&balance);
 
-            (balance, C_VAULT_ROLLING, share, amount)
-        }
-        else {
-            let (share, balance) = withdraw_<MANAGER, TOKEN>(
-                vault,
-                C_VAULT_REGULAR,
-                amount,
-                user,
-            );
-            let amount = balance::value(&balance);
+        let sub_vault_type = if (is_rolling) C_VAULT_ROLLING else C_VAULT_REGULAR;
 
-            (balance, C_VAULT_REGULAR, share, amount)
-        };
+        let (share, balance) = withdraw_<MANAGER, TOKEN>(
+            vault,
+            sub_vault_type,
+            amount,
+            user,
+        );
+        
+        let amount = balance::value(&balance);
+
         transfer::transfer(coin::from_balance(balance, ctx), user);
 
         emit(UserClaim<MANAGER, TOKEN> { user, sub_vault_type, share, amount });
