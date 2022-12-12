@@ -401,7 +401,7 @@ module typus_covered_call::covered_call {
     ) {
         vault::withdraw<ManagerCap, TOKEN>(
             &mut get_mut_covered_call_vault<TOKEN>(registry, index).vault,
-            if (amount == 0) { option::none() } else { option::some(amount) },
+            if (amount == 0) option::none() else option::some(amount),
             is_rolling,
             ctx
         );
@@ -416,7 +416,7 @@ module typus_covered_call::covered_call {
     ) {
         vault::claim<ManagerCap, TOKEN>(
             &mut get_mut_covered_call_vault<TOKEN>(registry, index).vault,
-            if (amount == 0) { option::none() } else { option::some(amount) },
+            if (amount == 0) option::none() else option::some(amount),
             is_rolling,
             ctx
         );
@@ -450,7 +450,7 @@ module typus_covered_call::covered_call {
     ) {
         vault::maker_claim<ManagerCap, TOKEN>(
             &mut get_mut_covered_call_vault<TOKEN>(registry, index).vault,
-            if (amount == 0) { option::none() } else { option::some(amount) },
+            if (amount == 0) option::none() else option::some(amount),
             ctx
         );
     }
