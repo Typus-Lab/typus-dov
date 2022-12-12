@@ -14,7 +14,8 @@ module typus_dov::dutch {
     const E_ZERO_SIZE: u64 = 0;
     const E_BID_NOT_EXISTS: u64 = 1;
     const E_AUCTION_NOT_YET_STARTED: u64 = 2;
-    const E_AUCTION_CLOSED: u64 = 3;
+    const E_AUCTION_NOT_YET_CLOSED: u64 = 3;
+    const E_AUCTION_CLOSED: u64 = 4;
 
     // ======== Structs ========
 
@@ -157,7 +158,10 @@ module typus_dov::dutch {
         _manager_cap: &MANAGER,
         auction: &mut Auction<MANAGER, TOKEN>,
         size: u64,
+        time: &Time,
     ): (Balance<TOKEN>, VecMap<address, u64>) {
+        assert!(unix_time::get_ts_ms(time) > auction.end_ts_ms, E_AUCTION_NOT_YET_CLOSED);
+
         let balance = balance::zero();
         // calculate decayed price
         let delivery_price = auction.price_config.initial_price;
@@ -215,6 +219,8 @@ module typus_dov::dutch {
             };
             index = index + 1;
         };
+
+        auction.index = 0;
 
         (balance, winners)
     }
