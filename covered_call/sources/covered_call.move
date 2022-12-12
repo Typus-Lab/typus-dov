@@ -371,13 +371,13 @@ module typus_covered_call::covered_call {
     public(friend) entry fun withdraw<TOKEN>(
         registry: &mut Registry,
         index: u64,
-        amount: Option<u64>,
+        amount: u64,
         is_rolling: bool,
         ctx: &mut TxContext
     ) {
         vault::withdraw<ManagerCap, TOKEN>(
             &mut get_mut_covered_call_vault<TOKEN>(registry, index).vault,
-            amount,
+            if (amount == 0) { option::none() } else { option::some(amount) },
             is_rolling,
             ctx
         );
@@ -386,13 +386,13 @@ module typus_covered_call::covered_call {
     public(friend) entry fun claim<TOKEN>(
         registry: &mut Registry,
         index: u64,
-        amount: Option<u64>,
+        amount: u64,
         is_rolling: bool,
         ctx: &mut TxContext
     ) {
         vault::claim<ManagerCap, TOKEN>(
             &mut get_mut_covered_call_vault<TOKEN>(registry, index).vault,
-            amount,
+            if (amount == 0) { option::none() } else { option::some(amount) },
             is_rolling,
             ctx
         );
@@ -421,12 +421,12 @@ module typus_covered_call::covered_call {
     public(friend) entry fun maker_claim<TOKEN>(
         registry: &mut Registry,
         index: u64,
-        amount: Option<u64>,
+        amount: u64,
         ctx: &mut TxContext
     ) {
         vault::maker_claim<ManagerCap, TOKEN>(
             &mut get_mut_covered_call_vault<TOKEN>(registry, index).vault,
-            amount,
+            if (amount == 0) { option::none() } else { option::some(amount) },
             ctx
         );
     }
