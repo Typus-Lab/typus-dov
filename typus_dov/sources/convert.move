@@ -64,6 +64,18 @@ module typus_dov::convert{
         bytes
     }
 
+    public fun u256_to_bytes(value: u256): vector<u8> {
+        let bytes = vector::empty();
+        while (value > 0) {
+            let ascii_byte = ((value % 10 + 48) as u8);
+            vector::push_back(&mut bytes, ascii_byte);
+            value = value / 10;
+        };
+        vector::reverse(&mut bytes);
+
+        bytes
+    }
+
     public fun u8_to_string(value: u8): String {
         let bytes = u8_to_bytes(value);
 
@@ -90,6 +102,12 @@ module typus_dov::convert{
 
     public fun u128_to_string(value: u128): String {
         let bytes = u128_to_bytes(value);
+
+        string::utf8(bytes)
+    }
+
+    public fun u256_to_string(value: u256): String {
+        let bytes = u256_to_bytes(value);
 
         string::utf8(bytes)
     }
@@ -169,6 +187,21 @@ module typus_dov::convert{
         result
     }
 
+    public fun string_to_u256(value: String): u256 {
+        let result = 0;
+        let bytes = string::bytes(&value);
+        let index = 0;
+        let length = vector::length(bytes);
+        while (index < length) {
+            let digit = (*vector::borrow(bytes, index) as u256);
+            assert!(digit >= 48 && digit <= 57, 0);
+            result = result * 10 + (digit - 48);
+            index = index + 1;
+        };
+
+        result
+    }
+
     #[test]
     fun test_string_number_string_convert() {
         use std::string;
@@ -188,5 +221,8 @@ module typus_dov::convert{
         let max = string::utf8(b"u128 max: ");
         string::append(&mut max, u128_to_string(string_to_u128(string::utf8(b"340282366920938463463374607431768211455"))));
         assert!(*string::bytes(&max) == b"u128 max: 340282366920938463463374607431768211455" , 0);
+        let max = string::utf8(b"u256 max: ");
+        string::append(&mut max, u256_to_string(string_to_u256(string::utf8(b"115792089237316195423570985008687907853269984665640564039457584007913129639935"))));
+        assert!(*string::bytes(&max) == b"u256 max: 115792089237316195423570985008687907853269984665640564039457584007913129639935" , 0);
     }
 }
