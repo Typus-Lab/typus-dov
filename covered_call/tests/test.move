@@ -255,11 +255,19 @@ module typus_covered_call::test {
         debug::print(&string::utf8(b"sell size:"));
         debug::print(&sell_size);
 
+        unix_time::update(
+            &mut time_oracle,
+            &unix_time_manager_cap,
+            end_auction_ts_ms + 1,
+            test_scenario::ctx(scenario)
+        );
+
         covered_call::delivery<SUI>(
             &manager_cap,
             &mut registry,
             1,
-            sell_size
+            sell_size,
+            &time_oracle
         );
 
         // after auction
