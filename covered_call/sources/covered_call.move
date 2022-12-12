@@ -537,6 +537,7 @@ module typus_covered_call::covered_call {
         registry: &mut Registry,
         index: u64,
         size: u64, // total auction size
+        time: &Time,
     ) {
         let covered_call_vault = dynamic_field::borrow_mut<u64, CoveredCallVault<TOKEN>>(
             &mut registry.id,
@@ -547,6 +548,7 @@ module typus_covered_call::covered_call {
             manager_cap,
             option::borrow_mut(&mut covered_call_vault.auction),
             size,
+            time
         );
         vault::maker_deposit(
             manager_cap,
