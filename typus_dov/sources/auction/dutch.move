@@ -6,6 +6,7 @@ module typus_dov::dutch {
     use sui::transfer;
     use sui::tx_context::{Self, TxContext};
     use sui::vec_map::{Self, VecMap};
+    use sui::event::emit;
 
     use typus_oracle::unix_time::{Self, Time};
 
@@ -78,8 +79,9 @@ module typus_dov::dutch {
         time: &Time,
         ctx: &mut TxContext,
     ) {
-        assert!(unix_time::get_ts_ms(time) >= auction.start_ts_ms, E_AUCTION_NOT_YET_STARTED);
-        assert!(unix_time::get_ts_ms(time) <= auction.end_ts_ms, E_AUCTION_CLOSED);
+        let ts_ms = unix_time::get_ts_ms(time);
+        assert!(ts_ms >= auction.start_ts_ms, E_AUCTION_NOT_YET_STARTED);
+        assert!(ts_ms <= auction.end_ts_ms, E_AUCTION_CLOSED);
         assert!(size != 0, E_ZERO_SIZE);
 
         let index = auction.index;
@@ -91,14 +93,16 @@ module typus_dov::dutch {
             Bid {
                 price,
                 size,
-                ts_ms: unix_time::get_ts_ms(time),
+                ts_ms,
             }
         );
+        let coin = coin::split(coin, price * size, ctx);
+        let coin_value = coin::value(&coin);
         table::add(
             &mut auction.funds,
             index,
             Fund {
-                coin: coin::split(coin, price * size, ctx),
+                coin,
                 owner,
             }
         );
@@ -115,29 +119,47 @@ module typus_dov::dutch {
                 owner,
                 ownership,
             )
-        }
+        };
+
+        emit(NewBid<TOKEN>{
+            index,
+            price,
+            size,
+            coin_value,
+            ts_ms,
+            owner
+        });
     }
 
     public fun remove_bid<MANAGER, TOKEN>(
         auction: &mut Auction<MANAGER, TOKEN>,
-        bid_index: u64,
+        index: u64,
         time: &Time,
         ctx: &mut TxContext,
     ) {
-        assert!(unix_time::get_ts_ms(time) >= auction.start_ts_ms, E_AUCTION_NOT_YET_STARTED);
-        assert!(unix_time::get_ts_ms(time) <= auction.end_ts_ms, E_AUCTION_CLOSED);
+        let ts_ms = unix_time::get_ts_ms(time);
+        assert!(ts_ms >= auction.start_ts_ms, E_AUCTION_NOT_YET_STARTED);
+        assert!(ts_ms <= auction.end_ts_ms, E_AUCTION_CLOSED);
 
         let owner = tx_context::sender(ctx);
         let ownership = table::borrow_mut(&mut auction.ownerships, owner);
-        let (bid_exist, index) = vector::index_of(ownership, &bid_index);
+        let (bid_exist, vector_index) = vector::index_of(ownership, &index);
         assert!(bid_exist, E_BID_NOT_EXISTS);
-        vector::swap_remove(ownership, index);
-        table::remove(&mut auction.bids, bid_index);
+        vector::swap_remove(ownership, vector_index);
+        table::remove(&mut auction.bids, index);
         let Fund {
             coin,
             owner,
-        } = table::remove(&mut auction.funds, bid_index);
+        } = table::remove(&mut auction.funds, index);
+        let coin_value = coin::value(&coin);
         transfer::transfer(coin, owner);
+
+        emit(RemoveBid<TOKEN>{
+            index,
+            coin_value,
+            ts_ms,
+            owner
+        });
     }
 
     public fun get_decayed_price<MANAGER, TOKEN>(
@@ -223,6 +245,24 @@ module typus_dov::dutch {
         auction.index = 0;
 
         (balance, winners)
+    }
+
+    // ======== Events =========
+
+    struct NewBid<phantom TOKEN> has copy, drop {
+        index: u64,
+        price: u64,
+        size: u64,
+        coin_value: u64,
+        ts_ms: u64,
+        owner: address,
+    }
+
+    struct RemoveBid<phantom TOKEN> has copy, drop {
+        index: u64,
+        coin_value: u64,
+        ts_ms: u64,
+        owner: address,
     }
 
     // ======== Private Functions ========

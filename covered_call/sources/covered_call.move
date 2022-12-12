@@ -7,6 +7,7 @@ module typus_covered_call::covered_call {
     use sui::object::{Self, UID};
     use sui::transfer;
     use sui::tx_context::{Self, TxContext};
+    use sui::event::emit;
 
     use typus_covered_call::payoff::{Self, PayoffConfig};
     use typus_dov::asset;
@@ -87,7 +88,7 @@ module typus_covered_call::covered_call {
         registry: &mut Registry,
         expiration_ts_ms: u64,
         asset_name: vector<u8>,
-        strike_otm_pct: u64,
+        strike_otm_pct: u64, // in 4 decimal
         price_oracle: &Oracle<TOKEN>,
         ctx: &mut TxContext
     ): u64 {
@@ -117,6 +118,15 @@ module typus_covered_call::covered_call {
             }
         );
         registry.num_of_vault = registry.num_of_vault + 1;
+
+        let object_addr = object::id_address(price_oracle);
+
+        emit(VaultCreated<TOKEN>{
+            expiration_ts_ms,
+            asset_name,
+            strike_otm_pct,
+            price_oracle: object_addr,
+        });
 
         index
     }
@@ -149,6 +159,14 @@ module typus_covered_call::covered_call {
                 ctx,
             )
         );
+        emit(NewAuction{
+            index,
+            start_ts_ms,
+            end_ts_ms,
+            decay_speed,
+            initial_price,
+            final_price,
+        });
     }
 
     fun get_mut_covered_call_vault<TOKEN>(
@@ -297,6 +315,12 @@ module typus_covered_call::covered_call {
             is_rolling,
             ctx
         );
+        emit(Deposit{
+            index,
+            amount,
+            is_rolling,
+            user: tx_context::sender(ctx)
+        });
     }
 
     public(friend) entry fun new_auction<TOKEN>(
@@ -377,7 +401,7 @@ module typus_covered_call::covered_call {
     ) {
         vault::withdraw<ManagerCap, TOKEN>(
             &mut get_mut_covered_call_vault<TOKEN>(registry, index).vault,
-            if (amount == 0) { option::none() } else { option::some(amount) },
+            if (amount == 0) option::none() else option::some(amount),
             is_rolling,
             ctx
         );
@@ -392,7 +416,7 @@ module typus_covered_call::covered_call {
     ) {
         vault::claim<ManagerCap, TOKEN>(
             &mut get_mut_covered_call_vault<TOKEN>(registry, index).vault,
-            if (amount == 0) { option::none() } else { option::some(amount) },
+            if (amount == 0) option::none() else option::some(amount),
             is_rolling,
             ctx
         );
@@ -426,7 +450,7 @@ module typus_covered_call::covered_call {
     ) {
         vault::maker_claim<ManagerCap, TOKEN>(
             &mut get_mut_covered_call_vault<TOKEN>(registry, index).vault,
-            if (amount == 0) { option::none() } else { option::some(amount) },
+            if (amount == 0) option::none() else option::some(amount),
             ctx
         );
     }
@@ -486,6 +510,7 @@ module typus_covered_call::covered_call {
             time,
             ctx,
         );
+        // TODO: we should add emit event in the dutch module (with price)
     }
 
     public(friend) entry fun remove_bid<TOKEN>(
@@ -504,22 +529,26 @@ module typus_covered_call::covered_call {
             time,
             ctx,
         );
+        // TODO: we should add emit event in the dutch module (with price)
     }
 
     public(friend) entry fun delivery<TOKEN>(
         manager_cap: &ManagerCap,
         registry: &mut Registry,
         index: u64,
-        size: u64,
+        size: u64, // total auction size
+        time: &Time,
     ) {
         let covered_call_vault = dynamic_field::borrow_mut<u64, CoveredCallVault<TOKEN>>(
             &mut registry.id,
             index
         );
+        // TODO: missing time check in `dutch::delivery`
         let (balance, maker_shares) = dutch::delivery<ManagerCap, TOKEN>(
             manager_cap,
             option::borrow_mut(&mut covered_call_vault.auction),
             size,
+            time
         );
         vault::maker_deposit(
             manager_cap,
@@ -578,20 +607,29 @@ module typus_covered_call::covered_call {
 
     // ======== Events =========
 
-    // struct RegistryCreated<phantom phantom CONFIG> has copy, drop { id: ID }
-    // struct VaultCreated<phantom phantom TOKEN, CONFIG, phantom AUCTION> has copy, drop {config: CONFIG }
+    struct VaultCreated<phantom TOKEN> has copy, drop {
+        expiration_ts_ms: u64,
+        asset_name: vector<u8>,
+        strike_otm_pct: u64,
+        price_oracle: address
+    }
 
-    // struct VaultCreated has copy, drop {
-    //     asset: String,
-    //     expiration_ts: u64,
-    //     strike: u64,
-    // }
+    struct Deposit has copy, drop {
+        index: u64,
+        amount: u64,
+        is_rolling: bool,
+        user: address
+    }
 
-    // struct VaultDeposit has copy, drop {
-    //     index: u64,
-    //     amount: u64,
-    //     rolling: bool,
-    // }
+    struct NewAuction has copy, drop {
+        index: u64,
+        start_ts_ms: u64,
+        end_ts_ms: u64,
+        decay_speed: u64,
+        initial_price: u64,
+        final_price: u64,
+    }
+
 
     // ======== Test =========
 
