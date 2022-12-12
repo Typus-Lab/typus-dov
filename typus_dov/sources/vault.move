@@ -7,7 +7,6 @@ module typus_dov::vault {
     use sui::transfer;
     use sui::tx_context::{Self, TxContext};
     use sui::vec_map::{Self, VecMap};
-
     use typus_dov::linked_list::{Self, LinkedList};
     use typus_dov::utils;
 
@@ -868,6 +867,44 @@ module typus_dov::vault {
         let settled_share_price = 10000;
         let share_price_decimal = 3;
         settle_fund(&manager_cap, &mut vault, settled_share_price, share_price_decimal);
+        test_scenario::next_tx(&mut scenario, admin);
+        test_scenario::return_to_sender<TestManagerCap>(&scenario, manager_cap);
+        test_scenario::end(scenario);
+        vault
+    }
+
+    #[test]
+    public fun test_rolling_success(): Vault<TestManagerCap, sui::sui::SUI>  {
+        use sui::test_scenario;
+
+        let vault = test_deposit_success();
+        test_maker_deposit(&mut vault);
+
+        let admin = @0xFFFF;
+        let user1 = @0xBABE1;
+        let scenario = test_scenario::begin(admin);
+
+        init_test_manager(test_scenario::ctx(&mut scenario));
+        test_scenario::next_tx(&mut scenario, admin);
+        let manager_cap = test_scenario::take_from_sender<TestManagerCap>(&scenario);
+        
+        // admin disables deposit
+        disable_deposit(&manager_cap, &mut vault);
+        // admin disables withdraw
+        disable_withdraw(&manager_cap, &mut vault);
+ 
+        test_scenario::next_tx(&mut scenario, user1);
+        let settled_share_price = 10000;
+        let share_price_decimal = 3;
+        settle_fund(&manager_cap, &mut vault, settled_share_price, share_price_decimal);
+
+        let (balance, scaled_user_shares) =  prepare_rolling(&manager_cap, &mut vault);
+
+        // admin enables deposit
+        enable_deposit(&manager_cap, &mut vault);
+
+        rock_n_roll(&manager_cap, &mut vault, balance, scaled_user_shares);
+
         test_scenario::next_tx(&mut scenario, admin);
         test_scenario::return_to_sender<TestManagerCap>(&scenario, manager_cap);
         test_scenario::end(scenario);
