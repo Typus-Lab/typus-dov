@@ -244,7 +244,7 @@ module typus_dov::sealed {
             coin,
             owner,
         } = table::remove(&mut auction.funds, bid_index);
-        let coin_returned = balance::value(coin::balance(&coin));
+        let coin_returned = coin::value(&coin);
         transfer::transfer(coin, owner);
 
         emit(
@@ -321,7 +321,7 @@ module typus_dov::sealed {
                 // partially filled
                 else {
                     balance::join(balance, balance::split(coin::balance_mut(&mut coin), bid_price * bid_size));
-                    let coin_returned = balance::value(coin::balance(&coin));
+                    let coin_returned = coin::value(&coin);
                     transfer::transfer(coin, owner);
                     size = 0;
                     emit(
@@ -336,7 +336,7 @@ module typus_dov::sealed {
                 };
             }
             else {
-                let balance = balance::value(coin::balance(&coin));
+                let balance = coin::value(&coin);
                 transfer::transfer(coin, owner);
                 emit(
                     DepositForfeited{
