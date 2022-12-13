@@ -12,7 +12,6 @@ module typus_covered_call::test {
     use std::option;
 
     use typus_dov::i64;
-    use typus_dov::asset;
     use typus_dov::vault;
     use typus_dov::utils;
     use typus_oracle::oracle::{Self, Oracle};
@@ -31,40 +30,20 @@ module typus_covered_call::test {
         };
 
         test_scenario::next_tx(scenario, admin);
-        {
-            let manager_cap = test_scenario::take_from_sender<ManagerCap>(scenario);
-            let registry = test_scenario::take_shared<Registry>(scenario);
-            let price_decimal = 8;
-            oracle::new_oracle<SUI>(price_decimal, test_scenario::ctx(scenario));
-            test_scenario::next_tx(scenario, admin);
-            let price_oracle = test_scenario::take_shared<Oracle<SUI>>(scenario);
-            test_scenario::next_tx(scenario, admin);
-            let oracle_key = test_scenario::take_from_address<oracle::Key<SUI>>(scenario, admin);
+        let manager_cap = test_scenario::take_from_sender<ManagerCap>(scenario);
+        let registry = test_scenario::take_shared<Registry>(scenario);
 
-            oracle::update(
-                &mut price_oracle,
-                &oracle_key,
-                98,
-                10000000,
-                test_scenario::ctx(scenario)
-            );
+        covered_call::new_covered_call_vault<SUI>(
+            &manager_cap,
+            &mut registry,
+            1,
+            105,
+            test_scenario::ctx(scenario)
+        );
+        test_scenario::return_to_sender<ManagerCap>(scenario, manager_cap);
+        test_scenario::return_shared(registry);
 
-            covered_call::new_covered_call_vault<SUI>(
-                &manager_cap,
-                &mut registry,
-                1,
-                b"BTC",
-                105,
-                &price_oracle,
-                test_scenario::ctx(scenario)
-            );
-            test_scenario::return_to_sender<ManagerCap>(scenario, manager_cap);
-            test_scenario::return_shared(registry);
-            transfer::transfer(oracle_key, admin);
-            transfer::share_object(price_oracle);
-        };
         test_scenario::next_tx(scenario, admin);
-        debug::print(&string::utf8(b"vault created"));
         scenario_val
     }
 
@@ -73,41 +52,32 @@ module typus_covered_call::test {
         let admin = @0x1;
         let scenario_val = test_new_vault();
         let scenario = &mut scenario_val;
-        
         let registry = test_scenario::take_shared<Registry>(scenario);
-
         let balance = balance::create_for_testing<SUI>(1000);
-
         let coin = coin::from_balance(balance, test_scenario::ctx(scenario));
 
         test_scenario::next_tx(scenario, admin);
-
         covered_call::deposit<SUI>(&mut registry, 0, &mut coin, 1000, true, test_scenario::ctx(scenario));
 
-        test_scenario::next_tx(scenario, admin);
-
+        
         let current_vault = covered_call::test_get_vault<SUI>(
             &mut registry,
             0
         );
-
         let share = vault::test_get_user_share<ManagerCap, SUI>(current_vault, b"rolling", admin);
 
         assert!(share == 1000, 0);
 
-        debug::print(&string::utf8(b"Share: "));
-        debug::print(&share);
-
         test_scenario::return_shared(registry);
         transfer::transfer(coin, admin);
 
+        test_scenario::next_tx(scenario, admin);
         scenario_val
     }
 
     #[test]
     fun test_get_covered_call_payoff_by_price() {
         let payoff_config = payoff::new_payoff_config(
-            asset::new_asset(b"BTC", 5000, 8),
             2000,
             option::some<u64>(6000),
             option::some<u64>(1000000),
@@ -163,9 +133,7 @@ module typus_covered_call::test {
             &manager_cap,
             &mut registry,
             expiration_ts_ms_1,
-            b"BTC",
             2000,
-            &price_oracle,
             test_scenario::ctx(scenario)
         );
 
@@ -208,9 +176,7 @@ module typus_covered_call::test {
             initial_option_price,
             final_option_price,
             expiration_ts_ms_2,
-            b"BTC",
             2000,
-            &price_oracle,
             test_scenario::ctx(scenario)
         );
         // new maker bid
@@ -349,28 +315,12 @@ module typus_covered_call::test {
         let registry = test_scenario::take_shared<Registry>(scenario);
         let manager_cap = test_scenario::take_from_sender<ManagerCap>(scenario);
 
-        oracle::new_oracle<SUI>(8, test_scenario::ctx(scenario));
-        test_scenario::next_tx(scenario, admin);
-        let price_oracle = test_scenario::take_shared<Oracle<SUI>>(scenario);
-        test_scenario::next_tx(scenario, admin);
-        let oracle_key = test_scenario::take_from_address<oracle::Key<SUI>>(scenario, admin);
-        oracle::update(
-            &mut price_oracle,
-            &oracle_key,
-            98,
-            10000000,
-            test_scenario::ctx(scenario)
-        );
-
-
         // init covered call vault 1
         covered_call::new_covered_call_vault<SUI>(
             &manager_cap,
             &mut registry,
             1,
-            b"BTC",
             105,
-            &price_oracle,
             test_scenario::ctx(scenario)
         );
 
@@ -407,8 +357,6 @@ module typus_covered_call::test {
         test_scenario::return_shared(registry); 
         test_scenario::next_tx(scenario, admin);
         test_scenario::return_to_sender<ManagerCap>(scenario, manager_cap);
-        transfer::transfer(oracle_key, tx_context::sender(test_scenario::ctx(scenario)));
-        transfer::share_object(price_oracle);
 
         test_scenario::end(scenario_val);
     }

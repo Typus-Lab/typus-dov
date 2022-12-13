@@ -2,7 +2,6 @@ module typus_covered_call::payoff {
     use std::option::{Self, Option};
     use typus_dov::i64::{Self, I64};
     use typus_dov::utils;
-    use typus_dov::asset::Asset;
 
     friend typus_covered_call::covered_call;
 
@@ -21,7 +20,6 @@ module typus_covered_call::payoff {
     // ======== Structs =========
 
     struct PayoffConfig has store, drop, copy {
-        asset: Asset,
         strike_otm_pct: u64,
         strike: Option<u64>,
         premium_roi: Option<u64>,
@@ -38,13 +36,11 @@ module typus_covered_call::payoff {
     }
     
     public(friend) fun new_payoff_config(
-        asset: Asset,
         strike_otm_pct: u64,
         strike: Option<u64>,
         premium_roi: Option<u64>,
     ): PayoffConfig {
         PayoffConfig {
-            asset,
             strike_otm_pct,
             strike,
             premium_roi,

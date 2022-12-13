@@ -10,7 +10,6 @@ module typus_covered_call::covered_call {
     use sui::event::emit;
 
     use typus_covered_call::payoff::{Self, PayoffConfig};
-    use typus_dov::asset;
     use typus_dov::dutch::{Self, Auction};
     use typus_dov::i64;
     use typus_dov::vault::{Self, Vault};
@@ -87,17 +86,11 @@ module typus_covered_call::covered_call {
         _manager_cap: &ManagerCap,
         registry: &mut Registry,
         expiration_ts_ms: u64,
-        asset_name: vector<u8>,
         strike_otm_pct: u64, // in 4 decimal
-        price_oracle: &Oracle<TOKEN>,
         ctx: &mut TxContext
     ): u64 {
-        let (price, price_decimal, _, _) = oracle::get_oracle<TOKEN>(
-            price_oracle
-        );
 
         let payoff_config = payoff::new_payoff_config(
-            asset::new_asset(asset_name, price, price_decimal),
             strike_otm_pct,
             option::none(),
             option::none(),
@@ -121,13 +114,10 @@ module typus_covered_call::covered_call {
         );
         registry.num_of_vault = registry.num_of_vault + 1;
 
-        let object_addr = object::id_address(price_oracle);
 
         emit(VaultCreated<TOKEN>{
             expiration_ts_ms,
-            asset_name,
             strike_otm_pct,
-            price_oracle: object_addr,
         });
 
         index
@@ -242,18 +232,14 @@ module typus_covered_call::covered_call {
         manager_cap: &ManagerCap,
         registry: &mut Registry,
         expiration_ts_ms: u64,
-        asset_name: vector<u8>,
         strike_otm_pct: u64,
-        price_oracle: &Oracle<TOKEN>,
         ctx: &mut TxContext
     ) {
         new_covered_call_vault_<TOKEN>(
             manager_cap,
             registry,
             expiration_ts_ms,
-            asset_name,
             strike_otm_pct,
-            price_oracle,
             ctx,
         );
     }
@@ -364,18 +350,14 @@ module typus_covered_call::covered_call {
         initial_price: u64,
         final_price: u64,
         expiration_ts_ms: u64,
-        asset_name: vector<u8>,
         strike_otm_pct: u64,
-        price_oracle: &Oracle<TOKEN>,
         ctx: &mut TxContext,
     ) {
         let next = new_covered_call_vault_<TOKEN>(
             manager_cap,
             registry,
             expiration_ts_ms,
-            asset_name,
             strike_otm_pct,
-            price_oracle,
             ctx,
         );
         option::fill(
@@ -613,9 +595,7 @@ module typus_covered_call::covered_call {
 
     struct VaultCreated<phantom TOKEN> has copy, drop {
         expiration_ts_ms: u64,
-        asset_name: vector<u8>,
         strike_otm_pct: u64,
-        price_oracle: address
     }
 
     struct Deposit has copy, drop {
