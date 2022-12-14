@@ -293,7 +293,14 @@ module typus_dov::dutch {
     }
 
     #[test_only]
-    struct TestManagerCap { }
+    struct TestManagerCap has drop {
+    }
+
+    #[test_only]
+    fun init_test_manager(): TestManagerCap {
+            TestManagerCap {
+            }
+    }
 
     #[test]
     fun test_decay_formula() {
@@ -474,6 +481,39 @@ module typus_dov::dutch {
         test_scenario::next_tx(&mut scenario, admin);
         test_scenario::return_to_sender(&scenario, key); 
         test_scenario::return_shared(time); 
+        test_scenario::end(scenario);
+
+        auction
+    }
+
+    #[test]
+    fun test_auction_delivery_success(): Auction<TestManagerCap, sui::sui::SUI> {
+        use typus_oracle::unix_time::{Self, Time, Key};
+        use sui::test_scenario;
+        use sui::vec_map;
+        use std::debug;
+
+        let auction = test_auction_new_bid();
+        let admin = @0xFFFF;
+
+        let scenario = test_scenario::begin(admin);
+        unix_time::new_time(test_scenario::ctx(&mut scenario));
+        test_scenario::next_tx(&mut scenario, admin);
+        let time = test_scenario::take_shared<Time>(&scenario);
+        let key = test_scenario::take_from_address<Key>(&scenario, admin);
+     
+        // update time
+        unix_time::update(&mut time, &key, auction.end_ts_ms + 1, test_scenario::ctx(&mut scenario)) ;
+
+        let manager_cap = init_test_manager();
+        let (balance, winners) = delivery(&manager_cap,  &mut auction, 100,  &time);
+        assert!(vec_map::size(&winners) >= 0, 1);
+        debug::print(&winners);
+
+        test_scenario::next_tx(&mut scenario, admin);
+        test_scenario::return_to_sender(&scenario, key); 
+        test_scenario::return_shared(time); 
+        coin::destroy_for_testing(coin::from_balance(balance, test_scenario::ctx(&mut scenario)));
         test_scenario::end(scenario);
 
         auction
