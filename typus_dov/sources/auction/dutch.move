@@ -320,7 +320,7 @@ module typus_dov::dutch {
         assert!(price == 4937500, 1);
     }
 
-    #[test]
+  #[test]
     fun test_auction_new_auction(): Auction<TestManagerCap, sui::sui::SUI> {
         use sui::test_scenario;
 
@@ -332,7 +332,7 @@ module typus_dov::dutch {
         ////////////////////////////////////////////////////////////////////////////////////
         let start_ts_ms = 1669338020;
         let end_ts_ms = 1669338020 + 60*60*24*2;
-        let decay_speed = 10;
+        let decay_speed = 1;
         let initial_price = 10000;
         let final_price = 100;
         
@@ -387,9 +387,12 @@ module typus_dov::dutch {
         let bid = table::borrow(&auction.bids, 0);
         assert!(auction.index == 1, 1);
         assert!(bid.size == 1, 1);
-        assert!(bid.price == 10000, 1);
+        assert!(bid.price == 9997, 1);
         // debug::print(&bid.price);
-
+        let fund_0 = table::borrow(&auction.funds, 0);
+        assert!(fund_0.owner == user1, 1);
+        assert!(coin::value(&fund_0.coin) == bid.price * bid.size, 1);
+        
         // update time
         unix_time::update(&mut time, &key, auction.start_ts_ms + 60*60*10, test_scenario::ctx(&mut scenario)) ;
 
@@ -408,8 +411,14 @@ module typus_dov::dutch {
         let bid = table::borrow(&auction.bids, 1);
         assert!(auction.index == 2, 1);
         assert!(bid.size == 2, 1);
-        assert!(bid.price == 10000, 1);
+        assert!(bid.price == 7938, 1);
         // debug::print(&bid.price);
+        let fund_1 = table::borrow(&auction.funds, 1);
+        assert!(fund_1.owner == user2, 1);
+        assert!(coin::value(&fund_1.coin) == bid.price * bid.size, 1);
+
+        // update time
+        unix_time::update(&mut time, &key, auction.start_ts_ms + 60*60*11, test_scenario::ctx(&mut scenario)) ;
 
         ///////////////////////////////////////////////
         // new another bid with user 2
@@ -423,7 +432,14 @@ module typus_dov::dutch {
             &time,
             test_scenario::ctx(&mut scenario)
         );
-    
+
+        let bid = table::borrow(&auction.bids, 2);
+        // debug::print(&bid.price);
+        
+        let fund_2 = table::borrow(&auction.funds, 2);
+        assert!(fund_2.owner == user2, 1);
+        assert!(coin::value(&fund_2.coin) == bid.price * bid.size, 1);
+
         ///////////////////////////////////////////////
         // new bid with user 3
         // size: 33, owner: user3
@@ -449,6 +465,12 @@ module typus_dov::dutch {
             &time,
             test_scenario::ctx(&mut scenario)
         );
+
+        // check ownerships
+        assert!(table::length(&auction.ownerships) == 4, 1);
+        assert!(*vector::borrow(table::borrow(&auction.ownerships, user1), 0) == 0, 1);
+        assert!(*vector::borrow(table::borrow(&auction.ownerships, user2), 0) == 1, 1);
+        assert!(*vector::borrow(table::borrow(&auction.ownerships, user2), 1) == 2, 1);
 
         test_scenario::next_tx(&mut scenario, admin);
         coin::destroy_for_testing(coin);
