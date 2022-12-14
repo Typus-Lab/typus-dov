@@ -1,6 +1,5 @@
 module typus_dov::dutch {
     use std::vector;
-    use std::option;
 
     use sui::balance::{Self, Balance};
     use sui::coin::{Self, Coin};
@@ -218,9 +217,8 @@ module typus_dov::dutch {
                         this_size = size;
                     };
                     balance::join(&mut balance, balance::split(coin::balance_mut(&mut coin), delivery_price * this_size));
-                    let b_size_option = vec_map::get_idx_opt(&winners, &owner);
-                    if (option::is_some(&b_size_option)){
-                        let b_size = option::borrow_mut(&mut b_size_option);
+                    if (vec_map::contains(&winners, &owner)){
+                        let b_size = vec_map::get_mut(&mut winners, &owner);
                         *b_size = *b_size + this_size;
                     } else {
                         vec_map::insert(
@@ -415,7 +413,7 @@ module typus_dov::dutch {
 
         ///////////////////////////////////////////////
         // new another bid with user 2
-        // size: 1, owner: user2
+        // size: 3, owner: user2
         /////////////////////////////////////////////
         test_scenario::next_tx(&mut scenario, user2);
         new_bid(
@@ -536,6 +534,9 @@ module typus_dov::dutch {
 
         let auction = test_auction_new_bid();
         let admin = @0xFFFF;
+        let user1 = @0xBABE1;
+        let user2 = @0xBABE2;
+        let user3 = @0xBABE3;
 
         let scenario = test_scenario::begin(admin);
         unix_time::new_time(test_scenario::ctx(&mut scenario));
@@ -548,9 +549,13 @@ module typus_dov::dutch {
 
         let manager_cap = init_test_manager();
         let (balance, winners) = delivery(&manager_cap,  &mut auction, 10,  &time);
-        assert!(vec_map::size(&winners) >= 0, 1);
-        debug::print(&winners);
+        assert!(vec_map::size(&winners) == 3, 1);
+        assert!(*vec_map::get(&winners, &user1) == 1, 1);
+        assert!(*vec_map::get(&winners, &user2) == 5, 1);
+        assert!(*vec_map::get(&winners, &user3) == 4, 1);
 
+        debug::print(&balance); // CHECK
+        
         test_scenario::next_tx(&mut scenario, admin);
         test_scenario::return_to_sender(&scenario, key); 
         test_scenario::return_shared(time); 
