@@ -1,5 +1,7 @@
 module typus_dov::dutch {
     use std::vector;
+    use std::option;
+
     use sui::balance::{Self, Balance};
     use sui::coin::{Self, Coin};
     use sui::table::{Self, Table};
@@ -205,32 +207,30 @@ module typus_dov::dutch {
             if (table::contains(&auction.bids, index)) {
                 // get market maker bid and fund
                 let bid = table::remove(&mut auction.bids, index);
-                let Fund {
-                    coin,
-                    owner
-                } = table::remove(&mut auction.funds, index);
+                let Fund { coin, owner } = table::remove(&mut auction.funds, index);
                 if (size > 0) {
-                    // filled
+                    let this_size: u64;
                     if (bid.size <= size) {
-                        balance::join(&mut balance, balance::split(coin::balance_mut(&mut coin), delivery_price * bid.size));
-                        size = size - bid.size;
+                        // filled
+                        this_size = bid.size;
+                    } else {
+                        // partially filled
+                        this_size = size;
+                    };
+                    balance::join(&mut balance, balance::split(coin::balance_mut(&mut coin), delivery_price * this_size));
+                    let b_size_option = vec_map::get_idx_opt(&winners, &owner);
+                    if (option::is_some(&b_size_option)){
+                        let b_size = option::borrow_mut(&mut b_size_option);
+                        *b_size = *b_size + this_size;
+                    } else {
                         vec_map::insert(
                             &mut winners,
                             owner,
-                            bid.size,
+                            this_size,
                         );
-                    }
-                    // partially filled
-                    else {
-                        balance::join(&mut balance, balance::split(coin::balance_mut(&mut coin), delivery_price * size));
-                        vec_map::insert(
-                            &mut winners,
-                            owner,
-                            size,
-                        );
-                        size = 0;
                     };
 
+                    size = size - this_size;
                 };
                 if (coin::value(&coin) != 0) {
                     transfer::transfer(coin, owner);
