@@ -18,13 +18,14 @@
    ```c
    sui client call --gas-budget 10000 --package $TYPUS_ORACLE --module "oracle" --function "new_oracle" --type-args $BTC_CONTRACT_ADDRESS::btc::BTC --args 8
    ```
-6. update [typus-oracle README.md](https://github.com/Typus-Lab/typus-oracle/blob/main/README.md) addresses
-7. deploy [typus_dov](https://github.com/Typus-Lab/typus-dov/tree/main/typus_dov)
-8. update [typus_dov Move.toml](https://github.com/Typus-Lab/typus-dov/blob/main/typus_dov/Move.toml) `typus_dov` address
-9. update [typus_dov README.md](https://github.com/Typus-Lab/typus-dov/blob/main/typus_dov/README.md) addresses
-10. deploy [covered_call](https://github.com/Typus-Lab/typus-dov/tree/main/covered_call)
-11. update [covered_call README.md](https://github.com/Typus-Lab/typus-dov/blob/main/covered_call/README.md) addresses
-12. send `new_covered_call_vault` transaction
+6. update [typus-cranker](https://github.com/Typus-Lab/typus-rust)
+7. update [typus-oracle README.md](https://github.com/Typus-Lab/typus-oracle/blob/main/README.md) addresses
+8. deploy [typus_dov](https://github.com/Typus-Lab/typus-dov/tree/main/typus_dov)
+9. update [typus_dov Move.toml](https://github.com/Typus-Lab/typus-dov/blob/main/typus_dov/Move.toml) `typus_dov` address
+10. update [typus_dov README.md](https://github.com/Typus-Lab/typus-dov/blob/main/typus_dov/README.md) addresses
+11. deploy [covered_call](https://github.com/Typus-Lab/typus-dov/tree/main/covered_call)
+12. update [covered_call README.md](https://github.com/Typus-Lab/typus-dov/blob/main/covered_call/README.md) addresses
+13. send `new_covered_call_vault` transaction
     ```c
     sui client call --package $COVERED_CALL_PACKAGE_ADDRESS --module covered_call --function new_covered_call_vault --type-args 0x2::sui::SUI --args $COVERED_CALL_MANAGER_CAP_ADDRESS $COVERED_CALL_REGISTRY_ADDRESS 1672531200000 2000 --gas-budget 10000
     ```
