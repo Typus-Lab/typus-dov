@@ -27,6 +27,7 @@ module typus_covered_call::covered_call {
     // ======== Errors ========
     const E_VAULT_NOT_EXPIRED_YET: u64 = 0;
     const E_INDEX_AND_FLAG_LENGTH_MISMATCH: u64 = 1;
+    const E_INVALID_NEW_AUCTION: u64 = 2;
 
     // ======== Structs =========
 
@@ -142,8 +143,8 @@ module typus_covered_call::covered_call {
         vault::disable_withdraw(manager_cap, &mut covered_call_vault.vault);
 
         // TODO: should check start_ts_ms > now
-        // TODO: should check end_ts_ms > start_ts_ms
-        // TODO: should check initial_price > final_price
+        assert!(end_ts_ms > start_ts_ms, E_INVALID_NEW_AUCTION);
+        assert!(initial_price > final_price, E_INVALID_NEW_AUCTION);
 
         option::fill(
             &mut covered_call_vault.auction,

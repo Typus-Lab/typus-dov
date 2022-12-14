@@ -1,5 +1,6 @@
 module typus_dov::dutch {
     use std::vector;
+
     use sui::balance::{Self, Balance};
     use sui::coin::{Self, Coin};
     use sui::table::{Self, Table};
@@ -185,7 +186,7 @@ module typus_dov::dutch {
         assert!(unix_time::get_ts_ms(time) > auction.end_ts_ms, E_AUCTION_NOT_YET_CLOSED);
 
         let balance = balance::zero();
-        // calculate decayed price
+        // to get the delivery_price
         let delivery_price = auction.price_config.initial_price;
         let index = 0;
         let sum = 0;
@@ -198,39 +199,35 @@ module typus_dov::dutch {
             index = index + 1;
         };
 
-        // delivery
         let winners = vec_map::empty();
         let index = 0;
         while (!table::is_empty(&auction.bids)) {
             if (table::contains(&auction.bids, index)) {
                 // get market maker bid and fund
                 let bid = table::remove(&mut auction.bids, index);
-                let Fund {
-                    coin,
-                    owner
-                } = table::remove(&mut auction.funds, index);
+                let Fund { coin, owner } = table::remove(&mut auction.funds, index);
                 if (size > 0) {
-                    // filled
+                    let this_size: u64;
                     if (bid.size <= size) {
-                        balance::join(&mut balance, balance::split(coin::balance_mut(&mut coin), delivery_price * bid.size));
-                        size = size - bid.size;
+                        // filled
+                        this_size = bid.size;
+                    } else {
+                        // partially filled
+                        this_size = size;
+                    };
+                    balance::join(&mut balance, balance::split(coin::balance_mut(&mut coin), delivery_price * this_size));
+                    if (vec_map::contains(&winners, &owner)){
+                        let b_size = vec_map::get_mut(&mut winners, &owner);
+                        *b_size = *b_size + this_size;
+                    } else {
                         vec_map::insert(
                             &mut winners,
                             owner,
-                            bid.size,
+                            this_size,
                         );
-                    }
-                    // partially filled
-                    else {
-                        balance::join(&mut balance, balance::split(coin::balance_mut(&mut coin), delivery_price * size));
-                        vec_map::insert(
-                            &mut winners,
-                            owner,
-                            size,
-                        );
-                        size = 0;
                     };
 
+                    size = size - this_size;
                 };
                 if (coin::value(&coin) != 0) {
                     transfer::transfer(coin, owner);
@@ -293,7 +290,14 @@ module typus_dov::dutch {
     }
 
     #[test_only]
-    struct TestManagerCap { }
+    struct TestManagerCap has drop {
+    }
+
+    #[test_only]
+    fun init_test_manager(): TestManagerCap {
+            TestManagerCap {
+            }
+    }
 
     #[test]
     fun test_decay_formula() {
@@ -315,7 +319,7 @@ module typus_dov::dutch {
         assert!(price == 4937500, 1);
     }
 
-    #[test]
+  #[test]
     fun test_auction_new_auction(): Auction<TestManagerCap, sui::sui::SUI> {
         use sui::test_scenario;
 
@@ -327,7 +331,7 @@ module typus_dov::dutch {
         ////////////////////////////////////////////////////////////////////////////////////
         let start_ts_ms = 1669338020;
         let end_ts_ms = 1669338020 + 60*60*24*2;
-        let decay_speed = 10;
+        let decay_speed = 1;
         let initial_price = 10000;
         let final_price = 100;
         
@@ -353,6 +357,8 @@ module typus_dov::dutch {
         let admin = @0xFFFF;
         let user1 = @0xBABE1;
         let user2 = @0xBABE2;
+        let user3 = @0xBABE3;
+        let user4 = @0xBABE4;
         let scenario = test_scenario::begin(admin);
 
         let coin = coin::mint_for_testing<SUI>(1000000, test_scenario::ctx(&mut scenario));
@@ -380,9 +386,12 @@ module typus_dov::dutch {
         let bid = table::borrow(&auction.bids, 0);
         assert!(auction.index == 1, 1);
         assert!(bid.size == 1, 1);
-        assert!(bid.price == 10000, 1);
+        assert!(bid.price == 9997, 1);
         // debug::print(&bid.price);
-
+        let fund_0 = table::borrow(&auction.funds, 0);
+        assert!(fund_0.owner == user1, 1);
+        assert!(coin::value(&fund_0.coin) == bid.price * bid.size, 1);
+        
         // update time
         unix_time::update(&mut time, &key, auction.start_ts_ms + 60*60*10, test_scenario::ctx(&mut scenario)) ;
 
@@ -401,8 +410,66 @@ module typus_dov::dutch {
         let bid = table::borrow(&auction.bids, 1);
         assert!(auction.index == 2, 1);
         assert!(bid.size == 2, 1);
-        assert!(bid.price == 10000, 1);
+        assert!(bid.price == 7938, 1);
         // debug::print(&bid.price);
+        let fund_1 = table::borrow(&auction.funds, 1);
+        assert!(fund_1.owner == user2, 1);
+        assert!(coin::value(&fund_1.coin) == bid.price * bid.size, 1);
+
+        // update time
+        unix_time::update(&mut time, &key, auction.start_ts_ms + 60*60*11, test_scenario::ctx(&mut scenario)) ;
+
+        ///////////////////////////////////////////////
+        // new another bid with user 2
+        // size: 3, owner: user2
+        /////////////////////////////////////////////
+        test_scenario::next_tx(&mut scenario, user2);
+        new_bid(
+            &mut auction,
+            3,
+            &mut coin,
+            &time,
+            test_scenario::ctx(&mut scenario)
+        );
+
+        let bid = table::borrow(&auction.bids, 2);
+        // debug::print(&bid.price);
+        
+        let fund_2 = table::borrow(&auction.funds, 2);
+        assert!(fund_2.owner == user2, 1);
+        assert!(coin::value(&fund_2.coin) == bid.price * bid.size, 1);
+
+        ///////////////////////////////////////////////
+        // new bid with user 3
+        // size: 33, owner: user3
+        /////////////////////////////////////////////
+        test_scenario::next_tx(&mut scenario, user3);
+        new_bid(
+            &mut auction,
+            33,
+            &mut coin,
+            &time,
+            test_scenario::ctx(&mut scenario)
+        );
+
+        ///////////////////////////////////////////////
+        // new bid with user 4
+        // size: 1, owner: user4
+        /////////////////////////////////////////////
+        test_scenario::next_tx(&mut scenario, user4);
+        new_bid(
+            &mut auction,
+            1,
+            &mut coin,
+            &time,
+            test_scenario::ctx(&mut scenario)
+        );
+
+        // check ownerships
+        assert!(table::length(&auction.ownerships) == 4, 1);
+        assert!(*vector::borrow(table::borrow(&auction.ownerships, user1), 0) == 0, 1);
+        assert!(*vector::borrow(table::borrow(&auction.ownerships, user2), 0) == 1, 1);
+        assert!(*vector::borrow(table::borrow(&auction.ownerships, user2), 1) == 2, 1);
 
         test_scenario::next_tx(&mut scenario, admin);
         coin::destroy_for_testing(coin);
@@ -474,6 +541,44 @@ module typus_dov::dutch {
         test_scenario::next_tx(&mut scenario, admin);
         test_scenario::return_to_sender(&scenario, key); 
         test_scenario::return_shared(time); 
+        test_scenario::end(scenario);
+
+        auction
+    }
+
+    #[test]
+    fun test_auction_delivery_success(): Auction<TestManagerCap, sui::sui::SUI> {
+        use typus_oracle::unix_time::{Self, Time, Key};
+        use sui::test_scenario;
+        use sui::vec_map;
+
+        let auction = test_auction_new_bid();
+        let admin = @0xFFFF;
+        let user1 = @0xBABE1;
+        let user2 = @0xBABE2;
+        let user3 = @0xBABE3;
+
+        let scenario = test_scenario::begin(admin);
+        unix_time::new_time(test_scenario::ctx(&mut scenario));
+        test_scenario::next_tx(&mut scenario, admin);
+        let time = test_scenario::take_shared<Time>(&scenario);
+        let key = test_scenario::take_from_address<Key>(&scenario, admin);
+     
+        // update time
+        unix_time::update(&mut time, &key, auction.end_ts_ms + 1, test_scenario::ctx(&mut scenario)) ;
+
+        let manager_cap = init_test_manager();
+        let (balance, winners) = delivery(&manager_cap,  &mut auction, 10,  &time);
+        assert!(vec_map::size(&winners) == 3, 1);
+        assert!(*vec_map::get(&winners, &user1) == 1, 1);
+        assert!(*vec_map::get(&winners, &user2) == 5, 1);
+        assert!(*vec_map::get(&winners, &user3) == 4, 1);
+        assert!(balance::value(&balance) == 77320, 1);
+
+        test_scenario::next_tx(&mut scenario, admin);
+        test_scenario::return_to_sender(&scenario, key); 
+        test_scenario::return_shared(time); 
+        coin::destroy_for_testing(coin::from_balance(balance, test_scenario::ctx(&mut scenario)));
         test_scenario::end(scenario);
 
         auction
