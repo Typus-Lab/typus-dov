@@ -186,7 +186,7 @@ module typus_dov::dutch {
         assert!(unix_time::get_ts_ms(time) > auction.end_ts_ms, E_AUCTION_NOT_YET_CLOSED);
 
         let balance = balance::zero();
-        // calculate decayed price
+        // to get the delivery_price
         let delivery_price = auction.price_config.initial_price;
         let index = 0;
         let sum = 0;
@@ -199,7 +199,6 @@ module typus_dov::dutch {
             index = index + 1;
         };
 
-        // delivery
         let winners = vec_map::empty();
         let index = 0;
         while (!table::is_empty(&auction.bids)) {
@@ -552,7 +551,6 @@ module typus_dov::dutch {
         use typus_oracle::unix_time::{Self, Time, Key};
         use sui::test_scenario;
         use sui::vec_map;
-        use std::debug;
 
         let auction = test_auction_new_bid();
         let admin = @0xFFFF;
@@ -575,9 +573,8 @@ module typus_dov::dutch {
         assert!(*vec_map::get(&winners, &user1) == 1, 1);
         assert!(*vec_map::get(&winners, &user2) == 5, 1);
         assert!(*vec_map::get(&winners, &user3) == 4, 1);
+        assert!(balance::value(&balance) == 77320, 1);
 
-        debug::print(&balance); // CHECK
-        
         test_scenario::next_tx(&mut scenario, admin);
         test_scenario::return_to_sender(&scenario, key); 
         test_scenario::return_shared(time); 
