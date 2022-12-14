@@ -360,6 +360,8 @@ module typus_dov::dutch {
         let admin = @0xFFFF;
         let user1 = @0xBABE1;
         let user2 = @0xBABE2;
+        let user3 = @0xBABE3;
+        let user4 = @0xBABE4;
         let scenario = test_scenario::begin(admin);
 
         let coin = coin::mint_for_testing<SUI>(1000000, test_scenario::ctx(&mut scenario));
@@ -410,6 +412,45 @@ module typus_dov::dutch {
         assert!(bid.size == 2, 1);
         assert!(bid.price == 10000, 1);
         // debug::print(&bid.price);
+
+        ///////////////////////////////////////////////
+        // new another bid with user 2
+        // size: 1, owner: user2
+        /////////////////////////////////////////////
+        test_scenario::next_tx(&mut scenario, user2);
+        new_bid(
+            &mut auction,
+            3,
+            &mut coin,
+            &time,
+            test_scenario::ctx(&mut scenario)
+        );
+    
+        ///////////////////////////////////////////////
+        // new bid with user 3
+        // size: 33, owner: user3
+        /////////////////////////////////////////////
+        test_scenario::next_tx(&mut scenario, user3);
+        new_bid(
+            &mut auction,
+            33,
+            &mut coin,
+            &time,
+            test_scenario::ctx(&mut scenario)
+        );
+
+        ///////////////////////////////////////////////
+        // new bid with user 4
+        // size: 1, owner: user4
+        /////////////////////////////////////////////
+        test_scenario::next_tx(&mut scenario, user4);
+        new_bid(
+            &mut auction,
+            1,
+            &mut coin,
+            &time,
+            test_scenario::ctx(&mut scenario)
+        );
 
         test_scenario::next_tx(&mut scenario, admin);
         coin::destroy_for_testing(coin);
@@ -506,7 +547,7 @@ module typus_dov::dutch {
         unix_time::update(&mut time, &key, auction.end_ts_ms + 1, test_scenario::ctx(&mut scenario)) ;
 
         let manager_cap = init_test_manager();
-        let (balance, winners) = delivery(&manager_cap,  &mut auction, 100,  &time);
+        let (balance, winners) = delivery(&manager_cap,  &mut auction, 10,  &time);
         assert!(vec_map::size(&winners) >= 0, 1);
         debug::print(&winners);
 
