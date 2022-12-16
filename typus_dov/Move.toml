@@ -4,7 +4,7 @@ version = "0.0.1"
 
 [dependencies]
 Sui = { git = "https://github.com/MystenLabs/sui.git", subdir = "crates/sui-framework", rev = "devnet" }
-typus_oracle = { git = "https://github.com/Typus-Lab/typus-oracle.git", rev = "main" }
+typus_oracle = { git = "https://github.com/Typus-Lab/typus-oracle.git", rev = "hotfix/uaction_size" }
 
 [addresses]
 typus_dov = "0xbbc2f6c0b478e765d270427d38ebe0bca6d1597b"

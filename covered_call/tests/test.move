@@ -147,6 +147,7 @@ module typus_covered_call::test {
         let _option_price_multiplier = utils::multiplier(option_price_decimal);
         let initial_option_price = 500_000_000;
         let final_option_price = 100_000_000;
+        let option_price_decimal = 8;
         let start_auction_ts_ms = expiration_ts_ms_1 - 1000;
         let end_auction_ts_ms = start_auction_ts_ms + 500;
         oracle::update(
@@ -175,6 +176,7 @@ module typus_covered_call::test {
             2,
             initial_option_price,
             final_option_price,
+            option_price_decimal,
             expiration_ts_ms_2,
             2000,
             test_scenario::ctx(scenario)

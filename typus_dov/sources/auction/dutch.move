@@ -35,6 +35,7 @@ module typus_dov::dutch {
         decay_speed: u64,
         initial_price: u64,
         final_price: u64,
+        price_decimal: u64,
     }
 
     struct Bid has copy, drop, store {
@@ -336,8 +337,17 @@ module typus_dov::dutch {
         let decay_speed = 1;
         let initial_price = 10000;
         let final_price = 100;
+        let price_decimal = 8;
         
-        let auction = new(start_ts_ms, end_ts_ms, decay_speed, initial_price, final_price, test_scenario::ctx(&mut admin_scenario));
+        let auction = new(
+            start_ts_ms, 
+            end_ts_ms, 
+            decay_speed, 
+            initial_price, 
+            final_price, 
+            price_decimal, 
+            test_scenario::ctx(&mut admin_scenario)
+        );
         assert!(auction.start_ts_ms == start_ts_ms, 1);
         assert!(auction.index == 0, 1);
 
