@@ -56,6 +56,7 @@ module typus_dov::dutch {
         decay_speed: u64,
         initial_price: u64,
         final_price: u64,
+        price_decimal: u64,
         ctx: &mut TxContext,
     ): Auction<MANAGER, TOKEN> {
         Auction {
@@ -65,6 +66,7 @@ module typus_dov::dutch {
                 decay_speed,
                 initial_price,
                 final_price,
+                price_decimal
             },
             index: 0,
             bids: table::new(ctx),
