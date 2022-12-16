@@ -110,16 +110,17 @@ module typus_dov::vault {
 
         if (settled_share_price > multiplier) {
             // user receives balance from maker
-            let payoff = total_balance * (settled_share_price - multiplier) / multiplier;
+            let payoff = (total_balance as u128) * ((settled_share_price - multiplier) as u128) / (multiplier as u128);
             // transfer balance from maker to rolling users
             let rolling_share_supply = get_sub_vault<MANAGER, TOKEN>(
                 vault, C_VAULT_ROLLING
             ).share_supply;
+            let payoff_balance = payoff * (rolling_share_supply as u128) / (total_share_supply as u128);
             let balance = balance::split<TOKEN>(
                 &mut get_mut_sub_vault<MANAGER, TOKEN>(
                     vault, C_VAULT_MAKER
                 ).balance,
-                payoff * rolling_share_supply / total_share_supply
+                (payoff_balance as u64)
             );
             balance::join(
                 &mut get_mut_sub_vault<MANAGER, TOKEN>(
@@ -128,11 +129,12 @@ module typus_dov::vault {
                 balance
             );
             // transfer balance from maker to regular users
+            let payoff_balance = payoff * ((total_share_supply - rolling_share_supply) as u128) / (total_share_supply as u128);
             let balance = balance::split<TOKEN>(
                 &mut get_mut_sub_vault<MANAGER, TOKEN>(
                     vault, C_VAULT_MAKER
                 ).balance,
-                payoff * (total_share_supply - rolling_share_supply) / total_share_supply
+                (payoff_balance as u64)
             );
             balance::join(
                 &mut get_mut_sub_vault<MANAGER, TOKEN>(
@@ -143,7 +145,7 @@ module typus_dov::vault {
         }
         else if (settled_share_price < multiplier) {
             // maker receives balance from users
-            let payoff = total_balance * (multiplier - settled_share_price) / multiplier;
+            let payoff = (total_balance as u128) * ((multiplier - settled_share_price) as u128) / (multiplier as u128);
             // transfer balance from rolling users to maker
             let rolling_share_supply = get_sub_vault<MANAGER, TOKEN>(
                 vault, C_VAULT_ROLLING
@@ -152,7 +154,7 @@ module typus_dov::vault {
                 &mut get_mut_sub_vault<MANAGER, TOKEN>(
                     vault, C_VAULT_ROLLING
                 ).balance,
-                payoff * rolling_share_supply / total_share_supply
+                ((payoff * (rolling_share_supply as u128) / (total_share_supply as u128)) as u64)
             );
             balance::join(
                 &mut get_mut_sub_vault<MANAGER, TOKEN>(
@@ -165,7 +167,7 @@ module typus_dov::vault {
                 &mut get_mut_sub_vault<MANAGER, TOKEN>(
                     vault, C_VAULT_REGULAR
                 ).balance,
-                payoff * (total_share_supply - rolling_share_supply) / total_share_supply
+                ((payoff * ((total_share_supply - rolling_share_supply) as u128) / (total_share_supply as u128)) as u64)
             );
             balance::join(
                 &mut get_mut_sub_vault<MANAGER, TOKEN>(
@@ -196,8 +198,8 @@ module typus_dov::vault {
             vec_map::insert(
                 &mut scaled_user_shares,
                 *user,
-                *linked_list::borrow(user_shares, *user) * total_balance / *share_supply
-            );
+                ((*linked_list::borrow(user_shares, *user) as u128) * (total_balance as u128) / (*share_supply as u128) as u64)
+        );
             index = linked_list::next(user_shares, *user);
         };
 
@@ -444,8 +446,8 @@ module typus_dov::vault {
         // remove share
         let share = remove_share(sub_vault, user, share);
         // extract balance
-        let balance_amount = balance::value(&sub_vault.balance) * share / share_supply;
-        (share, balance::split<TOKEN>(&mut sub_vault.balance, balance_amount))
+        let balance_amount = (balance::value(&sub_vault.balance) as u128) * (share as u128) / (share_supply as u128);
+        (share, balance::split<TOKEN>(&mut sub_vault.balance, (balance_amount as u64)))
     }
 
     fun add_share<TOKEN>(sub_vault: &mut SubVault<TOKEN>, user: address, share: u64) {
@@ -462,7 +464,7 @@ module typus_dov::vault {
         if (linked_list::contains(&sub_vault.user_shares, user)) {
             if (option::is_some(&share)) {
                 let share = option::extract(&mut share);
-                if (share < *linked_list::borrow(&mut sub_vault.user_shares, user)) {
+                if (share < *linked_list::borrow(& sub_vault.user_shares, user)) {
                     let user_share = linked_list::borrow_mut(&mut sub_vault.user_shares, user);
                     *user_share = *user_share - share;
                     sub_vault.share_supply = sub_vault.share_supply - share;
@@ -591,8 +593,8 @@ module typus_dov::vault {
         let maker2 = @0xBABA2;
 
         let scenario = test_scenario::begin(admin);
-        let coin = coin::mint_for_testing<SUI>(1000000, test_scenario::ctx(&mut scenario));
-        let coin2 = coin::mint_for_testing<SUI>(1000000, test_scenario::ctx(&mut scenario));
+        let coin = coin::mint_for_testing<SUI>(10000000000, test_scenario::ctx(&mut scenario));
+        let coin2 = coin::mint_for_testing<SUI>(10000000000, test_scenario::ctx(&mut scenario));
         test_scenario::next_tx(&mut scenario, admin);
         init_test_manager(test_scenario::ctx(&mut scenario));
         test_scenario::next_tx(&mut scenario, admin);
@@ -614,7 +616,7 @@ module typus_dov::vault {
         maker_deposit(&manager_cap, vault, coin::into_balance(coin2),  maker_shares);
        
         let sub_vault = get_mut_sub_vault<TestManagerCap, sui::sui::SUI>(vault, C_VAULT_MAKER);
-        assert!(balance::value(&sub_vault.balance) == 2000000, 2);
+        assert!(balance::value(&sub_vault.balance) == 20000000000, 2);
 
         test_scenario::next_tx(&mut scenario, admin);
         test_scenario::return_to_sender<TestManagerCap>(&scenario, manager_cap);
@@ -641,7 +643,6 @@ module typus_dov::vault {
         use sui::test_scenario;
         use sui::coin;
         use sui::sui::SUI;
-        // use std::debug;
         use typus_dov::linked_list;
 
         let vault = test_new_vault();
@@ -649,11 +650,11 @@ module typus_dov::vault {
         let admin = @0xFFFF;
         let user1 = @0xBABE1;
         let scenario = test_scenario::begin(admin);
-        let coin = coin::mint_for_testing<SUI>(1000000, test_scenario::ctx(&mut scenario));
+        let coin = coin::mint_for_testing<SUI>(10000000000, test_scenario::ctx(&mut scenario));
         test_scenario::next_tx(&mut scenario, user1);
 
-        let init_amount = 100;
-        let add_amount = 200;
+        let init_amount = 8000000000;
+        let add_amount = 2000000000;
         // deposit for the first time
         deposit(&mut vault, &mut coin, init_amount, true, test_scenario::ctx(&mut scenario) );
         let sub_vault = get_mut_sub_vault<TestManagerCap, sui::sui::SUI>(&mut vault, C_VAULT_ROLLING);
@@ -692,10 +693,10 @@ module typus_dov::vault {
         // admin disables deposit
         disable_deposit(&manager_cap, &mut vault);
 
-        let coin = coin::mint_for_testing<SUI>(1000000, test_scenario::ctx(&mut scenario));
+        let coin = coin::mint_for_testing<SUI>(10000000000, test_scenario::ctx(&mut scenario));
         // try to deposit
         test_scenario::next_tx(&mut scenario, user1);
-        let deposit_amount = 100;
+        let deposit_amount = 10000000000;
         deposit(&mut vault, &mut coin, deposit_amount, true, test_scenario::ctx(&mut scenario) );
    
         coin::destroy_for_testing(coin);
@@ -736,7 +737,6 @@ module typus_dov::vault {
         use sui::test_scenario;
         use sui::coin;
         use sui::sui::SUI;
-        // use std::debug;
         use typus_dov::linked_list;
         
         let vault = test_deposit_success();
@@ -744,11 +744,11 @@ module typus_dov::vault {
         let admin = @0xFFFF;
         let user1 = @0xBABE1;
         let scenario = test_scenario::begin(admin);
-        let coin = coin::mint_for_testing<SUI>(1000000, test_scenario::ctx(&mut scenario));
+        let coin = coin::mint_for_testing<SUI>(10000000000, test_scenario::ctx(&mut scenario));
         test_scenario::next_tx(&mut scenario, user1);
 
-        let deposit_amount = 300;
-        let withdraw_amount_first = 50;
+        let deposit_amount = 10000000000;
+        let withdraw_amount_first = 5000000000;
        
         // withdraw for the first time
         let sub_vault_before = get_mut_sub_vault<TestManagerCap, sui::sui::SUI>(&mut vault, C_VAULT_ROLLING);
@@ -785,7 +785,7 @@ module typus_dov::vault {
         let user1 = @0xBABE1;
         let scenario = test_scenario::begin(user1);
 
-        let deposit_amount = 300;
+        let deposit_amount = 10000000000;
         let withdraw_amount = deposit_amount + 1;
        
         // withdraw with amount larger than previous deposit amount
@@ -836,7 +836,6 @@ module typus_dov::vault {
     #[test]
     public fun test_settle_fund_success(): Vault<TestManagerCap, sui::sui::SUI>  {
         use sui::test_scenario;
-        // use std::debug;
 
         let vault = test_deposit_success();
         test_maker_deposit(&mut vault);
@@ -855,7 +854,7 @@ module typus_dov::vault {
         disable_withdraw(&manager_cap, &mut vault);
  
         test_scenario::next_tx(&mut scenario, user1);
-        let settled_share_price = 10000;
+        let settled_share_price = 975; // -2.5%
         let share_price_decimal = 3;
         settle_fund(&manager_cap, &mut vault, settled_share_price, share_price_decimal);
         test_scenario::next_tx(&mut scenario, admin);
@@ -885,7 +884,7 @@ module typus_dov::vault {
         disable_withdraw(&manager_cap, &mut vault);
  
         test_scenario::next_tx(&mut scenario, user1);
-        let settled_share_price = 10000;
+        let settled_share_price = 1015; // +1.5%
         let share_price_decimal = 3;
         settle_fund(&manager_cap, &mut vault, settled_share_price, share_price_decimal);
 
