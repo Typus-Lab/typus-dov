@@ -14,6 +14,7 @@ module typus_dov::sealed {
     use std::hash;
     use typus_oracle::unix_time::{Self, Time};
     use sui::event::emit;
+    use sui::vec_map::{Self, VecMap};
 
     const E_ZERO_PRICE: u64 = 0;
     const E_ZERO_SIZE: u64 = 1;
@@ -264,20 +265,23 @@ module typus_dov::sealed {
         table::borrow(&auction.ownerships, owner)
     }
 
-    public fun delivery<Token>(
+    public fun delivery<MANAGER, Token>(
+        _manager_cap: &MANAGER,
         auction: &mut Auction<Token>,
         price: u64,
         size: u64,
-        balance: &mut Balance<Token>,
         time: &Time,
-    ) {
+    ): (Balance<Token>, VecMap<address, u64>) {
         let current_timestamp = unix_time::get_ts_ms(time);
         assert!( current_timestamp >= auction.reveal_closing_time, E_REVEAL_NOT_CLOSED);
-        
+        let balance = balance::zero();
+        let winners = vec_map::empty();
+
         // find valid bids and unvealed bids
         let bids = vector::empty();
         let unrevealed_bids = vector::empty();
         let index = auction.index;
+
         while (index > 0) {
             if (table::contains(&auction.bids, index - 1)) {
                 let bid = table::borrow(&mut auction.bids, index - 1);
@@ -304,46 +308,56 @@ module typus_dov::sealed {
             let bid_price= *option::borrow<u64>(&bid.price);
             let bid_size= *option::borrow<u64>(&bid.size);
             if (bid_price >= price && size > 0) {
-                // filled
+                let this_size: u64;
                 if (bid_size <= size) {
-                    balance::join(balance, coin::into_balance(coin));
-                    size = size - bid_size;
-                    emit(
-                        SealedBidDelivered{
-                            bid_index: bid.index,
-                            owner,
-                            price: bid_price,
-                            delivered_size: bid_size,
-                            coin_returned: 0,
-                        }
-                    )
-                }
-                // partially filled
-                else {
-                    balance::join(balance, balance::split(coin::balance_mut(&mut coin), bid_price * bid_size));
-                    let coin_returned = coin::value(&coin);
+                    // filled
+                    this_size = bid_size;
+                } else {
+                    // partially filled
+                    this_size = size;
+                };
+                size = size - this_size;
+
+                balance::join(&mut balance, balance::split(coin::balance_mut(&mut coin), bid_price * this_size));
+                let coin_returned = coin::value(&coin);
+                if (coin_returned != 0) {
                     transfer::transfer(coin, owner);
-                    size = 0;
-                    emit(
-                        SealedBidDelivered{
-                            bid_index: bid.index,
-                            owner,
-                            price: bid_price,
-                            delivered_size: bid_size,
-                            coin_returned,
-                        }
-                    )
+                }
+                else {
+                    coin::destroy_zero(coin);
+                };
+
+                emit(
+                    SealedBidDelivered {
+                        bid_index: bid.index,
+                        owner,
+                        price: bid_price,
+                        delivered_size: this_size,
+                        coin_returned,
+                    }
+                );
+
+                if (vec_map::contains(&winners, &owner)){
+                    let b_size = vec_map::get_mut(&mut winners, &owner);
+                    *b_size = *b_size + this_size;
+                } else {
+                    vec_map::insert(
+                        &mut winners,
+                        owner,
+                        this_size,
+                    );
                 };
             }
             else {
                 let balance = coin::value(&coin);
                 transfer::transfer(coin, owner);
                 emit(
-                    DepositForfeited{
+                    SealedBidIgnored {
                         bid_index: bid.index,
                         owner,
-                        forfeited_amount: balance,
-                        timestamp: current_timestamp,
+                        price: bid_price,
+                        delivered_size: 0,
+                        coin_returned: balance,
                     }
                 )
             };
@@ -354,10 +368,21 @@ module typus_dov::sealed {
             let bid = vector::pop_back(&mut unrevealed_bids);
             let Fund {
                 coin,
-                owner: _,
+                owner,
             } = table::remove(&mut auction.funds, bid.index);
-            balance::join(balance, coin::into_balance(coin));
-        }
+            let forfeited_amount = coin::value(&coin);
+            balance::join(&mut balance, coin::into_balance(coin));
+            emit(
+                DepositForfeited {
+                    bid_index: bid.index,
+                    owner,
+                    forfeited_amount,
+                    timestamp: current_timestamp,
+                }
+            )
+        };
+
+        (balance, winners)
     }
 
     ////////////////////////////////////////////
@@ -388,6 +413,14 @@ module typus_dov::sealed {
     }
 
     struct SealedBidDelivered has copy, drop {
+        bid_index: u64,
+        owner: address,
+        price: u64,
+        delivered_size: u64,
+        coin_returned: u64,
+    }
+
+    struct SealedBidIgnored has copy, drop {
         bid_index: u64,
         owner: address,
         price: u64,
