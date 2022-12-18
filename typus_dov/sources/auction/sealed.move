@@ -458,6 +458,20 @@ module typus_dov::sealed {
         }
     }
 
+    ////////////////////////////////////////////
+    // Tests
+    ///////////////////////////////////////////
+
+    #[test_only]
+    struct TestManagerCap has drop {
+    }
+
+    #[test_only]
+    fun init_test_manager(): TestManagerCap {
+            TestManagerCap {
+            }
+    }
+
     #[test]
     fun test_auction_new_bid(): Auction<sui::sui::SUI> {
         // use std::vector;
@@ -471,6 +485,7 @@ module typus_dov::sealed {
         let admin = @0xFFFF;
         let user1 = @0xBABE1;
         let user2 = @0xBABE2;
+        let user3 = @0xBABE3;
         let scenario = test_scenario::begin(admin);
      
         ////////////////////////////////////////////////////////////////////////////////////
@@ -495,7 +510,7 @@ module typus_dov::sealed {
         unix_time::update(&mut time, &key, bid_closing_time - 60*60*12, test_scenario::ctx(&mut scenario)) ;
         // new bid 1 with user 1
         test_scenario::next_tx(&mut scenario, user1);
-        let serialize_bid_info = serialize_bid_info(10, 1, 124930);
+        let serialize_bid_info = serialize_bid_info(12, 1, 11111111);
         let bid_hash = hash::sha3_256(serialize_bid_info);
         // the encryption should be done in sdk
         let encrypted_bid = b"encrypted - i am user1, my sealed bid is (x,y) with blinding_factor z";
@@ -513,10 +528,10 @@ module typus_dov::sealed {
 
         // new bid 2 with user 2
         test_scenario::next_tx(&mut scenario, user2);
-        let serialize_bid_info = serialize_bid_info(12, 3, 11112222);
+        let serialize_bid_info = serialize_bid_info(12, 3, 22222222);
         let bid_hash = hash::sha3_256(serialize_bid_info);
         // the encryption should be done in sdk
-        let encrypted_bid = b"encrypted - i am user1, my sealed bid is (x,y) with blinding_factor z";
+        let encrypted_bid = b"encrypted - i am user2, my sealed bid is (x,y) with blinding_factor z";
         new_bid(
             &mut auction,
             bid_hash,
@@ -528,6 +543,42 @@ module typus_dov::sealed {
         let bid = table::borrow(&auction.bids, 1);
         assert!(bid.index == 1, 1);
         assert!(auction.index == 2, 1);
+
+        // new bid 3 with user 2
+        test_scenario::next_tx(&mut scenario, user2);
+        let serialize_bid_info = serialize_bid_info(11, 8, 22222222);
+        let bid_hash = hash::sha3_256(serialize_bid_info);
+        // the encryption should be done in sdk
+        let encrypted_bid = b"encrypted - i am user2, my sealed bid is (x,y) with blinding_factor z";
+        new_bid(
+            &mut auction,
+            bid_hash,
+            encrypted_bid,
+            &mut coin,
+            &time,
+            test_scenario::ctx(&mut scenario)
+        );
+        let bid = table::borrow(&auction.bids, 2);
+        assert!(bid.index == 2, 1);
+        assert!(auction.index == 3, 1);
+    
+        // new bid 4 with user 3
+        test_scenario::next_tx(&mut scenario, user3);
+        let serialize_bid_info = serialize_bid_info(18, 6, 33333333);
+        let bid_hash = hash::sha3_256(serialize_bid_info);
+        // the encryption should be done in sdk
+        let encrypted_bid = b"encrypted - i am user3, my sealed bid is (x,y) with blinding_factor z";
+        new_bid(
+            &mut auction,
+            bid_hash,
+            encrypted_bid,
+            &mut coin,
+            &time,
+            test_scenario::ctx(&mut scenario)
+        );
+        let bid = table::borrow(&auction.bids, 3);
+        assert!(bid.index == 3, 1);
+        assert!(auction.index == 4, 1);
 
         ////////////////////////////////////////////////////////////////////////////////////
         //     Reveal Bids 
@@ -541,9 +592,35 @@ module typus_dov::sealed {
         reveal_bid(
             &mut auction,
             0,
-            10,
+            12,
             1,
-            124930,
+            11111111,
+            &mut coin,
+            &time,
+            test_scenario::ctx(&mut scenario)
+        );
+
+        // reveal bid 2 with user 2
+        test_scenario::next_tx(&mut scenario, user2);
+        reveal_bid(
+            &mut auction,
+            1,
+            12,
+            3,
+            22222222,
+            &mut coin,
+            &time,
+            test_scenario::ctx(&mut scenario)
+        );
+
+        // reveal bid 3 with user 2
+        test_scenario::next_tx(&mut scenario, user2);
+        reveal_bid(
+            &mut auction,
+            2,
+            11,
+            8,
+            22222222,
             &mut coin,
             &time,
             test_scenario::ctx(&mut scenario)
@@ -551,67 +628,6 @@ module typus_dov::sealed {
 
         let bid = table::borrow(&auction.bids, 0);
         assert!(option::is_some(&bid.price), 1);
-
-        // /*
-        //     bids[0] => bid{100, 1, user1}
-        //     ownerships[user1] => [0]
-        // */
-        // new_bid(&mut auction, 100, 1, &mut coin, test_scenario::ctx(&mut user1_scenario));
-        // assert!(auction.index == 1, 1);
-        // let bid = table::borrow(&auction.bids, 0);
-        // let fund = table::borrow(&auction.funds, 0);
-        // assert!(bid.price == 100 && bid.size == 1 && fund.owner == user1, 2);
-        // let ownership = table::borrow(&auction.ownerships, user1);
-        // assert!(vector::length(ownership) == 1, 3);
-        // let bid_index = vector::borrow(ownership, 0);
-        // assert!(*bid_index == 0, 4);
-
-        // /*
-        //     bids[1] => bid{200, 2, user2}
-        //     ownerships[user2] => [1]
-        // */
-        // new_bid(&mut auction, 200, 2, &mut coin, test_scenario::ctx(&mut user2_scenario));
-        // assert!(auction.index == 2, 5);
-        // let bid = table::borrow(&auction.bids, 1);
-        // let fund = table::borrow(&auction.funds, 1);
-        // assert!(bid.price == 200 && bid.size == 2 && fund.owner == user2, 6);
-        // let ownership = table::borrow(&auction.ownerships, user2);
-        // assert!(vector::length(ownership) == 1, 7);
-        // let bid_index = vector::borrow(ownership, 0);
-        // assert!(*bid_index == 1, 8);
-
-        // /*
-        //     bids[2] => bid{300, 3, user1}
-        //     ownerships[user1] => [0, 2]
-        // */
-        // new_bid(&mut auction, 300, 3, &mut coin, test_scenario::ctx(&mut user1_scenario));
-        // assert!(auction.index == 3, 9);
-        // let bid = table::borrow(&auction.bids, 2);
-        // let fund = table::borrow(&auction.funds, 2);
-        // assert!(bid.price == 300 && bid.size == 3 && fund.owner == user1, 10);
-        // let ownership = table::borrow(&auction.ownerships, user1);
-        // assert!(vector::length(ownership) == 2, 11);
-        // let bid_index = vector::borrow(ownership, 0);
-        // assert!(*bid_index == 0, 12);
-        // let bid_index = vector::borrow(ownership, 1);
-        // assert!(*bid_index == 2, 13);
-
-
-        // /*
-        //     bids[1] => bid{400, 4, user2}
-        //     ownerships[user2] => [1, 3]
-        // */
-        // new_bid(&mut auction, 400, 4, &mut coin, test_scenario::ctx(&mut user2_scenario));
-        // assert!(auction.index == 4, 14);
-        // let bid = table::borrow(&auction.bids, 3);
-        // let fund = table::borrow(&auction.funds, 3);
-        // assert!(bid.price == 400 && bid.size == 4 && fund.owner == user2, 15);
-        // let ownership = table::borrow(&auction.ownerships, user2);
-        // assert!(vector::length(ownership) == 2, 16);
-        // let bid_index = vector::borrow(ownership, 0);
-        // assert!(*bid_index == 1, 17);
-        // let bid_index = vector::borrow(ownership, 1);
-        // assert!(*bid_index == 3, 18);
 
         test_scenario::next_tx(&mut scenario, admin);
         coin::destroy_for_testing(coin);
@@ -742,6 +758,50 @@ module typus_dov::sealed {
         coin::destroy_for_testing(coin);
         test_scenario::return_to_sender(&scenario, key); 
         test_scenario::return_shared(time); 
+        test_scenario::end(scenario);
+
+        auction
+    }
+
+    #[test]
+    fun test_auction_delivery_success(): Auction<sui::sui::SUI> {
+        use typus_oracle::unix_time::{Self, Time, Key};
+        use sui::test_scenario;
+        use sui::vec_map;
+
+        let auction = test_auction_new_bid();
+        let admin = @0xFFFF;
+        let user1 = @0xBABE1;
+        let user2 = @0xBABE2;
+        // let user3 = @0xBABE3;
+
+        let scenario = test_scenario::begin(admin);
+        unix_time::new_time(test_scenario::ctx(&mut scenario));
+        test_scenario::next_tx(&mut scenario, admin);
+        let time = test_scenario::take_shared<Time>(&scenario);
+        let key = test_scenario::take_from_address<Key>(&scenario, admin);
+     
+        // update time
+        unix_time::update(&mut time, &key, auction.reveal_closing_time + 1, test_scenario::ctx(&mut scenario)) ;
+
+        let manager_cap = init_test_manager();
+        let (balance, winners) = delivery(&manager_cap,  &mut auction, 10, 10, &time);
+
+        assert!(vec_map::size(&winners) == 2, 1);
+        assert!(*vec_map::get(&winners, &user1) == 1, 1);
+        assert!(*vec_map::get(&winners, &user2) == 9, 1);
+        // assert!(*vec_map::get(&winners, &user3) == 4, 1);
+
+        // user1: got 1 at price 12
+        // user2: got 1 at price 12, 6 at price 11, and got 2*11 refund
+        // user3: deposit 20 forfeited
+        assert!(balance::value(&balance) == 12*1 + 12*3 + 11*6 + 20, 1);
+
+
+        test_scenario::next_tx(&mut scenario, admin);
+        test_scenario::return_to_sender(&scenario, key); 
+        test_scenario::return_shared(time); 
+        coin::destroy_for_testing(coin::from_balance(balance, test_scenario::ctx(&mut scenario)));
         test_scenario::end(scenario);
 
         auction
