@@ -89,21 +89,21 @@ module typus_dov::vault {
         assert!(!vault_initialized(vault), E_NOT_YET_ACTIVATED);
         assert!(!vault_settled(vault), E_ALREADY_SETTLED);
 
-        let total_balance = balance::value(
+        let total_balance = (balance::value(
             &get_sub_vault<MANAGER, TOKEN>(
                 vault, C_VAULT_ROLLING
             ).balance
-        ) + balance::value(
+        ) as u128) + (balance::value(
             &get_sub_vault<MANAGER, TOKEN>(
                 vault, C_VAULT_REGULAR
             ).balance
-        );
+        ) as u128);
 
-        let total_share_supply = get_sub_vault<MANAGER, TOKEN>(
+        let total_share_supply = (get_sub_vault<MANAGER, TOKEN>(
             vault, C_VAULT_ROLLING
-        ).share_supply + get_sub_vault<MANAGER, TOKEN>(
+        ).share_supply as u128) + (get_sub_vault<MANAGER, TOKEN>(
             vault, C_VAULT_REGULAR
-        ).share_supply;
+        ).share_supply as u128);
 
         assert!(total_balance == total_share_supply, E_ALREADY_SETTLED);
 
@@ -111,17 +111,16 @@ module typus_dov::vault {
 
         if (settled_share_price > multiplier) {
             // user receives balance from maker
-            let payoff = (total_balance as u128) * ((settled_share_price - multiplier) as u128) / (multiplier as u128);
+            let payoff = (total_balance as u256) * ((settled_share_price - multiplier) as u256) / (multiplier as u256);
             // transfer balance from maker to rolling users
             let rolling_share_supply = get_sub_vault<MANAGER, TOKEN>(
                 vault, C_VAULT_ROLLING
             ).share_supply;
-            let payoff_balance = payoff * (rolling_share_supply as u128) / (total_share_supply as u128);
             let balance = balance::split<TOKEN>(
                 &mut get_mut_sub_vault<MANAGER, TOKEN>(
                     vault, C_VAULT_MAKER
                 ).balance,
-                (payoff_balance as u64)
+                ((payoff * (rolling_share_supply as u256) / (total_share_supply as u256)) as u64)
             );
             balance::join(
                 &mut get_mut_sub_vault<MANAGER, TOKEN>(
@@ -130,12 +129,11 @@ module typus_dov::vault {
                 balance
             );
             // transfer balance from maker to regular users
-            let payoff_balance = payoff * ((total_share_supply - rolling_share_supply) as u128) / (total_share_supply as u128);
             let balance = balance::split<TOKEN>(
                 &mut get_mut_sub_vault<MANAGER, TOKEN>(
                     vault, C_VAULT_MAKER
                 ).balance,
-                (payoff_balance as u64)
+                ((payoff * ((total_share_supply as u256) - (rolling_share_supply as u256)) / (total_share_supply as u256)) as u64)
             );
             balance::join(
                 &mut get_mut_sub_vault<MANAGER, TOKEN>(
@@ -146,7 +144,7 @@ module typus_dov::vault {
         }
         else if (settled_share_price < multiplier) {
             // maker receives balance from users
-            let payoff = (total_balance as u128) * ((multiplier - settled_share_price) as u128) / (multiplier as u128);
+            let payoff = (total_balance as u256) * ((multiplier - settled_share_price) as u256) / (multiplier as u256);
             // transfer balance from rolling users to maker
             let rolling_share_supply = get_sub_vault<MANAGER, TOKEN>(
                 vault, C_VAULT_ROLLING
@@ -155,7 +153,7 @@ module typus_dov::vault {
                 &mut get_mut_sub_vault<MANAGER, TOKEN>(
                     vault, C_VAULT_ROLLING
                 ).balance,
-                ((payoff * (rolling_share_supply as u128) / (total_share_supply as u128)) as u64)
+                ((payoff * (rolling_share_supply as u256) / (total_share_supply as u256)) as u64)
             );
             balance::join(
                 &mut get_mut_sub_vault<MANAGER, TOKEN>(
@@ -168,7 +166,7 @@ module typus_dov::vault {
                 &mut get_mut_sub_vault<MANAGER, TOKEN>(
                     vault, C_VAULT_REGULAR
                 ).balance,
-                ((payoff * ((total_share_supply - rolling_share_supply) as u128) / (total_share_supply as u128)) as u64)
+                ((payoff * ((total_share_supply as u256) - (rolling_share_supply as u256)) / (total_share_supply as u256)) as u64)
             );
             balance::join(
                 &mut get_mut_sub_vault<MANAGER, TOKEN>(
