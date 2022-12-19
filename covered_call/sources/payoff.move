@@ -12,6 +12,7 @@ module typus_covered_call::payoff {
 
     const ROI_PCT_DECIMAL: u64 = 8;
     const OTM_PCT_DECIMAL: u64 = 4;
+    const EXPOSURE_RATIO_DECIMAL: u64 = 8;
 
     // ======== Errors =========
 
@@ -23,6 +24,7 @@ module typus_covered_call::payoff {
         strike_otm_pct: u64,
         strike: Option<u64>,
         premium_roi: Option<u64>,
+        exposure_ratio: Option<u64>
     }
 
     // ======== Functions =========
@@ -39,17 +41,23 @@ module typus_covered_call::payoff {
         strike_otm_pct: u64,
         strike: Option<u64>,
         premium_roi: Option<u64>,
+        exposure_ratio: Option<u64>
     ): PayoffConfig {
         PayoffConfig {
             strike_otm_pct,
             strike,
             premium_roi,
+            exposure_ratio
         }
     }
 
     public(friend) fun set_premium_roi(payoff_config: &mut PayoffConfig, premium_roi: u64) {
         option::fill(&mut payoff_config.premium_roi, premium_roi);
     } 
+
+    public(friend) fun set_exposure_ratio(payoff_config: &mut PayoffConfig, exposure_ratio: u64) {
+        option::fill(&mut payoff_config.exposure_ratio, exposure_ratio);
+    }
 
     public(friend) fun set_strike(payoff_config: &mut PayoffConfig, price: u64) {
         let multiplier = utils::multiplier(OTM_PCT_DECIMAL);
@@ -66,19 +74,25 @@ module typus_covered_call::payoff {
         // get values from PayoffConfig
         let strike = payoff_config.strike;
         let premium_roi = payoff_config.premium_roi;
+        let exposure_ratio = payoff_config.exposure_ratio;
 
         assert!(option::is_some(&strike), E_NO_CONFIG_CONTAINS_NONE);
         assert!(option::is_some(&premium_roi), E_NO_CONFIG_CONTAINS_NONE);
+        assert!(option::is_some(&exposure_ratio), E_NO_CONFIG_CONTAINS_NONE);
 
         let strike = option::borrow<u64>(&strike);
         let premium_roi = option::borrow<u64>(&premium_roi);
+        let exposure_ratio = option::borrow<u64>(&exposure_ratio);
 
         if (price < *strike) {
             i64::from(*premium_roi)
         } else {
             i64::sub(
                 &i64::from(*premium_roi),
-                &i64::from(utils::multiplier(ROI_PCT_DECIMAL) * (price - *strike) / *strike)
+                &i64::from(
+                    (utils::multiplier(ROI_PCT_DECIMAL) * (price - *strike) / *strike)
+                    * *exposure_ratio / utils::multiplier(EXPOSURE_RATIO_DECIMAL)
+                )
             )
         }
     }    

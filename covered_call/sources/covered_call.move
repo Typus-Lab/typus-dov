@@ -95,6 +95,7 @@ module typus_covered_call::covered_call {
             strike_otm_pct,
             option::none(),
             option::none(),
+            option::none(),
         );
 
         // TODO: should check expiration_ts_ms > now
@@ -273,7 +274,8 @@ module typus_covered_call::covered_call {
         registry: &mut Registry,
         index: u64,
         price: u64,
-        premium_roi: u64
+        premium_roi: u64,
+        exposure_ratio: u64
     ) {
         
         payoff::set_strike(
@@ -294,6 +296,16 @@ module typus_covered_call::covered_call {
             .config
             .payoff_config,
             premium_roi
+        );
+
+        payoff::set_exposure_ratio(
+            &mut dynamic_field::borrow_mut<u64, CoveredCallVault<TOKEN>>(
+                &mut registry.id,
+                index
+            )
+            .config
+            .payoff_config,
+            exposure_ratio
         );
     }
 

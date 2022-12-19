@@ -81,6 +81,7 @@ module typus_covered_call::test {
             2000,
             option::some<u64>(6000),
             option::some<u64>(1000000),
+            option::some<u64>(80000000),
         );
         let aa = payoff::get_covered_call_payoff_by_price(
             7000,
@@ -145,9 +146,8 @@ module typus_covered_call::test {
         // auction
         let option_price_decimal = 8;
         let _option_price_multiplier = utils::multiplier(option_price_decimal);
-        let initial_option_price = 500_000_000;
-        let final_option_price = 100_000_000;
-        let option_price_decimal = 8;
+        let initial_option_price = 5_000_000;
+        let final_option_price = 1_000_000;
         let start_auction_ts_ms = expiration_ts_ms_1 - 1000;
         let end_auction_ts_ms = start_auction_ts_ms + 500;
         oracle::update(
@@ -183,12 +183,13 @@ module typus_covered_call::test {
         );
         // new maker bid
         let current_time = start_auction_ts_ms + 300;
-        let bid_size = 100;
-        let bid_coin_value = initial_option_price * bid_size;
+        let bid_size = 50_000_000_000;
+        let bid_coin_value = (initial_option_price as u128) * (bid_size as u128) / (utils::multiplier(option_price_decimal) as u128);
         debug::print(&string::utf8(b"bid coin size:"));
         debug::print(&bid_size);
-
-        let mm_test_coin = coin::mint_for_testing<SUI>(bid_coin_value, test_scenario::ctx(scenario));
+        debug::print(&string::utf8(b"bid coin value:"));
+        debug::print(&bid_coin_value);
+        let mm_test_coin = coin::mint_for_testing<SUI>((bid_coin_value as u64), test_scenario::ctx(scenario));
         unix_time::update(
             &mut time_oracle,
             &unix_time_manager_cap,
@@ -204,10 +205,10 @@ module typus_covered_call::test {
             test_scenario::ctx(scenario)
         );
 
-        let (_price, price_decimal, _, _) = oracle::get_oracle<SUI>(
+        let (_price,_price_decimal, _, _) = oracle::get_oracle<SUI>(
             &price_oracle
         );
-        let price_multiplier = utils::multiplier(price_decimal);
+        // let price_multiplier = utils::multiplier(price_decimal);
 
         // calculate sell size by vault balance value, which may actually calculate off-chain
         let vault_1_balance = vault::test_get_balance<ManagerCap, SUI>(
@@ -219,7 +220,7 @@ module typus_covered_call::test {
             b"regular"
         );
 
-        let sell_size = vault_1_balance / price_multiplier;
+        let sell_size = vault_1_balance;
         debug::print(&string::utf8(b"sell size:"));
         debug::print(&sell_size);
 
@@ -239,7 +240,11 @@ module typus_covered_call::test {
         );
 
         // after auction
-        let premium_roi = 100_000;
+        let premium_roi = utils::multiplier(payoff::get_roi_decimal()) * vault::test_get_balance<ManagerCap, SUI>(
+            covered_call::test_get_vault<SUI>(&mut registry, 1),
+            b"maker"
+        ) / vault_1_balance;
+        let exposure_ratio = bid_size * utils::multiplier(8) / coin_amount;
         oracle::update(
             &mut price_oracle,
             &oracle_key,
@@ -256,7 +261,7 @@ module typus_covered_call::test {
         let (price, _price_decimal, _, _) = oracle::get_oracle<SUI>(
             &price_oracle
         );
-        covered_call::update_payoff_config<SUI>(&manager_cap, &mut registry, 1, price, premium_roi);
+        covered_call::update_payoff_config<SUI>(&manager_cap, &mut registry, 1, price, premium_roi, exposure_ratio);
 
         let test_coin_2 = coin::mint_for_testing<SUI>(500000, test_scenario::ctx(scenario));
         let coin_amount = coin::value<SUI>(&test_coin_2);
@@ -282,9 +287,13 @@ module typus_covered_call::test {
             test_scenario::ctx(scenario)
         );
 
+        let current_vault = covered_call::test_get_vault<SUI>(&registry, 1);
+        debug::print(current_vault);
+
+
         // settle internal
-        covered_call::settle<SUI>(&manager_cap,&mut registry, 1, &price_oracle, &time_oracle);
-        // covered_call::settle_with_roll_over<SUI>(&manager_cap, &mut registry, 1, &price_oracle, &time_oracle);
+        // covered_call::settle<SUI>(&manager_cap,&mut registry, 1, &price_oracle, &time_oracle);
+        covered_call::settle_with_roll_over<SUI>(&manager_cap, &mut registry, 1, &price_oracle, &time_oracle);
         debug::print(&string::utf8(b"B"));
 
         debug::print(&string::utf8(b"after settle"));
