@@ -133,6 +133,7 @@ module typus_covered_call::covered_call {
         decay_speed: u64,
         initial_price: u64,
         final_price: u64,
+        price_decimal: u64,
         ctx: &mut TxContext,
     ) {
         let covered_call_vault = dynamic_field::borrow_mut<u64, CoveredCallVault<TOKEN>>(
@@ -154,6 +155,7 @@ module typus_covered_call::covered_call {
                 decay_speed,
                 initial_price,
                 final_price,
+                price_decimal,
                 ctx,
             )
         );
@@ -164,6 +166,7 @@ module typus_covered_call::covered_call {
             decay_speed,
             initial_price,
             final_price,
+            price_decimal
         });
     }
 
@@ -326,6 +329,7 @@ module typus_covered_call::covered_call {
         decay_speed: u64,
         initial_price: u64,
         final_price: u64,
+        price_decimal: u64,
         ctx: &mut TxContext,
     ) {
         new_auction_<TOKEN>(
@@ -337,6 +341,7 @@ module typus_covered_call::covered_call {
             decay_speed,
             initial_price,
             final_price,
+            price_decimal,
             ctx,
         );
     }
@@ -350,6 +355,7 @@ module typus_covered_call::covered_call {
         decay_speed: u64,
         initial_price: u64,
         final_price: u64,
+        price_decimal: u64,
         expiration_ts_ms: u64,
         strike_otm_pct: u64,
         ctx: &mut TxContext,
@@ -378,6 +384,7 @@ module typus_covered_call::covered_call {
             decay_speed,
             initial_price,
             final_price,
+            price_decimal,
             ctx,
         );
     }
@@ -613,6 +620,7 @@ module typus_covered_call::covered_call {
         decay_speed: u64,
         initial_price: u64,
         final_price: u64,
+        price_decimal: u64,
     }
 
 
