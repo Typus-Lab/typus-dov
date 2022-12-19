@@ -18,7 +18,7 @@ module typus_dov::vault {
 
     // ======== Errors ========
 
-    const E_ZERO_AMOUNT: u64 = 0;
+    const E_ZERO_VALUE: u64 = 0;
     const E_DEPOSIT_DISABLED: u64 = 1;
     const E_WITHDRAW_DISABLED: u64 = 2;
     const E_SUBSCRIBE_DISABLED: u64 = 3;
@@ -85,6 +85,7 @@ module typus_dov::vault {
         settled_share_price: u64,
         share_price_decimal: u64
     ) {
+        assert!(settled_share_price > 0, E_ZERO_VALUE);
         assert!(!vault_initialized(vault), E_NOT_YET_ACTIVATED);
         assert!(!vault_settled(vault), E_ALREADY_SETTLED);
 
@@ -230,7 +231,7 @@ module typus_dov::vault {
         ctx: &mut TxContext,
     ) {
         assert!(vault_initialized(vault), E_ALREADY_ACTIVATED);
-        assert!(amount > 0, E_ZERO_AMOUNT);
+        assert!(amount > 0, E_ZERO_VALUE);
 
         let user = tx_context::sender(ctx);
 
