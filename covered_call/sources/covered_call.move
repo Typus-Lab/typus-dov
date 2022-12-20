@@ -521,23 +521,23 @@ module typus_covered_call::covered_call {
         );
     }
 
-    public(friend) entry fun remove_bid<TOKEN>(
-        registry: &mut Registry,
-        index: u64,
-        bid_index: u64,
-        time: &Time,
-        ctx: &mut TxContext,
-    ) {
-        dutch::remove_bid<ManagerCap, TOKEN>(
-            option::borrow_mut(&mut dynamic_field::borrow_mut<u64, CoveredCallVault<TOKEN>>(
-                &mut registry.id,
-                index
-            ).auction),
-            bid_index,
-            time,
-            ctx,
-        );
-    }
+    // public(friend) entry fun remove_bid<TOKEN>(
+    //     registry: &mut Registry,
+    //     index: u64,
+    //     bid_index: u64,
+    //     time: &Time,
+    //     ctx: &mut TxContext,
+    // ) {
+    //     dutch::remove_bid<ManagerCap, TOKEN>(
+    //         option::borrow_mut(&mut dynamic_field::borrow_mut<u64, CoveredCallVault<TOKEN>>(
+    //             &mut registry.id,
+    //             index
+    //         ).auction),
+    //         bid_index,
+    //         time,
+    //         ctx,
+    //     );
+    // }
 
     public(friend) entry fun delivery<TOKEN>(
         manager_cap: &ManagerCap,
