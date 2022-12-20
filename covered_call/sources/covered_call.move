@@ -269,11 +269,12 @@ module typus_covered_call::covered_call {
         object::delete(id);
     }
 
+    // after delivery
     public(friend) entry fun update_payoff_config<TOKEN>(
         _manager_cap: &ManagerCap,
         registry: &mut Registry,
         index: u64,
-        price: u64,
+        strike: u64,
         premium_roi: u64,
         exposure_ratio: u64
     ) {
@@ -285,7 +286,7 @@ module typus_covered_call::covered_call {
             )
             .config
             .payoff_config,
-            price
+            strike
         );
 
         payoff::set_premium_roi(

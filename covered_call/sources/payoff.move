@@ -59,9 +59,7 @@ module typus_covered_call::payoff {
         option::fill(&mut payoff_config.exposure_ratio, exposure_ratio);
     }
 
-    public(friend) fun set_strike(payoff_config: &mut PayoffConfig, price: u64) {
-        let multiplier = utils::multiplier(OTM_PCT_DECIMAL);
-        let strike = price * (multiplier + payoff_config.strike_otm_pct) / multiplier;
+    public(friend) fun set_strike(payoff_config: &mut PayoffConfig, strike: u64) {
         option::fill(&mut payoff_config.strike, strike);
     } 
 
