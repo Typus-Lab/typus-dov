@@ -6,15 +6,25 @@ module typus_dov::utils {
     use sui::coin::{Self, Coin};
     use std::vector;
 
+    const E_ZERO_VALUE: u64 = 0;
+    const E_INVALID_VALUE: u64 = 0;
+
     // decimals
     public fun multiplier(decimal: u64): u64 {
         let i = 0;
-        let multi = 1;
+        let multiplier = 1;
         while (i < decimal) {
-            multi = multi * 10;
+            multiplier = multiplier * 10;
             i = i + 1;
         };
-        multi
+        multiplier
+    }
+
+    // ensure value > 0 and valid
+    public fun ensure_value(value: u64, decimal: u64) {
+        assert!(value > 0, E_ZERO_VALUE);
+        let multiplier = multiplier(decimal);
+        assert!(value % multiplier == 0, E_INVALID_VALUE)
     }
 
     // extract balance from coin
@@ -34,21 +44,4 @@ module typus_dov::utils {
         vector::destroy_empty(coins);
         merged
     }
-
-    // #[test]
-    // public fun test_i64() {
-    //     use typus_dov::i64;
-    //     use std::debug;
-    //     let a = i64::from(10);
-    //     let b = i64::from(6);
-    //     let a1 = i64::from(4);
-    //     let b1 = i64::from(0);
-    //     let d = i64::sub(&b, &a);
-    //     let d1 = i64::sub(&b1, &a1);
-    //     let d2 = i64::add(&d, &i64::from(4));
-    //     debug::print(&a,);
-    //     debug::print(&d1);
-    //     debug::print(&d2);
-    //     // debug::print(&i64::as_u64(&d1));
-    // }
 }
