@@ -1,27 +1,15 @@
 module typus_dov::asset {
     struct Asset has store, drop, copy {
         name: vector<u8>,
-        price: u64,
-        price_decimal: u64
     }
 
-    public fun new_asset(name: vector<u8>, price: u64, price_decimal: u64): Asset{
+    public fun new_asset(name: vector<u8>): Asset{
         Asset {
             name,
-            price,
-            price_decimal,
         }
     }
 
     public fun get_asset_name(asset: &Asset): vector<u8> {
         asset.name
-    }
-
-    public fun set_asset_price(asset: &mut Asset, price: u64) {
-        asset.price = price;
-    }
-
-    public fun set_asset_price_decimal(asset: &mut Asset, price_decimal: u64) {
-        asset.price_decimal = price_decimal;
     }
 }

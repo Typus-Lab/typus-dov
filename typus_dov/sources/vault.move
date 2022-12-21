@@ -83,6 +83,8 @@ module typus_dov::vault {
         manager_cap: &MANAGER,
         vault: &mut Vault<MANAGER, TOKEN>,
         settled_share_price: u64,
+        token_decimal: u64,
+        share_decimal: u64,
         share_price_decimal: u64
     ) {
         assert!(settled_share_price > 0, E_ZERO_VALUE);
@@ -105,7 +107,11 @@ module typus_dov::vault {
             vault, C_VAULT_REGULAR
         ).share_supply as u128);
 
-        assert!(total_balance == total_share_supply, E_ALREADY_SETTLED);
+
+        assert!(
+            total_balance == total_share_supply * (utils::multiplier(token_decimal) as u128) / (utils::multiplier(share_decimal) as u128),
+            E_ALREADY_SETTLED
+        );
 
         let multiplier = utils::multiplier(share_price_decimal);
 

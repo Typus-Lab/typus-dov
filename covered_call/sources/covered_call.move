@@ -190,6 +190,8 @@ module typus_covered_call::covered_call {
     fun settle_<TOKEN>(
         manager_cap: &ManagerCap,
         covered_call_vault: &mut CoveredCallVault<TOKEN>,
+        token_decimal: u64,
+        share_decimal: u64,
         price_oracle: &Oracle<TOKEN>,
         time_oracle: &Time
     ) {
@@ -212,6 +214,8 @@ module typus_covered_call::covered_call {
             manager_cap,
             &mut covered_call_vault.vault,
             settled_share_price,
+            token_decimal,
+            share_decimal,
             C_SHARE_PRICE_DECIMAL
         );
         // TODO: calculate performance fee
@@ -600,9 +604,14 @@ module typus_covered_call::covered_call {
         price_oracle: &Oracle<TOKEN>,
         time_oracle: &Time
     ) {
+        let token_decimal = dynamic_field::borrow<u64, CoveredCallVault<TOKEN>>(&registry.id, index).config.token_decimal;
+        let share_decimal = dynamic_field::borrow<u64, CoveredCallVault<TOKEN>>(&registry.id, index).config.share_decimal;
+
         settle_<TOKEN>(
             manager_cap,
             get_mut_covered_call_vault<TOKEN>(registry, index),
+            token_decimal,
+            share_decimal,
             price_oracle,
             time_oracle
         );
@@ -627,9 +636,14 @@ module typus_covered_call::covered_call {
         price_oracle: &Oracle<TOKEN>,
         time_oracle: &Time
     ) {
+        let token_decimal = dynamic_field::borrow<u64, CoveredCallVault<TOKEN>>(&registry.id, index).config.token_decimal;
+        let share_decimal = dynamic_field::borrow<u64, CoveredCallVault<TOKEN>>(&registry.id, index).config.share_decimal;
+        
         settle_(
             manager_cap,
             get_mut_covered_call_vault<TOKEN>(registry, index),
+            token_decimal,
+            share_decimal,
             price_oracle,
             time_oracle,
         );
