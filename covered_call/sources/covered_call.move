@@ -37,6 +37,8 @@ module typus_covered_call::covered_call {
 
     struct Config has store, drop, copy {
         payoff_config: PayoffConfig,
+        token_decimal: u64,
+        share_decimal: u64,
         expiration_ts_ms: u64
     }
 
@@ -86,6 +88,8 @@ module typus_covered_call::covered_call {
     fun new_covered_call_vault_<TOKEN>(
         _manager_cap: &ManagerCap,
         registry: &mut Registry,
+        token_decimal: u64,
+        share_decimal: u64,
         expiration_ts_ms: u64,
         strike_otm_pct: u64, // in 4 decimal
         ctx: &mut TxContext
@@ -100,7 +104,7 @@ module typus_covered_call::covered_call {
 
         // TODO: should check expiration_ts_ms > now
 
-        let config = Config { payoff_config, expiration_ts_ms };
+        let config = Config { payoff_config, token_decimal, share_decimal, expiration_ts_ms };
         let vault = vault::new_vault<ManagerCap, TOKEN>(ctx);
         let index = registry.num_of_vault;
 
@@ -236,6 +240,8 @@ module typus_covered_call::covered_call {
     public(friend) entry fun new_covered_call_vault<TOKEN>(
         manager_cap: &ManagerCap,
         registry: &mut Registry,
+        token_decimal: u64,
+        share_decimal: u64,
         expiration_ts_ms: u64,
         strike_otm_pct: u64,
         ctx: &mut TxContext
@@ -243,6 +249,8 @@ module typus_covered_call::covered_call {
         new_covered_call_vault_<TOKEN>(
             manager_cap,
             registry,
+            token_decimal,
+            share_decimal,
             expiration_ts_ms,
             strike_otm_pct,
             ctx,
@@ -318,10 +326,14 @@ module typus_covered_call::covered_call {
         is_rolling: bool,
         ctx: &mut TxContext
     ) {
+        let token_decimal = dynamic_field::borrow<u64, CoveredCallVault<TOKEN>>(&registry.id, index).config.token_decimal;
+        let share_decimal = dynamic_field::borrow<u64, CoveredCallVault<TOKEN>>(&registry.id, index).config.share_decimal;
         vault::deposit<ManagerCap, TOKEN>(
             &mut get_mut_covered_call_vault<TOKEN>(registry, index).vault,
             coin,
             amount,
+            token_decimal,
+            share_decimal,
             is_rolling,
             ctx
         );
@@ -373,9 +385,13 @@ module typus_covered_call::covered_call {
         strike_otm_pct: u64,
         ctx: &mut TxContext,
     ) {
+        let token_decimal = dynamic_field::borrow<u64, CoveredCallVault<TOKEN>>(&registry.id, index).config.token_decimal;
+        let share_decimal = dynamic_field::borrow<u64, CoveredCallVault<TOKEN>>(&registry.id, index).config.share_decimal;
         let next = new_covered_call_vault_<TOKEN>(
             manager_cap,
             registry,
+            token_decimal,
+            share_decimal,
             expiration_ts_ms,
             strike_otm_pct,
             ctx,

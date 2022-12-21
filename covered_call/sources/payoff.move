@@ -65,9 +65,9 @@ module typus_covered_call::payoff {
 
     // payoff represents the RoI per week
     /// e.g. a covered call vault:
-    /// premium_roi = 1000, strike = 5000
-    /// 1. given price = 4000, payoff return = premium = 1000
-    /// 2. given price = 5500, payoff return = 1000 - ROI_PCT_DECIMAL * (5500 - 5000) / 5000 = -4000 = -999_000
+    /// premium_roi = 1_000_000, strike = 5_000, ROI_PCT_MULTIPLIER = 100_000_000
+    /// 1. given price = 4_000, payoff return = premium = 1_000_000
+    /// 2. given price = 5_500, payoff return = 1_000_000 - 100_000_000 * (5_500 - 5_000) / 5_000 = -9_000_000
     public fun get_covered_call_payoff_by_price(price: u64, payoff_config: &PayoffConfig): I64{
         // get values from PayoffConfig
         let strike = payoff_config.strike;

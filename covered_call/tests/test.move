@@ -25,6 +25,8 @@ module typus_covered_call::test {
         let admin = @0x1;
         let scenario_val = test_scenario::begin(admin);
         let scenario = &mut scenario_val;
+        let token_decimal = 4;
+        let share_decimal = 5;
         {
             covered_call::test_init(test_scenario::ctx(scenario));
         };
@@ -36,6 +38,8 @@ module typus_covered_call::test {
         covered_call::new_covered_call_vault<SUI>(
             &manager_cap,
             &mut registry,
+            token_decimal,
+            share_decimal,
             1,
             105,
             test_scenario::ctx(scenario)
@@ -129,10 +133,15 @@ module typus_covered_call::test {
         test_scenario::next_tx(scenario, admin);
         let unix_time_manager_cap = test_scenario::take_from_sender<unix_time::Key>(scenario);
 
+        let token_decimal = 4;
+        let share_decimal = 5;
+
         // init covered call vault 1
         covered_call::new_covered_call_vault<SUI>(
             &manager_cap,
             &mut registry,
+            token_decimal,
+            share_decimal,
             expiration_ts_ms_1,
             2000,
             test_scenario::ctx(scenario)
@@ -326,10 +335,15 @@ module typus_covered_call::test {
         let registry = test_scenario::take_shared<Registry>(scenario);
         let manager_cap = test_scenario::take_from_sender<ManagerCap>(scenario);
 
+        let token_decimal = 4;
+        let share_decimal = 5;
+
         // init covered call vault 1
         covered_call::new_covered_call_vault<SUI>(
             &manager_cap,
             &mut registry,
+            token_decimal,
+            share_decimal,
             1,
             105,
             test_scenario::ctx(scenario)
