@@ -29,8 +29,8 @@ module typus_covered_call::test {
 
         let scenario_val = test_scenario::begin(admin);
         let scenario = &mut scenario_val;
-        let token_decimal = 4;
-        let share_decimal = 5;
+        let token_decimal = 9;
+        let share_decimal = 4;
         {
             covered_call::test_init(test_scenario::ctx(scenario));
         };
@@ -165,9 +165,6 @@ module typus_covered_call::test {
             current_ts_ms,
             test_scenario::ctx(scenario)
         );
-
-        let token_decimal = 4;
-        let share_decimal = 5;
 
         // user deposit
         let test_coin = coin::mint_for_testing<SUI>(50_000_000_000, test_scenario::ctx(scenario));
