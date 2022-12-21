@@ -23,6 +23,10 @@ module typus_covered_call::test {
     #[test]
     fun test_new_vault(): Scenario {
         let admin = @0x1;
+        let current_ts_ms = 1671594861_000; // 2022/12/21 Wednesday 03:54:21
+        let expiration_ts_ms_1 = 1671782400_000; // 2022/12/23 Friday 08:00:00
+        let strike_otm_pct = 50; // 0.05 * 1000
+
         let scenario_val = test_scenario::begin(admin);
         let scenario = &mut scenario_val;
         let token_decimal = 4;
@@ -35,17 +39,33 @@ module typus_covered_call::test {
         let manager_cap = test_scenario::take_from_sender<ManagerCap>(scenario);
         let registry = test_scenario::take_shared<Registry>(scenario);
 
+        unix_time::new_time(test_scenario::ctx(scenario));
+        test_scenario::next_tx(scenario, admin);
+        let time_oracle = test_scenario::take_shared<Time>(scenario);
+        test_scenario::next_tx(scenario, admin);
+        let unix_time_key = test_scenario::take_from_sender<unix_time::Key>(scenario);
+        
+        unix_time::update(
+            &mut time_oracle,
+            &unix_time_key,
+            current_ts_ms,
+            test_scenario::ctx(scenario)
+        );
+
         covered_call::new_covered_call_vault<SUI>(
             &manager_cap,
             &mut registry,
             token_decimal,
             share_decimal,
-            1,
-            105,
+            &time_oracle,
+            expiration_ts_ms_1,
+            strike_otm_pct,
             test_scenario::ctx(scenario)
         );
         test_scenario::return_to_sender<ManagerCap>(scenario, manager_cap);
         test_scenario::return_shared(registry);
+        test_scenario::return_shared(time_oracle);
+        test_scenario::return_to_sender<unix_time::Key>(scenario, unix_time_key);
 
         test_scenario::next_tx(scenario, admin);
         scenario_val
@@ -54,14 +74,15 @@ module typus_covered_call::test {
     #[test]
     fun test_deposit(): Scenario {
         let admin = @0x1;
+        let amount = 1000;
         let scenario_val = test_new_vault();
         let scenario = &mut scenario_val;
         let registry = test_scenario::take_shared<Registry>(scenario);
-        let balance = balance::create_for_testing<SUI>(1000);
+        let balance = balance::create_for_testing<SUI>(amount);
         let coin = coin::from_balance(balance, test_scenario::ctx(scenario));
 
         test_scenario::next_tx(scenario, admin);
-        covered_call::deposit<SUI>(&mut registry, 0, &mut coin, 1000, true, test_scenario::ctx(scenario));
+        covered_call::deposit<SUI>(&mut registry, 0, &mut coin, amount, true, test_scenario::ctx(scenario));
 
         
         let current_vault = covered_call::test_get_vault<SUI>(
@@ -70,7 +91,7 @@ module typus_covered_call::test {
         );
         let share = vault::test_get_user_share<ManagerCap, SUI>(current_vault, b"rolling", admin);
 
-        assert!(share == 1000, 0);
+        assert!(share == amount, 0);
 
         test_scenario::return_shared(registry);
         transfer::transfer(coin, admin);
@@ -102,12 +123,17 @@ module typus_covered_call::test {
     fun test_settle() {
         let admin = @0x1;
         let price_decimal = 8;
-        let expiration_ts_ms_1 = 1000000;
-        let expiration_ts_ms_2 = 2000000;
+        let current_ts_ms = 1671594861_000; // 2022/12/21 Wednesday 03:54:21
+        let expiration_ts_ms_1 = 1671782400_000; // 2022/12/23 Friday 08:00:00
+        let expiration_ts_ms_2 = 1672387200_000; // 2022/12/30 Friday 08:00:00
+        let decay_speed = 1;
+
+        let strike_otm_pct = 50; // 0.05 * 1000
 
         let scenario_val = test_new_vault();
+        let index = 0;
         let scenario = &mut scenario_val;
-        
+
         let registry = test_scenario::take_shared<Registry>(scenario);
         let manager_cap = test_scenario::take_from_sender<ManagerCap>(scenario);
 
@@ -131,21 +157,17 @@ module typus_covered_call::test {
         test_scenario::next_tx(scenario, admin);
         let time_oracle = test_scenario::take_shared<Time>(scenario);
         test_scenario::next_tx(scenario, admin);
-        let unix_time_manager_cap = test_scenario::take_from_sender<unix_time::Key>(scenario);
+        let unix_time_key = test_scenario::take_from_sender<unix_time::Key>(scenario);
+
+        unix_time::update(
+            &mut time_oracle,
+            &unix_time_key,
+            current_ts_ms,
+            test_scenario::ctx(scenario)
+        );
 
         let token_decimal = 4;
         let share_decimal = 5;
-
-        // init covered call vault 1
-        covered_call::new_covered_call_vault<SUI>(
-            &manager_cap,
-            &mut registry,
-            token_decimal,
-            share_decimal,
-            expiration_ts_ms_1,
-            2000,
-            test_scenario::ctx(scenario)
-        );
 
         // user deposit
         let test_coin = coin::mint_for_testing<SUI>(50_000_000_000, test_scenario::ctx(scenario));
@@ -168,7 +190,7 @@ module typus_covered_call::test {
         );
         unix_time::update(
             &mut time_oracle,
-            &unix_time_manager_cap,
+            &unix_time_key,
             start_auction_ts_ms,
             test_scenario::ctx(scenario)
         );
@@ -179,15 +201,16 @@ module typus_covered_call::test {
         covered_call::new_auction_with_next_covered_call_vault<SUI>(
             &manager_cap,
             &mut registry,
-            1,
+            &time_oracle,
+            index,
             start_auction_ts_ms,
             end_auction_ts_ms,
-            2,
+            decay_speed,
             initial_option_price,
             final_option_price,
             option_price_decimal,
             expiration_ts_ms_2,
-            2000,
+            strike_otm_pct,
             test_scenario::ctx(scenario)
         );
         // new maker bid
@@ -201,7 +224,7 @@ module typus_covered_call::test {
         let mm_test_coin = coin::mint_for_testing<SUI>((bid_coin_value as u64), test_scenario::ctx(scenario));
         unix_time::update(
             &mut time_oracle,
-            &unix_time_manager_cap,
+            &unix_time_key,
             current_time,
             test_scenario::ctx(scenario)
         );
@@ -235,7 +258,7 @@ module typus_covered_call::test {
 
         unix_time::update(
             &mut time_oracle,
-            &unix_time_manager_cap,
+            &unix_time_key,
             end_auction_ts_ms + 1,
             test_scenario::ctx(scenario)
         );
@@ -263,7 +286,7 @@ module typus_covered_call::test {
         );
         unix_time::update(
             &mut time_oracle,
-            &unix_time_manager_cap,
+            &unix_time_key,
             end_auction_ts_ms,
             test_scenario::ctx(scenario)
         );
@@ -291,7 +314,7 @@ module typus_covered_call::test {
         );
         unix_time::update(
             &mut time_oracle,
-            &unix_time_manager_cap,
+            &unix_time_key,
             expiration_ts_ms_1,
             test_scenario::ctx(scenario)
         );
@@ -316,7 +339,7 @@ module typus_covered_call::test {
         coin::destroy_for_testing(mm_test_coin);
         test_scenario::return_shared(registry); 
         test_scenario::return_to_sender<ManagerCap>(scenario, manager_cap);
-        test_scenario::return_to_sender<unix_time::Key>(scenario, unix_time_manager_cap);
+        test_scenario::return_to_sender<unix_time::Key>(scenario, unix_time_key);
         transfer::transfer(oracle_key, tx_context::sender(test_scenario::ctx(scenario)));
         transfer::share_object(price_oracle);
         transfer::share_object(time_oracle);
@@ -328,6 +351,7 @@ module typus_covered_call::test {
         let admin = @0x1;
         let scenario_val = test_new_vault();
         let scenario = &mut scenario_val;
+        let index = 0;
 
         let user1 = @0xBABE1;
         let user2 = @0xBABE2;
@@ -335,45 +359,31 @@ module typus_covered_call::test {
         let registry = test_scenario::take_shared<Registry>(scenario);
         let manager_cap = test_scenario::take_from_sender<ManagerCap>(scenario);
 
-        let token_decimal = 4;
-        let share_decimal = 5;
-
-        // init covered call vault 1
-        covered_call::new_covered_call_vault<SUI>(
-            &manager_cap,
-            &mut registry,
-            token_decimal,
-            share_decimal,
-            1,
-            105,
-            test_scenario::ctx(scenario)
-        );
-
         // user deposit
         test_scenario::next_tx(scenario, user1);
         let test_coin = coin::mint_for_testing<SUI>(300000, test_scenario::ctx(scenario));
         let coin_amount = coin::value<SUI>(&test_coin);
-        covered_call::deposit<SUI>(&mut registry, 1, &mut test_coin, coin_amount, true, test_scenario::ctx(scenario));
-        covered_call::unsubscribe<SUI>(&mut registry, 1, test_scenario::ctx(scenario));
+        covered_call::deposit<SUI>(&mut registry, index, &mut test_coin, coin_amount, true, test_scenario::ctx(scenario));
+        covered_call::unsubscribe<SUI>(&mut registry, index, test_scenario::ctx(scenario));
 
         test_scenario::next_tx(scenario, user1);
         let test_coin_1 = coin::mint_for_testing<SUI>(1000000, test_scenario::ctx(scenario));
         let coin_amount = coin::value<SUI>(&test_coin_1);
-        covered_call::deposit<SUI>(&mut registry, 1, &mut test_coin_1, coin_amount, true, test_scenario::ctx(scenario));
+        covered_call::deposit<SUI>(&mut registry, index, &mut test_coin_1, coin_amount, true, test_scenario::ctx(scenario));
 
         test_scenario::next_tx(scenario, user2);
         let test_coin_2 = coin::mint_for_testing<SUI>(500000, test_scenario::ctx(scenario));
         let coin_amount = coin::value<SUI>(&test_coin_2);
-        covered_call::deposit<SUI>(&mut registry, 1, &mut test_coin_2, coin_amount, true, test_scenario::ctx(scenario));
+        covered_call::deposit<SUI>(&mut registry, index, &mut test_coin_2, coin_amount, true, test_scenario::ctx(scenario));
 
         debug::print(&string::utf8(b"A: after deposit"));
-        test_print_vault_summary(&mut registry, 1);
+        test_print_vault_summary(&mut registry, index);
 
         test_scenario::next_tx(scenario, user1);
-        covered_call::unsubscribe<SUI>(&mut registry, 1, test_scenario::ctx(scenario));
+        covered_call::unsubscribe<SUI>(&mut registry, index, test_scenario::ctx(scenario));
 
         debug::print(&string::utf8(b"B: user1 unsubscribed"));
-        test_print_vault_summary(&mut registry, 1);
+        test_print_vault_summary(&mut registry, index);
 
         coin::destroy_for_testing(test_coin);
         coin::destroy_for_testing(test_coin_1);

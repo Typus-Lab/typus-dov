@@ -27,7 +27,8 @@ module typus_covered_call::covered_call {
     // ======== Errors ========
     const E_VAULT_NOT_EXPIRED_YET: u64 = 0;
     const E_INDEX_AND_FLAG_LENGTH_MISMATCH: u64 = 1;
-    const E_INVALID_NEW_AUCTION: u64 = 2;
+    const E_INVALID_TIME: u64 = 2;
+    const E_INVALID_PRICE: u64 = 3;
 
     // ======== Structs =========
 
@@ -90,6 +91,7 @@ module typus_covered_call::covered_call {
         registry: &mut Registry,
         token_decimal: u64,
         share_decimal: u64,
+        time_oracle: &Time,
         expiration_ts_ms: u64,
         strike_otm_pct: u64, // in 4 decimal
         ctx: &mut TxContext
@@ -102,7 +104,8 @@ module typus_covered_call::covered_call {
             option::none(),
         );
 
-        // TODO: should check expiration_ts_ms > now
+        let current_ts_ms = unix_time::get_ts_ms(time_oracle);
+        assert!(expiration_ts_ms > current_ts_ms, E_INVALID_TIME);
 
         let config = Config { payoff_config, token_decimal, share_decimal, expiration_ts_ms };
         let vault = vault::new_vault<ManagerCap, TOKEN>(ctx);
@@ -132,6 +135,7 @@ module typus_covered_call::covered_call {
     fun new_auction_<TOKEN>(
         manager_cap: &ManagerCap,
         registry: &mut Registry,
+        time_oracle: &Time,
         index: u64,
         start_ts_ms: u64,
         end_ts_ms: u64,
@@ -148,9 +152,10 @@ module typus_covered_call::covered_call {
         vault::disable_deposit(manager_cap, &mut covered_call_vault.vault);
         vault::disable_withdraw(manager_cap, &mut covered_call_vault.vault);
 
-        // TODO: should check start_ts_ms > now
-        assert!(end_ts_ms > start_ts_ms, E_INVALID_NEW_AUCTION);
-        assert!(initial_price > final_price, E_INVALID_NEW_AUCTION);
+        let current_ts_ms = unix_time::get_ts_ms(time_oracle);
+        assert!(start_ts_ms > current_ts_ms, E_INVALID_TIME);
+        assert!(end_ts_ms > start_ts_ms, E_INVALID_TIME);
+        assert!(initial_price > final_price, E_INVALID_PRICE);
 
         option::fill(
             &mut covered_call_vault.auction,
@@ -242,8 +247,9 @@ module typus_covered_call::covered_call {
         registry: &mut Registry,
         token_decimal: u64,
         share_decimal: u64,
+        time_oracle: &Time,
         expiration_ts_ms: u64,
-        strike_otm_pct: u64,
+        strike_otm_pct: u64, // in 4 decimal
         ctx: &mut TxContext
     ) {
         new_covered_call_vault_<TOKEN>(
@@ -251,6 +257,7 @@ module typus_covered_call::covered_call {
             registry,
             token_decimal,
             share_decimal,
+            time_oracle,
             expiration_ts_ms,
             strike_otm_pct,
             ctx,
@@ -348,6 +355,7 @@ module typus_covered_call::covered_call {
     public(friend) entry fun new_auction<TOKEN>(
         manager_cap: &ManagerCap,
         registry: &mut Registry,
+        time_oracle: &Time,
         index: u64,
         start_ts_ms: u64,
         end_ts_ms: u64,
@@ -360,6 +368,7 @@ module typus_covered_call::covered_call {
         new_auction_<TOKEN>(
             manager_cap,
             registry,
+            time_oracle,
             index,
             start_ts_ms,
             end_ts_ms,
@@ -374,6 +383,7 @@ module typus_covered_call::covered_call {
     public(friend) entry fun new_auction_with_next_covered_call_vault<TOKEN>(
         manager_cap: &ManagerCap,
         registry: &mut Registry,
+        time_oracle: &Time,
         index: u64,
         start_ts_ms: u64,
         end_ts_ms: u64,
@@ -392,6 +402,7 @@ module typus_covered_call::covered_call {
             registry,
             token_decimal,
             share_decimal,
+            time_oracle,
             expiration_ts_ms,
             strike_otm_pct,
             ctx,
@@ -407,6 +418,7 @@ module typus_covered_call::covered_call {
         new_auction_<TOKEN>(
             manager_cap,
             registry,
+            time_oracle,
             index,
             start_ts_ms,
             end_ts_ms,
