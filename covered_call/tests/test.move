@@ -172,7 +172,7 @@ module typus_covered_call::test {
         covered_call::deposit<SUI>(&mut registry, 0, &mut test_coin, coin_amount, true, test_scenario::ctx(scenario));
 
         // auction
-        let option_price_decimal = 8;
+        let option_price_decimal = 5;
         let _option_price_multiplier = utils::multiplier(option_price_decimal);
         let initial_option_price = 5_000_000;
         let final_option_price = 1_000_000;
@@ -205,7 +205,6 @@ module typus_covered_call::test {
             decay_speed,
             initial_option_price,
             final_option_price,
-            option_price_decimal,
             expiration_ts_ms_2,
             strike_otm_pct,
             test_scenario::ctx(scenario)
@@ -269,10 +268,10 @@ module typus_covered_call::test {
         );
 
         // after auction
-        let premium_roi = utils::multiplier(payoff::get_roi_decimal()) * vault::test_get_balance<ManagerCap, SUI>(
+        let premium_roi = (utils::multiplier(payoff::get_roi_decimal()) as u128) * (vault::test_get_balance<ManagerCap, SUI>(
             covered_call::test_get_vault<SUI>(&mut registry, 0),
             b"maker"
-        ) / vault_1_balance;
+        ) as u128) / (vault_1_balance as u128);
         let exposure_ratio = bid_size * utils::multiplier(8) / coin_amount;
         oracle::update(
             &mut price_oracle,
@@ -291,7 +290,7 @@ module typus_covered_call::test {
             &price_oracle
         );
         let strike = price * (utils::multiplier(payoff::get_otm_decimal()) + strike_otm_pct) / utils::multiplier(payoff::get_otm_decimal());
-        covered_call::update_payoff_config<SUI>(&manager_cap, &mut registry, 0, strike, premium_roi, exposure_ratio);
+        covered_call::update_payoff_config<SUI>(&manager_cap, &mut registry, 0, strike, (premium_roi as u64), exposure_ratio);
 
         let test_coin_2 = coin::mint_for_testing<SUI>(500000, test_scenario::ctx(scenario));
         let coin_amount = coin::value<SUI>(&test_coin_2);
