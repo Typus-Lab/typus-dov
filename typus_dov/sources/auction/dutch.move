@@ -26,7 +26,7 @@ module typus_dov::dutch {
         start_ts_ms: u64,
         end_ts_ms: u64,
         price_config: PriceConfig,
-        index: u64,
+        index: u64, // bid index
         bids: Table<u64, Bid>,
         funds: Table<u64, Fund<TOKEN>>,
         ownerships: Table<address, vector<u64>>
