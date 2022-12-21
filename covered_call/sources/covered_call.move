@@ -153,8 +153,8 @@ module typus_covered_call::covered_call {
         vault::disable_withdraw(manager_cap, &mut covered_call_vault.vault);
 
         let current_ts_ms = unix_time::get_ts_ms(time_oracle);
-        assert!(start_ts_ms > current_ts_ms, E_INVALID_TIME);
-        assert!(end_ts_ms > start_ts_ms, E_INVALID_TIME);
+        assert!(start_ts_ms >= current_ts_ms, E_INVALID_TIME);
+        assert!(end_ts_ms >= start_ts_ms, E_INVALID_TIME);
         assert!(initial_price > final_price, E_INVALID_PRICE);
 
         option::fill(
@@ -207,7 +207,7 @@ module typus_covered_call::covered_call {
         let settled_share_price = if (!i64::is_neg(&roi)) {
             utils::multiplier(C_SHARE_PRICE_DECIMAL) * (roi_multiplier + i64::as_u64(&roi)) / roi_multiplier
         } else {
-            utils::multiplier(C_SHARE_PRICE_DECIMAL) * (roi_multiplier + i64::as_u64(&i64::abs(&roi))) / roi_multiplier
+            utils::multiplier(C_SHARE_PRICE_DECIMAL) * (roi_multiplier - i64::as_u64(&i64::abs(&roi))) / roi_multiplier
         };
 
         vault::settle_fund<ManagerCap, TOKEN>(
