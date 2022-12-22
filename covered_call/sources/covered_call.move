@@ -399,8 +399,9 @@ module typus_covered_call::covered_call {
         strike_otm_pct: u64,
         ctx: &mut TxContext,
     ) {
-        let token_decimal = dynamic_field::borrow<u64, CoveredCallVault<TOKEN>>(&registry.id, index).config.token_decimal;
-        let share_decimal = dynamic_field::borrow<u64, CoveredCallVault<TOKEN>>(&registry.id, index).config.share_decimal;
+        let covered_call_vault = dynamic_field::borrow<u64, CoveredCallVault<TOKEN>>(&registry.id, index);
+        let token_decimal = covered_call_vault.config.token_decimal;
+        let share_decimal = covered_call_vault.config.share_decimal;
         let next = new_covered_call_vault_<TOKEN>(
             manager_cap,
             registry,
