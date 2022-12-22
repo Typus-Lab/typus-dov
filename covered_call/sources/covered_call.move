@@ -27,7 +27,8 @@ module typus_covered_call::covered_call {
     // ======== Errors ========
     const E_VAULT_NOT_EXPIRED_YET: u64 = 0;
     const E_INDEX_AND_FLAG_LENGTH_MISMATCH: u64 = 1;
-    const E_INVALID_NEW_AUCTION: u64 = 2;
+    const E_INVALID_TIME: u64 = 2;
+    const E_INVALID_PRICE: u64 = 3;
 
     // ======== Structs =========
 
@@ -37,6 +38,8 @@ module typus_covered_call::covered_call {
 
     struct Config has store, drop, copy {
         payoff_config: PayoffConfig,
+        token_decimal: u64,
+        share_decimal: u64,
         expiration_ts_ms: u64
     }
 
@@ -86,6 +89,9 @@ module typus_covered_call::covered_call {
     fun new_covered_call_vault_<TOKEN>(
         _manager_cap: &ManagerCap,
         registry: &mut Registry,
+        token_decimal: u64,
+        share_decimal: u64,
+        time_oracle: &Time,
         expiration_ts_ms: u64,
         strike_otm_pct: u64, // in 4 decimal
         ctx: &mut TxContext
@@ -95,11 +101,13 @@ module typus_covered_call::covered_call {
             strike_otm_pct,
             option::none(),
             option::none(),
+            option::none(),
         );
 
-        // TODO: should check expiration_ts_ms > now
+        let current_ts_ms = unix_time::get_ts_ms(time_oracle);
+        assert!(expiration_ts_ms > current_ts_ms, E_INVALID_TIME);
 
-        let config = Config { payoff_config, expiration_ts_ms };
+        let config = Config { payoff_config, token_decimal, share_decimal, expiration_ts_ms };
         let vault = vault::new_vault<ManagerCap, TOKEN>(ctx);
         let index = registry.num_of_vault;
 
@@ -127,6 +135,7 @@ module typus_covered_call::covered_call {
     fun new_auction_<TOKEN>(
         manager_cap: &ManagerCap,
         registry: &mut Registry,
+        time_oracle: &Time,
         index: u64,
         start_ts_ms: u64,
         end_ts_ms: u64,
@@ -143,9 +152,10 @@ module typus_covered_call::covered_call {
         vault::disable_deposit(manager_cap, &mut covered_call_vault.vault);
         vault::disable_withdraw(manager_cap, &mut covered_call_vault.vault);
 
-        // TODO: should check start_ts_ms > now
-        assert!(end_ts_ms > start_ts_ms, E_INVALID_NEW_AUCTION);
-        assert!(initial_price > final_price, E_INVALID_NEW_AUCTION);
+        let current_ts_ms = unix_time::get_ts_ms(time_oracle);
+        assert!(start_ts_ms >= current_ts_ms, E_INVALID_TIME);
+        assert!(end_ts_ms >= start_ts_ms, E_INVALID_TIME);
+        assert!(initial_price > final_price, E_INVALID_PRICE);
 
         option::fill(
             &mut covered_call_vault.auction,
@@ -180,6 +190,8 @@ module typus_covered_call::covered_call {
     fun settle_<TOKEN>(
         manager_cap: &ManagerCap,
         covered_call_vault: &mut CoveredCallVault<TOKEN>,
+        token_decimal: u64,
+        share_decimal: u64,
         price_oracle: &Oracle<TOKEN>,
         time_oracle: &Time
     ) {
@@ -195,13 +207,15 @@ module typus_covered_call::covered_call {
         let settled_share_price = if (!i64::is_neg(&roi)) {
             utils::multiplier(C_SHARE_PRICE_DECIMAL) * (roi_multiplier + i64::as_u64(&roi)) / roi_multiplier
         } else {
-            utils::multiplier(C_SHARE_PRICE_DECIMAL) * (roi_multiplier + i64::as_u64(&i64::abs(&roi))) / roi_multiplier
+            utils::multiplier(C_SHARE_PRICE_DECIMAL) * (roi_multiplier - i64::as_u64(&i64::abs(&roi))) / roi_multiplier
         };
 
         vault::settle_fund<ManagerCap, TOKEN>(
             manager_cap,
             &mut covered_call_vault.vault,
             settled_share_price,
+            token_decimal,
+            share_decimal,
             C_SHARE_PRICE_DECIMAL
         );
         // TODO: calculate performance fee
@@ -235,13 +249,19 @@ module typus_covered_call::covered_call {
     public(friend) entry fun new_covered_call_vault<TOKEN>(
         manager_cap: &ManagerCap,
         registry: &mut Registry,
+        token_decimal: u64,
+        share_decimal: u64,
+        time_oracle: &Time,
         expiration_ts_ms: u64,
-        strike_otm_pct: u64,
+        strike_otm_pct: u64, // in 4 decimal
         ctx: &mut TxContext
     ) {
         new_covered_call_vault_<TOKEN>(
             manager_cap,
             registry,
+            token_decimal,
+            share_decimal,
+            time_oracle,
             expiration_ts_ms,
             strike_otm_pct,
             ctx,
@@ -268,12 +288,14 @@ module typus_covered_call::covered_call {
         object::delete(id);
     }
 
+    // after delivery
     public(friend) entry fun update_payoff_config<TOKEN>(
         _manager_cap: &ManagerCap,
         registry: &mut Registry,
         index: u64,
-        price: u64,
-        premium_roi: u64
+        strike: u64,
+        premium_roi: u64,
+        exposure_ratio: u64
     ) {
         
         payoff::set_strike(
@@ -283,7 +305,7 @@ module typus_covered_call::covered_call {
             )
             .config
             .payoff_config,
-            price
+            strike
         );
 
         payoff::set_premium_roi(
@@ -295,6 +317,16 @@ module typus_covered_call::covered_call {
             .payoff_config,
             premium_roi
         );
+
+        payoff::set_exposure_ratio(
+            &mut dynamic_field::borrow_mut<u64, CoveredCallVault<TOKEN>>(
+                &mut registry.id,
+                index
+            )
+            .config
+            .payoff_config,
+            exposure_ratio
+        );
     }
 
     public(friend) entry fun deposit<TOKEN>(
@@ -305,10 +337,14 @@ module typus_covered_call::covered_call {
         is_rolling: bool,
         ctx: &mut TxContext
     ) {
+        let token_decimal = dynamic_field::borrow<u64, CoveredCallVault<TOKEN>>(&registry.id, index).config.token_decimal;
+        let share_decimal = dynamic_field::borrow<u64, CoveredCallVault<TOKEN>>(&registry.id, index).config.share_decimal;
         vault::deposit<ManagerCap, TOKEN>(
             &mut get_mut_covered_call_vault<TOKEN>(registry, index).vault,
             coin,
             amount,
+            token_decimal,
+            share_decimal,
             is_rolling,
             ctx
         );
@@ -323,25 +359,28 @@ module typus_covered_call::covered_call {
     public(friend) entry fun new_auction<TOKEN>(
         manager_cap: &ManagerCap,
         registry: &mut Registry,
+        time_oracle: &Time,
         index: u64,
         start_ts_ms: u64,
         end_ts_ms: u64,
         decay_speed: u64,
         initial_price: u64,
         final_price: u64,
-        price_decimal: u64,
         ctx: &mut TxContext,
     ) {
+        let token_decimal = dynamic_field::borrow<u64, CoveredCallVault<TOKEN>>(&registry.id, index).config.token_decimal;
+        let share_decimal = dynamic_field::borrow<u64, CoveredCallVault<TOKEN>>(&registry.id, index).config.share_decimal;
         new_auction_<TOKEN>(
             manager_cap,
             registry,
+            time_oracle,
             index,
             start_ts_ms,
             end_ts_ms,
             decay_speed,
             initial_price,
             final_price,
-            price_decimal,
+            token_decimal - share_decimal,
             ctx,
         );
     }
@@ -349,20 +388,26 @@ module typus_covered_call::covered_call {
     public(friend) entry fun new_auction_with_next_covered_call_vault<TOKEN>(
         manager_cap: &ManagerCap,
         registry: &mut Registry,
+        time_oracle: &Time,
         index: u64,
         start_ts_ms: u64,
         end_ts_ms: u64,
         decay_speed: u64,
         initial_price: u64,
         final_price: u64,
-        price_decimal: u64,
         expiration_ts_ms: u64,
         strike_otm_pct: u64,
         ctx: &mut TxContext,
     ) {
+        let covered_call_vault = dynamic_field::borrow<u64, CoveredCallVault<TOKEN>>(&registry.id, index);
+        let token_decimal = covered_call_vault.config.token_decimal;
+        let share_decimal = covered_call_vault.config.share_decimal;
         let next = new_covered_call_vault_<TOKEN>(
             manager_cap,
             registry,
+            token_decimal,
+            share_decimal,
+            time_oracle,
             expiration_ts_ms,
             strike_otm_pct,
             ctx,
@@ -378,13 +423,14 @@ module typus_covered_call::covered_call {
         new_auction_<TOKEN>(
             manager_cap,
             registry,
+            time_oracle,
             index,
             start_ts_ms,
             end_ts_ms,
             decay_speed,
             initial_price,
             final_price,
-            price_decimal,
+            token_decimal - share_decimal,
             ctx,
         );
     }
@@ -509,23 +555,23 @@ module typus_covered_call::covered_call {
         );
     }
 
-    public(friend) entry fun remove_bid<TOKEN>(
-        registry: &mut Registry,
-        index: u64,
-        bid_index: u64,
-        time: &Time,
-        ctx: &mut TxContext,
-    ) {
-        dutch::remove_bid<ManagerCap, TOKEN>(
-            option::borrow_mut(&mut dynamic_field::borrow_mut<u64, CoveredCallVault<TOKEN>>(
-                &mut registry.id,
-                index
-            ).auction),
-            bid_index,
-            time,
-            ctx,
-        );
-    }
+    // public(friend) entry fun remove_bid<TOKEN>(
+    //     registry: &mut Registry,
+    //     index: u64,
+    //     bid_index: u64,
+    //     time: &Time,
+    //     ctx: &mut TxContext,
+    // ) {
+    //     dutch::remove_bid<ManagerCap, TOKEN>(
+    //         option::borrow_mut(&mut dynamic_field::borrow_mut<u64, CoveredCallVault<TOKEN>>(
+    //             &mut registry.id,
+    //             index
+    //         ).auction),
+    //         bid_index,
+    //         time,
+    //         ctx,
+    //     );
+    // }
 
     public(friend) entry fun delivery<TOKEN>(
         manager_cap: &ManagerCap,
@@ -559,9 +605,14 @@ module typus_covered_call::covered_call {
         price_oracle: &Oracle<TOKEN>,
         time_oracle: &Time
     ) {
+        let token_decimal = dynamic_field::borrow<u64, CoveredCallVault<TOKEN>>(&registry.id, index).config.token_decimal;
+        let share_decimal = dynamic_field::borrow<u64, CoveredCallVault<TOKEN>>(&registry.id, index).config.share_decimal;
+
         settle_<TOKEN>(
             manager_cap,
             get_mut_covered_call_vault<TOKEN>(registry, index),
+            token_decimal,
+            share_decimal,
             price_oracle,
             time_oracle
         );
@@ -586,9 +637,14 @@ module typus_covered_call::covered_call {
         price_oracle: &Oracle<TOKEN>,
         time_oracle: &Time
     ) {
+        let token_decimal = dynamic_field::borrow<u64, CoveredCallVault<TOKEN>>(&registry.id, index).config.token_decimal;
+        let share_decimal = dynamic_field::borrow<u64, CoveredCallVault<TOKEN>>(&registry.id, index).config.share_decimal;
+        
         settle_(
             manager_cap,
             get_mut_covered_call_vault<TOKEN>(registry, index),
+            token_decimal,
+            share_decimal,
             price_oracle,
             time_oracle,
         );

@@ -198,7 +198,7 @@ module typus_dov::dutch {
         size: u64,
         time: &Time,
     ): (Balance<TOKEN>, VecMap<address, u64>) {
-        assert!(unix_time::get_ts_ms(time) > auction.end_ts_ms, E_AUCTION_NOT_YET_CLOSED);
+        assert!(unix_time::get_ts_ms(time) > auction.start_ts_ms, E_AUCTION_NOT_YET_CLOSED);
 
         let balance = balance::zero();
         // to get the delivery_price
