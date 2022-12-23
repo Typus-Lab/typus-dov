@@ -25,8 +25,8 @@ module typus_covered_call::covered_call {
     // ======== Constants ========
 
     const C_SHARE_PRICE_DECIMAL: u64 = 8;
-    const C_USER_SHARE_TABLE_NAME: vector<u8> = b"user_share";
-    const C_MAKER_SHARE_TABLE_NAME: vector<u8> = b"maker_share";
+    const C_USER_SHARE_TABLE_NAME: vector<u8> = b"user_balance_table";
+    const C_MAKER_SHARE_TABLE_NAME: vector<u8> = b"maker_balance_table";
 
     // ======== Errors ========
     const E_VAULT_NOT_EXPIRED_YET: u64 = 0;
@@ -109,6 +109,8 @@ module typus_covered_call::covered_call {
         let records = bag::new(ctx);
         let user_balance_table = table::new<UserBalanceKey, UserBalance>(ctx);
         bag::add(&mut records, C_USER_SHARE_TABLE_NAME, user_balance_table);
+        let maker_balance_table = table::new<MakerBalanceKey, MakerBalance>(ctx);
+        bag::add(&mut records, C_MAKER_SHARE_TABLE_NAME, maker_balance_table);
 
 
         let vault = Registry {
