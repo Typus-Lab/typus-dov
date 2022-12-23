@@ -130,7 +130,7 @@ module typus_covered_call::test {
         let expiration_ts_ms_2 = 1672387200_000; // 2022/12/30 Friday 08:00:00
         let decay_speed = 1;
 
-        let strike_otm_pct = 50; // 0.05 * 1000
+        let strike_otm_pct = 500; // 0.05 * 10000
 
         let scenario_val = test_new_vault();
         let index = 0;
@@ -176,8 +176,8 @@ module typus_covered_call::test {
         // auction
         let option_price_decimal = 5;
         let _option_price_multiplier = utils::multiplier(option_price_decimal);
-        let initial_option_price = 5_000_000;
-        let final_option_price = 1_000_000;
+        let initial_option_price = 5_000;
+        let final_option_price = 1_000;
         let start_auction_ts_ms = expiration_ts_ms_1 - 1000;
         let end_auction_ts_ms = start_auction_ts_ms + 500;
         oracle::update(
