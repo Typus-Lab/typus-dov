@@ -7,6 +7,7 @@ module typus_covered_call::covered_call {
     use sui::dynamic_field;
     use sui::event::emit;
     use sui::object::{Self, UID};
+    use sui::table::{Self, Table};
     use sui::transfer;
     use sui::tx_context::{Self, TxContext};
 
@@ -24,6 +25,8 @@ module typus_covered_call::covered_call {
     // ======== Constants ========
 
     const C_SHARE_PRICE_DECIMAL: u64 = 8;
+    const C_USER_SHARE_TABLE_NAME: vector<u8> = b"user_share";
+    const C_MAKER_SHARE_TABLE_NAME: vector<u8> = b"maker_share";
 
     // ======== Errors ========
     const E_VAULT_NOT_EXPIRED_YET: u64 = 0;
@@ -57,18 +60,28 @@ module typus_covered_call::covered_call {
         next: Option<u64>,
     }
 
-    struct UserShareKey has copy, drop, store {
-        covered_call_vault: address,
+    struct UserBalanceKey has copy, drop, store {
+        index: u64,
         user: address,
-        sub_vault_type: vector<u8>,
+        is_rolling: bool,
     }
 
-    struct UserShare has copy, drop, store {
-        covered_call_vault: address,
+    struct UserBalance has copy, drop, store {
+        index: u64,
         user: address,
-        sub_vault_type: vector<u8>,
+        is_rolling: bool,
         balance: u64,
-        share: u64
+    }
+
+    struct MakerBalanceKey has copy, drop, store {
+        index: u64,
+        user: address,
+    }
+
+    struct MakerBalance has copy, drop, store {
+        index: u64,
+        user: address,
+        balance: u64,
     }
 
     // ======== Private Functions =========
@@ -93,11 +106,15 @@ module typus_covered_call::covered_call {
         let id = object::new(ctx);
 
         // emit(RegistryCreated { id: object::uid_to_inner(&id) });
+        let records = bag::new(ctx);
+        let user_balance_table = table::new<UserBalanceKey, UserBalance>(ctx);
+        bag::add(&mut records, C_USER_SHARE_TABLE_NAME, user_balance_table);
+
 
         let vault = Registry {
             id,
             num_of_vault: 0,
-            records: bag::new(ctx),
+            records,
         };
 
         transfer::share_object(vault);
@@ -371,6 +388,32 @@ module typus_covered_call::covered_call {
             is_rolling,
             ctx
         );
+
+        // update user receipt
+        let user_balance_table = bag::borrow_mut<vector<u8>, Table<UserBalanceKey, UserBalance>>(&mut registry.records, C_USER_SHARE_TABLE_NAME);
+        let user_balance_key = UserBalanceKey {
+            index,
+            user: tx_context::sender(ctx),
+            is_rolling,
+        };
+        if (table::contains(user_balance_table, user_balance_key)) {
+            let user_balance = table::borrow_mut(user_balance_table, user_balance_key);
+            user_balance.balance = user_balance.balance + amount;
+        }
+        else {
+            table::add(
+                user_balance_table,
+                user_balance_key,
+                UserBalance {
+                    index,
+                    user: tx_context::sender(ctx),
+                    is_rolling,
+                    balance: amount,
+                }
+            );
+        };
+
+        // emit event
         emit(Deposit{
             index,
             amount,
