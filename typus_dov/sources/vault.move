@@ -187,6 +187,8 @@ module typus_dov::vault {
     public fun prepare_rolling<MANAGER, TOKEN>(
         _manager_cap: &MANAGER,
         vault: &mut Vault<MANAGER, TOKEN>,
+        token_decimal: u64,
+        share_decimal: u64,
     ): (Balance<TOKEN>, VecMap<address, u64>) {
         assert!(vault_settled(vault), E_NOT_YET_SETTLED);
 
@@ -203,7 +205,10 @@ module typus_dov::vault {
             vec_map::insert(
                 &mut scaled_user_shares,
                 *user,
-                ((*linked_list::borrow(user_shares, *user) as u128) * (total_balance as u128) / (*share_supply as u128) as u64)
+                ((*linked_list::borrow(user_shares, *user) as u128)
+                    * (total_balance as u128)
+                        / (*share_supply as u128)
+                            / (utils::multiplier(token_decimal - share_decimal) as u128) as u64)
         );
             index = linked_list::next(user_shares, *user);
         };

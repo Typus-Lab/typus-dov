@@ -2,12 +2,13 @@ module typus_covered_call::covered_call {
     use std::option::{Self, Option};
     use std::vector;
 
+    use sui::bag::{Self, Bag};
     use sui::coin::Coin;
     use sui::dynamic_field;
+    use sui::event::emit;
     use sui::object::{Self, UID};
     use sui::transfer;
     use sui::tx_context::{Self, TxContext};
-    use sui::event::emit;
 
     use typus_covered_call::payoff::{Self, PayoffConfig};
     use typus_dov::dutch::{Self, Auction};
@@ -46,6 +47,7 @@ module typus_covered_call::covered_call {
     struct Registry has key {
         id: UID,
         num_of_vault: u64,
+        records: Bag,
     }
 
     struct CoveredCallVault<phantom TOKEN> has store {
@@ -53,6 +55,20 @@ module typus_covered_call::covered_call {
         vault: Vault<ManagerCap, TOKEN>,
         auction: Option<Auction<ManagerCap, TOKEN>>,
         next: Option<u64>,
+    }
+
+    struct UserShareKey has copy, drop, store {
+        covered_call_vault: address,
+        user: address,
+        sub_vault_type: vector<u8>,
+    }
+
+    struct UserShare has copy, drop, store {
+        covered_call_vault: address,
+        user: address,
+        sub_vault_type: vector<u8>,
+        balance: u64,
+        share: u64
     }
 
     // ======== Private Functions =========
@@ -80,7 +96,8 @@ module typus_covered_call::covered_call {
 
         let vault = Registry {
             id,
-            num_of_vault: 0
+            num_of_vault: 0,
+            records: bag::new(ctx),
         };
 
         transfer::share_object(vault);
@@ -226,9 +243,14 @@ module typus_covered_call::covered_call {
         registry: &mut Registry,
         index: u64,
     ) {
+        let covered_call_vault = dynamic_field::borrow<u64, CoveredCallVault<TOKEN>>(&registry.id, index);
+        let token_decimal = covered_call_vault.config.token_decimal;
+        let share_decimal = covered_call_vault.config.share_decimal;
         let (balance, scaled_user_shares) = vault::prepare_rolling<ManagerCap, TOKEN>(
             manager_cap,
             &mut get_mut_covered_call_vault<TOKEN>(registry, index).vault,
+            token_decimal,
+            share_decimal,
         );
 
         let next = *option::borrow(&get_mut_covered_call_vault<TOKEN>(registry, index).next);
@@ -337,8 +359,9 @@ module typus_covered_call::covered_call {
         is_rolling: bool,
         ctx: &mut TxContext
     ) {
-        let token_decimal = dynamic_field::borrow<u64, CoveredCallVault<TOKEN>>(&registry.id, index).config.token_decimal;
-        let share_decimal = dynamic_field::borrow<u64, CoveredCallVault<TOKEN>>(&registry.id, index).config.share_decimal;
+        let covered_call_vault = dynamic_field::borrow<u64, CoveredCallVault<TOKEN>>(&registry.id, index);
+        let token_decimal = covered_call_vault.config.token_decimal;
+        let share_decimal = covered_call_vault.config.share_decimal;
         vault::deposit<ManagerCap, TOKEN>(
             &mut get_mut_covered_call_vault<TOKEN>(registry, index).vault,
             coin,
@@ -368,8 +391,9 @@ module typus_covered_call::covered_call {
         final_price: u64,
         ctx: &mut TxContext,
     ) {
-        let token_decimal = dynamic_field::borrow<u64, CoveredCallVault<TOKEN>>(&registry.id, index).config.token_decimal;
-        let share_decimal = dynamic_field::borrow<u64, CoveredCallVault<TOKEN>>(&registry.id, index).config.share_decimal;
+        let covered_call_vault = dynamic_field::borrow<u64, CoveredCallVault<TOKEN>>(&registry.id, index);
+        let token_decimal = covered_call_vault.config.token_decimal;
+        let share_decimal = covered_call_vault.config.share_decimal;
         new_auction_<TOKEN>(
             manager_cap,
             registry,
@@ -694,5 +718,4 @@ module typus_covered_call::covered_call {
     ): &Vault<ManagerCap, TOKEN> {
         &dynamic_field::borrow<u64, CoveredCallVault<TOKEN>>(&registry.id, index).vault
     }
-
 }
