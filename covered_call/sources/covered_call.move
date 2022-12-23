@@ -530,6 +530,9 @@ module typus_covered_call::covered_call {
             let user_balance = table::borrow_mut(user_balance_table, user_balance_key);
             user_balance.balance = user_balance.balance - amount;
         };
+
+        // emit event
+        // TODO
     }
 
     public(friend) entry fun claim<TOKEN>(
@@ -545,6 +548,24 @@ module typus_covered_call::covered_call {
             is_rolling,
             ctx
         );
+
+        // update user receipt
+        let user_balance_table = bag::borrow_mut<vector<u8>, Table<UserBalanceKey, UserBalance>>(&mut registry.records, C_USER_SHARE_TABLE_NAME);
+        let user_balance_key = UserBalanceKey {
+            index,
+            user: tx_context::sender(ctx),
+            is_rolling,
+        };
+        if (amount == 0 || table::borrow(user_balance_table, user_balance_key).balance == amount) {
+            table::remove(user_balance_table, user_balance_key);
+        }
+        else {
+            let user_balance = table::borrow_mut(user_balance_table, user_balance_key);
+            user_balance.balance = user_balance.balance - amount;
+        };
+
+        // emit event
+        // TODO
     }
 
     public(friend) entry fun claim_all<TOKEN>(
@@ -564,7 +585,19 @@ module typus_covered_call::covered_call {
                 is_rolling,
                 ctx
             );
+
+            // update user receipt
+            let user_balance_table = bag::borrow_mut<vector<u8>, Table<UserBalanceKey, UserBalance>>(&mut registry.records, C_USER_SHARE_TABLE_NAME);
+            let user_balance_key = UserBalanceKey {
+                index,
+                user: tx_context::sender(ctx),
+                is_rolling,
+            };
+            table::remove(user_balance_table, user_balance_key);
         }
+
+        // emit event
+        // TODO
     }
 
     public(friend) entry fun maker_claim<TOKEN>(
