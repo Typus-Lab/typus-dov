@@ -24,7 +24,7 @@ module typus_dov::utils {
     public fun ensure_value(value: u64, decimal: u64) {
         assert!(value > 0, E_ZERO_VALUE);
         let multiplier = multiplier(decimal);
-        assert!(value % multiplier == 0, E_INVALID_VALUE)
+        assert!(value / multiplier > 0 && value % multiplier == 0, E_INVALID_VALUE)
     }
 
     // extract balance from coin
