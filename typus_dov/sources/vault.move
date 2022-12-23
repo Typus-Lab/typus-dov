@@ -257,7 +257,7 @@ module typus_dov::vault {
             user,
         );
         
-        emit(UserDeposit<MANAGER, TOKEN> { user, sub_vault_type, amount });
+        emit(UserDeposit<MANAGER, TOKEN> { user, sub_vault_type, amount, share });
     }
 
     public fun withdraw<MANAGER, TOKEN>(
@@ -521,6 +521,7 @@ module typus_dov::vault {
         user: address,
         sub_vault_type: vector<u8>,
         amount: u64,
+        share: u64
     }
     
     struct UserWithdraw<phantom MANAGER, phantom TOKEN> has copy, drop {

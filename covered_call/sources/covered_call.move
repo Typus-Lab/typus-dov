@@ -404,7 +404,7 @@ module typus_covered_call::covered_call {
             decay_speed,
             initial_price,
             final_price,
-            token_decimal - share_decimal,
+            token_decimal - share_decimal, // price_decimal
             ctx,
         );
     }
