@@ -25,8 +25,8 @@ module typus_covered_call::covered_call {
     // ======== Constants ========
 
     const C_SHARE_PRICE_DECIMAL: u64 = 8;
-    const C_USER_SHARE_TABLE_NAME: vector<u8> = b"user_balance_table";
-    const C_MAKER_SHARE_TABLE_NAME: vector<u8> = b"maker_balance_table";
+    const C_USER_SHARE_TABLE_NAME: vector<u8> = b"user_share_table";
+    const C_MAKER_SHARE_TABLE_NAME: vector<u8> = b"maker_share_table";
 
     // ======== Errors ========
     const E_VAULT_NOT_EXPIRED_YET: u64 = 0;
@@ -60,28 +60,28 @@ module typus_covered_call::covered_call {
         next: Option<u64>,
     }
 
-    struct UserBalanceKey has copy, drop, store {
+    struct UserShareKey has copy, drop, store {
         index: u64,
         user: address,
         is_rolling: bool,
     }
 
-    struct UserBalance has copy, drop, store {
+    struct UserShare has copy, drop, store {
         index: u64,
         user: address,
         is_rolling: bool,
-        balance: u64,
+        share: u64,
     }
 
-    struct MakerBalanceKey has copy, drop, store {
+    struct MakerShareKey has copy, drop, store {
         index: u64,
         user: address,
     }
 
-    struct MakerBalance has copy, drop, store {
+    struct MakerShare has copy, drop, store {
         index: u64,
         user: address,
-        balance: u64,
+        share: u64,
     }
 
     // ======== Private Functions =========
@@ -107,9 +107,9 @@ module typus_covered_call::covered_call {
 
         // emit(RegistryCreated { id: object::uid_to_inner(&id) });
         let records = bag::new(ctx);
-        let user_balance_table = table::new<UserBalanceKey, UserBalance>(ctx);
-        bag::add(&mut records, C_USER_SHARE_TABLE_NAME, user_balance_table);
-        let maker_balance_table = table::new<MakerBalanceKey, MakerBalance>(ctx);
+        let user_share_table = table::new<UserShareKey, UserShare>(ctx);
+        bag::add(&mut records, C_USER_SHARE_TABLE_NAME, user_share_table);
+        let maker_balance_table = table::new<MakerShareKey, MakerShare>(ctx);
         bag::add(&mut records, C_MAKER_SHARE_TABLE_NAME, maker_balance_table);
 
 
@@ -381,7 +381,7 @@ module typus_covered_call::covered_call {
         let covered_call_vault = dynamic_field::borrow<u64, CoveredCallVault<TOKEN>>(&registry.id, index);
         let token_decimal = covered_call_vault.config.token_decimal;
         let share_decimal = covered_call_vault.config.share_decimal;
-        vault::deposit<ManagerCap, TOKEN>(
+        let share = vault::deposit<ManagerCap, TOKEN>(
             &mut get_mut_covered_call_vault<TOKEN>(registry, index).vault,
             coin,
             amount,
@@ -392,25 +392,25 @@ module typus_covered_call::covered_call {
         );
 
         // update user receipt
-        let user_balance_table = bag::borrow_mut<vector<u8>, Table<UserBalanceKey, UserBalance>>(&mut registry.records, C_USER_SHARE_TABLE_NAME);
-        let user_balance_key = UserBalanceKey {
+        let user_share_table = bag::borrow_mut<vector<u8>, Table<UserShareKey, UserShare>>(&mut registry.records, C_USER_SHARE_TABLE_NAME);
+        let user_share_key = UserShareKey {
             index,
             user: tx_context::sender(ctx),
             is_rolling,
         };
-        if (table::contains(user_balance_table, user_balance_key)) {
-            let user_balance = table::borrow_mut(user_balance_table, user_balance_key);
-            user_balance.balance = user_balance.balance + amount;
+        if (table::contains(user_share_table, user_share_key)) {
+            let user_share = table::borrow_mut(user_share_table, user_share_key);
+            user_share.share = user_share.share + share;
         }
         else {
             table::add(
-                user_balance_table,
-                user_balance_key,
-                UserBalance {
+                user_share_table,
+                user_share_key,
+                UserShare {
                     index,
                     user: tx_context::sender(ctx),
                     is_rolling,
-                    balance: amount,
+                    share,
                 }
             );
         };
@@ -507,30 +507,30 @@ module typus_covered_call::covered_call {
     public(friend) entry fun withdraw<TOKEN>(
         registry: &mut Registry,
         index: u64,
-        amount: u64,
+        share: u64,
         is_rolling: bool,
         ctx: &mut TxContext
     ) {
         vault::withdraw<ManagerCap, TOKEN>(
             &mut get_mut_covered_call_vault<TOKEN>(registry, index).vault,
-            if (amount == 0) option::none() else option::some(amount),
+            if (share == 0) option::none() else option::some(share),
             is_rolling,
             ctx
         );
 
         // update user receipt
-        let user_balance_table = bag::borrow_mut<vector<u8>, Table<UserBalanceKey, UserBalance>>(&mut registry.records, C_USER_SHARE_TABLE_NAME);
-        let user_balance_key = UserBalanceKey {
+        let user_share_table = bag::borrow_mut<vector<u8>, Table<UserShareKey, UserShare>>(&mut registry.records, C_USER_SHARE_TABLE_NAME);
+        let user_share_key = UserShareKey {
             index,
             user: tx_context::sender(ctx),
             is_rolling,
         };
-        if (amount == 0 || table::borrow(user_balance_table, user_balance_key).balance == amount) {
-            table::remove(user_balance_table, user_balance_key);
+        if (share == 0 || table::borrow(user_share_table, user_share_key).share == share) {
+            table::remove(user_share_table, user_share_key);
         }
         else {
-            let user_balance = table::borrow_mut(user_balance_table, user_balance_key);
-            user_balance.balance = user_balance.balance - amount;
+            let user_share = table::borrow_mut(user_share_table, user_share_key);
+            user_share.share = user_share.share - share;
         };
 
         // emit event
@@ -540,31 +540,23 @@ module typus_covered_call::covered_call {
     public(friend) entry fun claim<TOKEN>(
         registry: &mut Registry,
         index: u64,
-        amount: u64,
         is_rolling: bool,
         ctx: &mut TxContext
     ) {
         vault::claim<ManagerCap, TOKEN>(
             &mut get_mut_covered_call_vault<TOKEN>(registry, index).vault,
-            if (amount == 0) option::none() else option::some(amount),
             is_rolling,
             ctx
         );
 
         // update user receipt
-        let user_balance_table = bag::borrow_mut<vector<u8>, Table<UserBalanceKey, UserBalance>>(&mut registry.records, C_USER_SHARE_TABLE_NAME);
-        let user_balance_key = UserBalanceKey {
+        let user_share_table = bag::borrow_mut<vector<u8>, Table<UserShareKey, UserShare>>(&mut registry.records, C_USER_SHARE_TABLE_NAME);
+        let user_share_key = UserShareKey {
             index,
             user: tx_context::sender(ctx),
             is_rolling,
         };
-        if (amount == 0 || table::borrow(user_balance_table, user_balance_key).balance == amount) {
-            table::remove(user_balance_table, user_balance_key);
-        }
-        else {
-            let user_balance = table::borrow_mut(user_balance_table, user_balance_key);
-            user_balance.balance = user_balance.balance - amount;
-        };
+        table::remove(user_share_table, user_share_key);
 
         // emit event
         // TODO
@@ -583,19 +575,18 @@ module typus_covered_call::covered_call {
             let is_rolling = vector::pop_back(&mut is_rolling);
             vault::claim<ManagerCap, TOKEN>(
                 &mut get_mut_covered_call_vault<TOKEN>(registry, index).vault,
-                option::none(),
                 is_rolling,
                 ctx
             );
 
             // update user receipt
-            let user_balance_table = bag::borrow_mut<vector<u8>, Table<UserBalanceKey, UserBalance>>(&mut registry.records, C_USER_SHARE_TABLE_NAME);
-            let user_balance_key = UserBalanceKey {
+            let user_share_table = bag::borrow_mut<vector<u8>, Table<UserShareKey, UserShare>>(&mut registry.records, C_USER_SHARE_TABLE_NAME);
+            let user_share_key = UserShareKey {
                 index,
                 user: tx_context::sender(ctx),
                 is_rolling,
             };
-            table::remove(user_balance_table, user_balance_key);
+            table::remove(user_share_table, user_share_key);
         }
 
         // emit event
@@ -605,12 +596,10 @@ module typus_covered_call::covered_call {
     public(friend) entry fun maker_claim<TOKEN>(
         registry: &mut Registry,
         index: u64,
-        amount: u64,
         ctx: &mut TxContext
     ) {
         vault::maker_claim<ManagerCap, TOKEN>(
             &mut get_mut_covered_call_vault<TOKEN>(registry, index).vault,
-            if (amount == 0) option::none() else option::some(amount),
             ctx
         );
     }
@@ -624,7 +613,6 @@ module typus_covered_call::covered_call {
             let index = vector::pop_back(&mut index);
             vault::maker_claim<ManagerCap, TOKEN>(
                 &mut get_mut_covered_call_vault<TOKEN>(registry, index).vault,
-                option::none(),
                 ctx
             );
         }
