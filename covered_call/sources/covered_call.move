@@ -51,7 +51,7 @@ module typus_covered_call::covered_call {
     struct Registry has key {
         id: UID,
         num_of_vault: u64,
-        records: Bag,
+        records: Bag, // C_USER_SHARE_TABLE_NAME, C_MAKER_SHARE_TABLE_NAME
     }
 
     struct CoveredCallVault<phantom TOKEN> has store {
