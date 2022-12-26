@@ -1,5 +1,6 @@
 module typus_dov::vault {
     use std::option::{Self, Option};
+
     use sui::balance::{Self, Balance};
     use sui::coin::{Self, Coin};
     use sui::event::emit;
@@ -7,6 +8,7 @@ module typus_dov::vault {
     use sui::transfer;
     use sui::tx_context::{Self, TxContext};
     use sui::vec_map::{Self, VecMap};
+
     use typus_dov::linked_list::{Self, LinkedList};
     use typus_dov::utils;
 

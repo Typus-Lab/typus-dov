@@ -3,13 +3,15 @@ module typus_dov::dutch {
 
     use sui::balance::{Self, Balance};
     use sui::coin::{Self, Coin};
+    use sui::event::emit;
     use sui::table::{Self, Table};
     use sui::transfer;
     use sui::tx_context::{Self, TxContext};
     use sui::vec_map::{Self, VecMap};
-    use sui::event::emit;
 
     use typus_oracle::unix_time::{Self, Time};
+
+    use typus_dov::utils;
 
     // ======== Errors ========
 
@@ -36,7 +38,6 @@ module typus_dov::dutch {
         decay_speed: u64,
         initial_price: u64,
         final_price: u64,
-        price_decimal: u64,
     }
 
     struct Bid has copy, drop, store {
@@ -58,9 +59,12 @@ module typus_dov::dutch {
         decay_speed: u64,
         initial_price: u64,
         final_price: u64,
-        price_decimal: u64,
+        token_decimal: u64,
+        share_decimal: u64,
         ctx: &mut TxContext,
     ): Auction<MANAGER, TOKEN> {
+        utils::ensure_value(initial_price, (token_decimal - share_decimal));
+        utils::ensure_value(final_price, (token_decimal - share_decimal));
         Auction {
             start_ts_ms,
             end_ts_ms,
@@ -68,7 +72,6 @@ module typus_dov::dutch {
                 decay_speed,
                 initial_price,
                 final_price,
-                price_decimal
             },
             index: 0,
             bids: table::new(ctx),
@@ -80,6 +83,8 @@ module typus_dov::dutch {
     public fun new_bid<MANAGER, TOKEN>(
         auction: &mut Auction<MANAGER, TOKEN>,
         size: u64,
+        token_decimal: u64,
+        share_decimal: u64,
         coin: &mut Coin<TOKEN>,
         time: &Time,
         ctx: &mut TxContext,
@@ -87,7 +92,7 @@ module typus_dov::dutch {
         let ts_ms = unix_time::get_ts_ms(time);
         assert!(ts_ms >= auction.start_ts_ms, E_AUCTION_NOT_YET_STARTED);
         assert!(ts_ms <= auction.end_ts_ms, E_AUCTION_CLOSED);
-        assert!(size != 0, E_ZERO_SIZE);
+        utils::ensure_value(size, share_decimal);
 
         let index = auction.index;
         let owner = tx_context::sender(ctx);
@@ -101,13 +106,7 @@ module typus_dov::dutch {
                 ts_ms,
             }
         );
-        
-        let i = 0;
-        let price_multiplier = 1;
-        while (i < auction.price_config.price_decimal) {
-            price_multiplier = price_multiplier * 10;
-            i = i + 1;
-        };
+        let price_multiplier = utils::multiplier(token_decimal - share_decimal);
         let bid_value = price * size / price_multiplier;
 
         assert!(bid_value > 0, E_BID_VALUE_TOO_LOW);
@@ -196,6 +195,8 @@ module typus_dov::dutch {
         _manager_cap: &MANAGER,
         auction: &mut Auction<MANAGER, TOKEN>,
         size: u64,
+        token_decimal: u64,
+        share_decimal: u64,
         time: &Time,
     ): (Balance<TOKEN>, VecMap<address, u64>) {
         assert!(unix_time::get_ts_ms(time) > auction.start_ts_ms, E_AUCTION_NOT_YET_CLOSED);
@@ -203,13 +204,7 @@ module typus_dov::dutch {
         let balance = balance::zero();
         // to get the delivery_price
         let delivery_price = auction.price_config.initial_price;
-        
-        let i = 0;
-        let price_multiplier = 1;
-        while (i < auction.price_config.price_decimal) {
-            price_multiplier = price_multiplier * 10;
-            i = i + 1;
-        };
+        let price_multiplier = utils::multiplier(token_decimal - share_decimal);
 
         let index = 0;
         let sum = 0;
@@ -358,16 +353,18 @@ module typus_dov::dutch {
         let decay_speed = 1;
         let initial_price = 5_000_000;
         let final_price = 1_000_000;
-        let price_decimal = 8;
+        let token_decimal = 9;
+        let share_decimal = 4;
         
         let auction = new(
-            start_ts_ms, 
-            end_ts_ms, 
-            decay_speed, 
-            initial_price, 
-            final_price, 
-            price_decimal, 
-            test_scenario::ctx(&mut admin_scenario)
+            start_ts_ms,
+            end_ts_ms,
+            decay_speed,
+            initial_price,
+            final_price,
+            token_decimal,
+            share_decimal,
+            test_scenario::ctx(&mut admin_scenario),
         );
         assert!(auction.start_ts_ms == start_ts_ms, 1);
         assert!(auction.index == 0, 1);
@@ -395,6 +392,9 @@ module typus_dov::dutch {
         let user4 = @0xBABE4;
         let scenario = test_scenario::begin(admin);
 
+        let token_decimal = 9;
+        let share_decimal = 4;
+
         let coin = coin::mint_for_testing<SUI>(100000000, test_scenario::ctx(&mut scenario));
 
         unix_time::new_time(test_scenario::ctx(&mut scenario));
@@ -413,6 +413,8 @@ module typus_dov::dutch {
         new_bid(
             &mut auction,
             100,
+            token_decimal,
+            share_decimal,
             &mut coin,
             &time,
             test_scenario::ctx(&mut scenario)
@@ -424,12 +426,7 @@ module typus_dov::dutch {
         let fund_0 = table::borrow(&auction.funds, 0);
         assert!(fund_0.owner == user1, 1);
 
-        let i = 0;
-        let price_multiplier = 1;
-        while (i < auction.price_config.price_decimal) {
-            price_multiplier = price_multiplier * 10;
-            i = i + 1;
-        };
+        let price_multiplier = utils::multiplier(token_decimal - share_decimal);
         let bid_value = bid.price * bid.size / price_multiplier;
         // debug::print(&string::utf8(b"bid value:"));
         // debug::print(&bid_value);
@@ -446,6 +443,8 @@ module typus_dov::dutch {
         new_bid(
             &mut auction,
             200,
+            token_decimal,
+            share_decimal,
             &mut coin,
             &time,
             test_scenario::ctx(&mut scenario)
@@ -472,6 +471,8 @@ module typus_dov::dutch {
         new_bid(
             &mut auction,
             300,
+            token_decimal,
+            share_decimal,
             &mut coin,
             &time,
             test_scenario::ctx(&mut scenario)
@@ -494,6 +495,8 @@ module typus_dov::dutch {
         new_bid(
             &mut auction,
             3300,
+            token_decimal,
+            share_decimal,
             &mut coin,
             &time,
             test_scenario::ctx(&mut scenario)
@@ -507,6 +510,8 @@ module typus_dov::dutch {
         new_bid(
             &mut auction,
             100000000,
+            token_decimal,
+            share_decimal,
             &mut coin,
             &time,
             test_scenario::ctx(&mut scenario)
@@ -608,6 +613,8 @@ module typus_dov::dutch {
         let user1 = @0xBABE1;
         let user2 = @0xBABE2;
         let user3 = @0xBABE3;
+        let token_decimal = 9;
+        let share_decimal = 4;
 
         let scenario = test_scenario::begin(admin);
         unix_time::new_time(test_scenario::ctx(&mut scenario));
@@ -619,7 +626,14 @@ module typus_dov::dutch {
         unix_time::update(&mut time, &key, auction.end_ts_ms + 1, test_scenario::ctx(&mut scenario)) ;
 
         let manager_cap = init_test_manager();
-        let (balance, winners) = delivery(&manager_cap,  &mut auction, 3000,  &time);
+        let (balance, winners) = delivery(
+            &manager_cap,
+            &mut auction,
+            3000,
+            token_decimal,
+            share_decimal,
+            &time
+        );
         assert!(vec_map::size(&winners) == 3, 1);
         assert!(*vec_map::get(&winners, &user1) == 100, 1);
         assert!(*vec_map::get(&winners, &user2) == 500, 1);
