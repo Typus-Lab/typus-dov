@@ -10,12 +10,13 @@ module typus_covered_call::covered_call {
     use sui::table::{Self, Table};
     use sui::transfer;
     use sui::tx_context::{Self, TxContext};
+    use sui::vec_map;
 
     use typus_covered_call::payoff::{Self, PayoffConfig};
     use typus_dov::dutch::{Self, Auction};
     use typus_dov::i64;
-    use typus_dov::vault::{Self, Vault};
     use typus_dov::utils;
+    use typus_dov::vault::{Self, Vault};
     use typus_oracle::oracle::{Self, Oracle};
     use typus_oracle::unix_time::{Self, Time};
 
@@ -75,12 +76,12 @@ module typus_covered_call::covered_call {
 
     struct MakerShareKey has copy, drop, store {
         index: u64,
-        user: address,
+        maker: address,
     }
 
     struct MakerShare has copy, drop, store {
         index: u64,
-        user: address,
+        maker: address,
         share: u64,
     }
 
@@ -287,6 +288,26 @@ module typus_covered_call::covered_call {
 
     // ======== Entry Functions =========
 
+    public(friend) entry fun new_manager(
+        _manager_cap: &ManagerCap,
+        user: address,
+        ctx: &mut TxContext
+    ) {
+        transfer::transfer(
+            ManagerCap {
+                id: object::new(ctx)
+            },
+            user
+        );
+    }
+
+    public(friend) entry fun remove_manager(
+        manager_cap: ManagerCap,
+    ) {
+        let ManagerCap { id } = manager_cap;
+        object::delete(id);
+    }
+
     public(friend) entry fun new_covered_call_vault<TOKEN>(
         manager_cap: &ManagerCap,
         registry: &mut Registry,
@@ -309,24 +330,84 @@ module typus_covered_call::covered_call {
         );
     }
 
-    public(friend) entry fun new_manager(
-        _manager_cap: &ManagerCap,
-        user: address,
-        ctx: &mut TxContext
+    public(friend) entry fun new_auction<TOKEN>(
+        manager_cap: &ManagerCap,
+        registry: &mut Registry,
+        time_oracle: &Time,
+        index: u64,
+        start_ts_ms: u64,
+        end_ts_ms: u64,
+        decay_speed: u64,
+        initial_price: u64,
+        final_price: u64,
+        ctx: &mut TxContext,
     ) {
-        transfer::transfer(
-            ManagerCap {
-                id: object::new(ctx)
-            },
-            user
+        let covered_call_vault = dynamic_field::borrow<u64, CoveredCallVault<TOKEN>>(&registry.id, index);
+        let token_decimal = covered_call_vault.config.token_decimal;
+        let share_decimal = covered_call_vault.config.share_decimal;
+        new_auction_<TOKEN>(
+            manager_cap,
+            registry,
+            time_oracle,
+            index,
+            start_ts_ms,
+            end_ts_ms,
+            decay_speed,
+            initial_price,
+            final_price,
+            token_decimal - share_decimal,
+            ctx,
         );
     }
 
-    public(friend) entry fun remove_manager(
-        manager_cap: ManagerCap,
+    public(friend) entry fun new_auction_with_next_covered_call_vault<TOKEN>(
+        manager_cap: &ManagerCap,
+        registry: &mut Registry,
+        time_oracle: &Time,
+        index: u64,
+        start_ts_ms: u64,
+        end_ts_ms: u64,
+        decay_speed: u64,
+        initial_price: u64,
+        final_price: u64,
+        expiration_ts_ms: u64,
+        strike_otm_pct: u64,
+        ctx: &mut TxContext,
     ) {
-        let ManagerCap { id } = manager_cap;
-        object::delete(id);
+        let covered_call_vault = dynamic_field::borrow<u64, CoveredCallVault<TOKEN>>(&registry.id, index);
+        let token_decimal = covered_call_vault.config.token_decimal;
+        let share_decimal = covered_call_vault.config.share_decimal;
+        let next = new_covered_call_vault_<TOKEN>(
+            manager_cap,
+            registry,
+            token_decimal,
+            share_decimal,
+            time_oracle,
+            expiration_ts_ms,
+            strike_otm_pct,
+            ctx,
+        );
+        option::fill(
+            &mut dynamic_field::borrow_mut<u64, CoveredCallVault<TOKEN>>(
+                &mut registry.id,
+                index
+            )
+            .next,
+            next
+        );
+        new_auction_<TOKEN>(
+            manager_cap,
+            registry,
+            time_oracle,
+            index,
+            start_ts_ms,
+            end_ts_ms,
+            decay_speed,
+            initial_price,
+            final_price,
+            token_decimal - share_decimal,
+            ctx,
+        );
     }
 
     // after delivery
@@ -424,86 +505,6 @@ module typus_covered_call::covered_call {
         });
     }
 
-    public(friend) entry fun new_auction<TOKEN>(
-        manager_cap: &ManagerCap,
-        registry: &mut Registry,
-        time_oracle: &Time,
-        index: u64,
-        start_ts_ms: u64,
-        end_ts_ms: u64,
-        decay_speed: u64,
-        initial_price: u64,
-        final_price: u64,
-        ctx: &mut TxContext,
-    ) {
-        let covered_call_vault = dynamic_field::borrow<u64, CoveredCallVault<TOKEN>>(&registry.id, index);
-        let token_decimal = covered_call_vault.config.token_decimal;
-        let share_decimal = covered_call_vault.config.share_decimal;
-        new_auction_<TOKEN>(
-            manager_cap,
-            registry,
-            time_oracle,
-            index,
-            start_ts_ms,
-            end_ts_ms,
-            decay_speed,
-            initial_price,
-            final_price,
-            token_decimal - share_decimal, // price_decimal
-            ctx,
-        );
-    }
-
-    public(friend) entry fun new_auction_with_next_covered_call_vault<TOKEN>(
-        manager_cap: &ManagerCap,
-        registry: &mut Registry,
-        time_oracle: &Time,
-        index: u64,
-        start_ts_ms: u64,
-        end_ts_ms: u64,
-        decay_speed: u64,
-        initial_price: u64,
-        final_price: u64,
-        expiration_ts_ms: u64,
-        strike_otm_pct: u64,
-        ctx: &mut TxContext,
-    ) {
-        let covered_call_vault = dynamic_field::borrow<u64, CoveredCallVault<TOKEN>>(&registry.id, index);
-        let token_decimal = covered_call_vault.config.token_decimal;
-        let share_decimal = covered_call_vault.config.share_decimal;
-        let next = new_covered_call_vault_<TOKEN>(
-            manager_cap,
-            registry,
-            token_decimal,
-            share_decimal,
-            time_oracle,
-            expiration_ts_ms,
-            strike_otm_pct,
-            ctx,
-        );
-        option::fill(
-            &mut dynamic_field::borrow_mut<u64, CoveredCallVault<TOKEN>>(
-                &mut registry.id,
-                index
-            )
-            .next,
-            next
-        );
-        new_auction_<TOKEN>(
-            manager_cap,
-            registry,
-            time_oracle,
-            index,
-            start_ts_ms,
-            end_ts_ms,
-            decay_speed,
-            initial_price,
-            final_price,
-            token_decimal - share_decimal,
-            ctx,
-        );
-    }
-
     public(friend) entry fun withdraw<TOKEN>(
         registry: &mut Registry,
         index: u64,
@@ -533,8 +534,7 @@ module typus_covered_call::covered_call {
             user_share.share = user_share.share - share;
         };
 
-        // emit event
-        // TODO
+        // TODO: emit event
     }
 
     public(friend) entry fun claim<TOKEN>(
@@ -558,8 +558,7 @@ module typus_covered_call::covered_call {
         };
         table::remove(user_share_table, user_share_key);
 
-        // emit event
-        // TODO
+        // TODO: emit event
     }
 
     public(friend) entry fun claim_all<TOKEN>(
@@ -589,8 +588,7 @@ module typus_covered_call::covered_call {
             table::remove(user_share_table, user_share_key);
         }
 
-        // emit event
-        // TODO
+        // TODO: emit event
     }
 
     public(friend) entry fun maker_claim<TOKEN>(
@@ -602,6 +600,16 @@ module typus_covered_call::covered_call {
             &mut get_mut_covered_call_vault<TOKEN>(registry, index).vault,
             ctx
         );
+
+        // update maker receipt
+        let maker_share_table = bag::borrow_mut<vector<u8>, Table<MakerShareKey, MakerShare>>(&mut registry.records, C_MAKER_SHARE_TABLE_NAME);
+        let maker_share_key = MakerShareKey {
+            index,
+            maker: tx_context::sender(ctx),
+        };
+        table::remove(maker_share_table, maker_share_key);
+
+        // TODO: emit event
     }
 
     public(friend) entry fun maker_claim_all<TOKEN>(
@@ -615,7 +623,17 @@ module typus_covered_call::covered_call {
                 &mut get_mut_covered_call_vault<TOKEN>(registry, index).vault,
                 ctx
             );
+
+            // update maker receipt
+            let maker_share_table = bag::borrow_mut<vector<u8>, Table<MakerShareKey, MakerShare>>(&mut registry.records, C_MAKER_SHARE_TABLE_NAME);
+            let maker_share_key = MakerShareKey {
+                index,
+                maker: tx_context::sender(ctx),
+            };
+            table::remove(maker_share_table, maker_share_key);
         }
+
+        // TODO: emit event
     }
 
     public(friend) entry fun subscribe<TOKEN>(
@@ -627,6 +645,8 @@ module typus_covered_call::covered_call {
             &mut get_mut_covered_call_vault<TOKEN>(registry, index).vault,
             ctx,
         );
+
+        // TODO: emit event
     }
 
     public(friend) entry fun unsubscribe<TOKEN>(
@@ -638,6 +658,8 @@ module typus_covered_call::covered_call {
             &mut get_mut_covered_call_vault<TOKEN>(registry, index).vault,
             ctx,
         );
+
+        // TODO: emit event
     }
 
     public(friend) entry fun new_bid<TOKEN>(
@@ -658,25 +680,9 @@ module typus_covered_call::covered_call {
             time,
             ctx,
         );
-    }
 
-    // public(friend) entry fun remove_bid<TOKEN>(
-    //     registry: &mut Registry,
-    //     index: u64,
-    //     bid_index: u64,
-    //     time: &Time,
-    //     ctx: &mut TxContext,
-    // ) {
-    //     dutch::remove_bid<ManagerCap, TOKEN>(
-    //         option::borrow_mut(&mut dynamic_field::borrow_mut<u64, CoveredCallVault<TOKEN>>(
-    //             &mut registry.id,
-    //             index
-    //         ).auction),
-    //         bid_index,
-    //         time,
-    //         ctx,
-    //     );
-    // }
+        // TODO: emit event
+    }
 
     public(friend) entry fun delivery<TOKEN>(
         manager_cap: &ManagerCap,
@@ -701,6 +707,25 @@ module typus_covered_call::covered_call {
             balance,
             maker_shares,
         );
+
+        while (!vec_map::is_empty(&maker_shares)) {
+            let (maker, share) = vec_map::pop(&mut maker_shares);
+            let maker_share_table = bag::borrow_mut<vector<u8>, Table<MakerShareKey, MakerShare>>(&mut registry.records, C_MAKER_SHARE_TABLE_NAME);
+            table::add(
+                maker_share_table,
+                MakerShareKey {
+                    index,
+                    maker,
+                },
+                MakerShare {
+                    index,
+                    maker,
+                    share,
+                },
+            );
+        };
+
+        // TODO: emit event
     }
 
     public(friend) entry fun settle<TOKEN>(
