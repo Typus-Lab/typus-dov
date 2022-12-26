@@ -7,7 +7,7 @@ module typus_dov::utils {
     use std::vector;
 
     const E_ZERO_VALUE: u64 = 0;
-    const E_INVALID_VALUE: u64 = 0;
+    const E_INVALID_VALUE: u64 = 1;
 
     // decimals
     public fun multiplier(decimal: u64): u64 {
