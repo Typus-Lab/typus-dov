@@ -179,7 +179,6 @@ module typus_covered_call::covered_call {
         decay_speed: u64,
         initial_price: u64,
         final_price: u64,
-        price_decimal: u64,
         ctx: &mut TxContext,
     ) {
         let covered_call_vault = dynamic_field::borrow_mut<u64, CoveredCallVault<TOKEN>>(
@@ -202,18 +201,20 @@ module typus_covered_call::covered_call {
                 decay_speed,
                 initial_price,
                 final_price,
-                price_decimal,
+                covered_call_vault.config.token_decimal,
+                covered_call_vault.config.share_decimal,
                 ctx,
             )
         );
-        emit(NewAuction{
+        emit(NewAuction {
             index,
             start_ts_ms,
             end_ts_ms,
             decay_speed,
             initial_price,
             final_price,
-            price_decimal
+            token_decimal: covered_call_vault.config.token_decimal,
+            share_decimal: covered_call_vault.config.share_decimal,
         });
     }
 
@@ -342,9 +343,6 @@ module typus_covered_call::covered_call {
         final_price: u64,
         ctx: &mut TxContext,
     ) {
-        let covered_call_vault = dynamic_field::borrow<u64, CoveredCallVault<TOKEN>>(&registry.id, index);
-        let token_decimal = covered_call_vault.config.token_decimal;
-        let share_decimal = covered_call_vault.config.share_decimal;
         new_auction_<TOKEN>(
             manager_cap,
             registry,
@@ -355,7 +353,6 @@ module typus_covered_call::covered_call {
             decay_speed,
             initial_price,
             final_price,
-            token_decimal - share_decimal,
             ctx,
         );
     }
@@ -405,7 +402,6 @@ module typus_covered_call::covered_call {
             decay_speed,
             initial_price,
             final_price,
-            token_decimal - share_decimal,
             ctx,
         );
     }
@@ -670,12 +666,15 @@ module typus_covered_call::covered_call {
         time: &Time,
         ctx: &mut TxContext,
     ) {
+        let covered_call_vault = dynamic_field::borrow_mut<u64, CoveredCallVault<TOKEN>>(
+            &mut registry.id,
+            index
+        );
         dutch::new_bid<ManagerCap, TOKEN>(
-            option::borrow_mut(&mut dynamic_field::borrow_mut<u64, CoveredCallVault<TOKEN>>(
-                &mut registry.id,
-                index
-            ).auction),
+            option::borrow_mut(&mut covered_call_vault.auction),
             size,
+            covered_call_vault.config.token_decimal,
+            covered_call_vault.config.share_decimal,
             coin,
             time,
             ctx,
@@ -699,6 +698,8 @@ module typus_covered_call::covered_call {
             manager_cap,
             option::borrow_mut(&mut covered_call_vault.auction),
             size,
+            covered_call_vault.config.token_decimal,
+            covered_call_vault.config.share_decimal,
             time
         );
         vault::maker_deposit(
@@ -806,7 +807,8 @@ module typus_covered_call::covered_call {
         decay_speed: u64,
         initial_price: u64,
         final_price: u64,
-        price_decimal: u64,
+        token_decimal: u64,
+        share_decimal: u64,
     }
 
 
