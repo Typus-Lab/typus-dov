@@ -67,22 +67,9 @@ module typus_covered_call::covered_call {
         is_rolling: bool,
     }
 
-    struct UserShare has copy, drop, store {
-        index: u64,
-        user: address,
-        is_rolling: bool,
-        share: u64,
-    }
-
     struct MakerShareKey has copy, drop, store {
         index: u64,
         maker: address,
-    }
-
-    struct MakerShare has copy, drop, store {
-        index: u64,
-        maker: address,
-        share: u64,
     }
 
     // ======== Private Functions =========
@@ -108,9 +95,9 @@ module typus_covered_call::covered_call {
 
         // emit(RegistryCreated { id: object::uid_to_inner(&id) });
         let records = bag::new(ctx);
-        let user_share_table = table::new<UserShareKey, UserShare>(ctx);
+        let user_share_table = table::new<UserShareKey, u64>(ctx);
         bag::add(&mut records, C_USER_SHARE_TABLE_NAME, user_share_table);
-        let maker_balance_table = table::new<MakerShareKey, MakerShare>(ctx);
+        let maker_balance_table = table::new<MakerShareKey, u64>(ctx);
         bag::add(&mut records, C_MAKER_SHARE_TABLE_NAME, maker_balance_table);
 
 
@@ -281,6 +268,8 @@ module typus_covered_call::covered_call {
             balance,
             scaled_user_shares
         );
+
+        // TODO: update rolling user share table
     }
 
     fun check_already_expired(expiration_ts_ms: u64, ts_ms: u64) {
@@ -469,7 +458,7 @@ module typus_covered_call::covered_call {
         );
 
         // update user receipt
-        let user_share_table = bag::borrow_mut<vector<u8>, Table<UserShareKey, UserShare>>(&mut registry.records, C_USER_SHARE_TABLE_NAME);
+        let user_share_table = bag::borrow_mut<vector<u8>, Table<UserShareKey, u64>>(&mut registry.records, C_USER_SHARE_TABLE_NAME);
         let user_share_key = UserShareKey {
             index,
             user: tx_context::sender(ctx),
@@ -477,18 +466,13 @@ module typus_covered_call::covered_call {
         };
         if (table::contains(user_share_table, user_share_key)) {
             let user_share = table::borrow_mut(user_share_table, user_share_key);
-            user_share.share = user_share.share + share;
+            *user_share = *user_share + share;
         }
         else {
             table::add(
                 user_share_table,
                 user_share_key,
-                UserShare {
-                    index,
-                    user: tx_context::sender(ctx),
-                    is_rolling,
-                    share,
-                }
+                share,
             );
         };
 
@@ -516,18 +500,18 @@ module typus_covered_call::covered_call {
         );
 
         // update user receipt
-        let user_share_table = bag::borrow_mut<vector<u8>, Table<UserShareKey, UserShare>>(&mut registry.records, C_USER_SHARE_TABLE_NAME);
+        let user_share_table = bag::borrow_mut<vector<u8>, Table<UserShareKey, u64>>(&mut registry.records, C_USER_SHARE_TABLE_NAME);
         let user_share_key = UserShareKey {
             index,
             user: tx_context::sender(ctx),
             is_rolling,
         };
-        if (share == 0 || table::borrow(user_share_table, user_share_key).share == share) {
+        if (share == 0 || share >= *table::borrow(user_share_table, user_share_key)) {
             table::remove(user_share_table, user_share_key);
         }
         else {
             let user_share = table::borrow_mut(user_share_table, user_share_key);
-            user_share.share = user_share.share - share;
+            *user_share = *user_share - share;
         };
 
         // TODO: emit event
@@ -546,7 +530,7 @@ module typus_covered_call::covered_call {
         );
 
         // update user receipt
-        let user_share_table = bag::borrow_mut<vector<u8>, Table<UserShareKey, UserShare>>(&mut registry.records, C_USER_SHARE_TABLE_NAME);
+        let user_share_table = bag::borrow_mut<vector<u8>, Table<UserShareKey, u64>>(&mut registry.records, C_USER_SHARE_TABLE_NAME);
         let user_share_key = UserShareKey {
             index,
             user: tx_context::sender(ctx),
@@ -575,7 +559,7 @@ module typus_covered_call::covered_call {
             );
 
             // update user receipt
-            let user_share_table = bag::borrow_mut<vector<u8>, Table<UserShareKey, UserShare>>(&mut registry.records, C_USER_SHARE_TABLE_NAME);
+            let user_share_table = bag::borrow_mut<vector<u8>, Table<UserShareKey, u64>>(&mut registry.records, C_USER_SHARE_TABLE_NAME);
             let user_share_key = UserShareKey {
                 index,
                 user: tx_context::sender(ctx),
@@ -598,7 +582,7 @@ module typus_covered_call::covered_call {
         );
 
         // update maker receipt
-        let maker_share_table = bag::borrow_mut<vector<u8>, Table<MakerShareKey, MakerShare>>(&mut registry.records, C_MAKER_SHARE_TABLE_NAME);
+        let maker_share_table = bag::borrow_mut<vector<u8>, Table<MakerShareKey, u64>>(&mut registry.records, C_MAKER_SHARE_TABLE_NAME);
         let maker_share_key = MakerShareKey {
             index,
             maker: tx_context::sender(ctx),
@@ -621,7 +605,7 @@ module typus_covered_call::covered_call {
             );
 
             // update maker receipt
-            let maker_share_table = bag::borrow_mut<vector<u8>, Table<MakerShareKey, MakerShare>>(&mut registry.records, C_MAKER_SHARE_TABLE_NAME);
+            let maker_share_table = bag::borrow_mut<vector<u8>, Table<MakerShareKey, u64>>(&mut registry.records, C_MAKER_SHARE_TABLE_NAME);
             let maker_share_key = MakerShareKey {
                 index,
                 maker: tx_context::sender(ctx),
@@ -642,6 +626,8 @@ module typus_covered_call::covered_call {
             ctx,
         );
 
+        // TODO: update user share table
+
         // TODO: emit event
     }
 
@@ -654,6 +640,8 @@ module typus_covered_call::covered_call {
             &mut get_mut_covered_call_vault<TOKEN>(registry, index).vault,
             ctx,
         );
+
+        // TODO: update user share table
 
         // TODO: emit event
     }
@@ -709,20 +697,17 @@ module typus_covered_call::covered_call {
             maker_shares,
         );
 
+        // update maker share table
         while (!vec_map::is_empty(&maker_shares)) {
             let (maker, share) = vec_map::pop(&mut maker_shares);
-            let maker_share_table = bag::borrow_mut<vector<u8>, Table<MakerShareKey, MakerShare>>(&mut registry.records, C_MAKER_SHARE_TABLE_NAME);
+            let maker_share_table = bag::borrow_mut<vector<u8>, Table<MakerShareKey, u64>>(&mut registry.records, C_MAKER_SHARE_TABLE_NAME);
             table::add(
                 maker_share_table,
                 MakerShareKey {
                     index,
                     maker,
                 },
-                MakerShare {
-                    index,
-                    maker,
-                    share,
-                },
+                share,
             );
         };
 
