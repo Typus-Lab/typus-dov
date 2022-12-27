@@ -244,7 +244,7 @@ module typus_dov::vault {
         ctx: &mut TxContext,
     ): u64 {
         assert!(vault_initialized(vault), E_ALREADY_ACTIVATED);
-        utils::ensure_value(amount, share_decimal);
+        utils::ensure_value(amount, token_decimal - share_decimal);
 
         let user = tx_context::sender(ctx);
         let sub_vault_type = if (is_rolling) C_VAULT_ROLLING else C_VAULT_REGULAR;
