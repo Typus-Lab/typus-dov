@@ -20,7 +20,8 @@ module typus_dov::dutch {
     const E_AUCTION_NOT_YET_STARTED: u64 = 2;
     const E_AUCTION_NOT_YET_CLOSED: u64 = 3;
     const E_AUCTION_CLOSED: u64 = 4;
-    const E_BID_VALUE_TOO_LOW: u64 = 5;
+    const E_INVALID_AUCTION_PRICE: u64 = 5;
+    const E_BID_VALUE_TOO_LOW: u64 = 6;
 
     // ======== Structs ========
 
@@ -59,12 +60,10 @@ module typus_dov::dutch {
         decay_speed: u64,
         initial_price: u64,
         final_price: u64,
-        token_decimal: u64,
-        share_decimal: u64,
         ctx: &mut TxContext,
     ): Auction<MANAGER, TOKEN> {
-        utils::ensure_value(initial_price, (token_decimal - share_decimal));
-        utils::ensure_value(final_price, (token_decimal - share_decimal));
+        assert!(initial_price >= final_price && initial_price > 0 && final_price > 0, E_INVALID_AUCTION_PRICE);
+
         Auction {
             start_ts_ms,
             end_ts_ms,
@@ -353,8 +352,6 @@ module typus_dov::dutch {
         let decay_speed = 1;
         let initial_price = 5_000_000;
         let final_price = 1_000_000;
-        let token_decimal = 9;
-        let share_decimal = 4;
         
         let auction = new(
             start_ts_ms,
@@ -362,8 +359,6 @@ module typus_dov::dutch {
             decay_speed,
             initial_price,
             final_price,
-            token_decimal,
-            share_decimal,
             test_scenario::ctx(&mut admin_scenario),
         );
         assert!(auction.start_ts_ms == start_ts_ms, 1);

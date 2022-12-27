@@ -188,8 +188,6 @@ module typus_covered_call::covered_call {
                 decay_speed,
                 initial_price,
                 final_price,
-                covered_call_vault.config.token_decimal,
-                covered_call_vault.config.share_decimal,
                 ctx,
             )
         );
