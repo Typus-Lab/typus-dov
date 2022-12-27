@@ -91,7 +91,7 @@ module typus_dov::dutch {
         let ts_ms = unix_time::get_ts_ms(time);
         assert!(ts_ms >= auction.start_ts_ms, E_AUCTION_NOT_YET_STARTED);
         assert!(ts_ms <= auction.end_ts_ms, E_AUCTION_CLOSED);
-        utils::ensure_value(size, share_decimal);
+        utils::ensure_value(size, token_decimal - share_decimal);
 
         let index = auction.index;
         let owner = tx_context::sender(ctx);
