@@ -1,5 +1,6 @@
 module typus_dov::vault {
     use std::option::{Self, Option};
+
     use sui::balance::{Self, Balance};
     use sui::coin::{Self, Coin};
     use sui::event::emit;
@@ -7,6 +8,7 @@ module typus_dov::vault {
     use sui::transfer;
     use sui::tx_context::{Self, TxContext};
     use sui::vec_map::{Self, VecMap};
+
     use typus_dov::linked_list::{Self, LinkedList};
     use typus_dov::utils;
 
@@ -240,7 +242,7 @@ module typus_dov::vault {
         share_decimal: u64,
         is_rolling: bool,
         ctx: &mut TxContext,
-    ) {
+    ): u64 {
         assert!(vault_initialized(vault), E_ALREADY_ACTIVATED);
         utils::ensure_value(amount, share_decimal);
 
@@ -258,11 +260,13 @@ module typus_dov::vault {
         );
         
         emit(UserDeposit<MANAGER, TOKEN> { user, sub_vault_type, amount, share });
+
+        share
     }
 
     public fun withdraw<MANAGER, TOKEN>(
         vault: &mut Vault<MANAGER, TOKEN>,
-        amount: Option<u64>,
+        share: Option<u64>,
         is_rolling: bool,
         ctx: &mut TxContext,
     ) {
@@ -275,7 +279,7 @@ module typus_dov::vault {
         let (share, balance) = withdraw_<MANAGER, TOKEN>(
             vault,
             sub_vault_type,
-            amount,
+            share,
             user,
         );
         let amount = balance::value(&balance);
@@ -287,7 +291,6 @@ module typus_dov::vault {
 
     public fun claim<MANAGER, TOKEN>(
         vault: &mut Vault<MANAGER, TOKEN>,
-        amount: Option<u64>,
         is_rolling: bool,
         ctx: &mut TxContext,
     ) {
@@ -300,7 +303,7 @@ module typus_dov::vault {
         let (share, balance) = withdraw_<MANAGER, TOKEN>(
             vault,
             sub_vault_type,
-            amount,
+            option::none(),
             user,
         );
         
@@ -374,7 +377,6 @@ module typus_dov::vault {
 
     public fun maker_claim<MANAGER, TOKEN>(
         vault: &mut Vault<MANAGER, TOKEN>,
-        amount: Option<u64>,
         ctx: &mut TxContext,
     ) {
         assert!(vault_settled(vault), E_NOT_YET_SETTLED);
@@ -383,7 +385,7 @@ module typus_dov::vault {
         let (share, balance) = withdraw_<MANAGER, TOKEN>(
             vault,
             C_VAULT_MAKER,
-            amount,
+            option::none(),
             user,
         );
         let amount = balance::value(&balance);
