@@ -234,6 +234,10 @@ module typus_dov::vault {
         }
     }
 
+    /// token_decimal = 3
+    /// share_decimal = 1
+    /// amount = 123.456 * 10 ^ 3
+    /// share = 123.4 * 10 ^ 1
     public fun deposit<MANAGER, TOKEN>(
         vault: &mut Vault<MANAGER, TOKEN>,
         coin: &mut Coin<TOKEN>,
