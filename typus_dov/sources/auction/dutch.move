@@ -390,7 +390,7 @@ module typus_dov::dutch {
         let token_decimal = 9;
         let share_decimal = 4;
 
-        let coin = coin::mint_for_testing<SUI>(100000000, test_scenario::ctx(&mut scenario));
+        let coin = coin::mint_for_testing<SUI>(10000000000000000, test_scenario::ctx(&mut scenario));
 
         unix_time::new_time(test_scenario::ctx(&mut scenario));
         test_scenario::next_tx(&mut scenario, admin);
@@ -402,12 +402,12 @@ module typus_dov::dutch {
 
         ///////////////////////////////////////////////
         // new bid with user 1 
-        // size: 100, owner: user1
+        // size: 100000, owner: user1
         /////////////////////////////////////////////
         test_scenario::next_tx(&mut scenario, user1);
         new_bid(
             &mut auction,
-            100,
+            100000,
             token_decimal,
             share_decimal,
             &mut coin,
@@ -416,7 +416,7 @@ module typus_dov::dutch {
         );
         let bid = table::borrow(&auction.bids, 0);
         assert!(auction.index == 1, 1);
-        assert!(bid.size == 100, 1);
+        assert!(bid.size == 100000, 1);
         assert!(bid.price == 4998612, 1);
         let fund_0 = table::borrow(&auction.funds, 0);
         assert!(fund_0.owner == user1, 1);
@@ -432,12 +432,12 @@ module typus_dov::dutch {
 
         ///////////////////////////////////////////////
         // new bid with user 2
-        // size: 200, owner: user2
+        // size: 200000, owner: user2
         /////////////////////////////////////////////
         test_scenario::next_tx(&mut scenario, user2);
         new_bid(
             &mut auction,
-            200,
+            200000,
             token_decimal,
             share_decimal,
             &mut coin,
@@ -446,7 +446,7 @@ module typus_dov::dutch {
         );
         let bid = table::borrow(&auction.bids, 1);
         assert!(auction.index == 2, 1);
-        assert!(bid.size == 200, 1);
+        assert!(bid.size == 200000, 1);
         assert!(bid.price == 4166667, 1);
         let fund_1 = table::borrow(&auction.funds, 1);
         assert!(fund_1.owner == user2, 1);
@@ -460,12 +460,12 @@ module typus_dov::dutch {
 
         ///////////////////////////////////////////////
         // new another bid with user 2
-        // size: 300, owner: user2
+        // size: 300000, owner: user2
         /////////////////////////////////////////////
         test_scenario::next_tx(&mut scenario, user2);
         new_bid(
             &mut auction,
-            300,
+            300000,
             token_decimal,
             share_decimal,
             &mut coin,
@@ -489,7 +489,7 @@ module typus_dov::dutch {
         test_scenario::next_tx(&mut scenario, user3);
         new_bid(
             &mut auction,
-            3300,
+            3300000,
             token_decimal,
             share_decimal,
             &mut coin,
@@ -624,16 +624,16 @@ module typus_dov::dutch {
         let (balance, winners) = delivery(
             &manager_cap,
             &mut auction,
-            3000,
+            650000,
             token_decimal,
             share_decimal,
             &time
         );
         assert!(vec_map::size(&winners) == 3, 1);
-        assert!(*vec_map::get(&winners, &user1) == 100, 1);
-        assert!(*vec_map::get(&winners, &user2) == 500, 1);
-        assert!(*vec_map::get(&winners, &user3) == 2400, 1);
-        assert!(balance::value(&balance) == 122, 1);
+        assert!(*vec_map::get(&winners, &user1) == 100000, 1);
+        assert!(*vec_map::get(&winners, &user2) == 500000, 1);
+        assert!(*vec_map::get(&winners, &user3) == 50000, 1);
+        assert!(balance::value(&balance) == 26541671, 1);
 
         test_scenario::next_tx(&mut scenario, admin);
         test_scenario::return_to_sender(&scenario, key); 

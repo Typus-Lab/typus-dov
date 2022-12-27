@@ -3,7 +3,6 @@ module typus_covered_call::test {
     use sui::test_scenario::{Self, Scenario};
     use sui::transfer;
     use sui::sui::SUI;
-    use sui::balance;
     use sui::coin;
     use sui::tx_context;
 
@@ -71,34 +70,33 @@ module typus_covered_call::test {
         scenario_val
     }
 
-    #[test]
-    fun test_deposit(): Scenario {
-        let admin = @0x1;
-        let amount = 1000;
-        let scenario_val = test_new_vault();
-        let scenario = &mut scenario_val;
-        let registry = test_scenario::take_shared<Registry>(scenario);
-        let balance = balance::create_for_testing<SUI>(amount);
-        let coin = coin::from_balance(balance, test_scenario::ctx(scenario));
+    // #[test]
+    // fun test_deposit(): Scenario {
+    //     let admin = @0x1;
+    //     let amount = 1000;
+    //     let scenario_val = test_new_vault();
+    //     let scenario = &mut scenario_val;
+    //     let registry = test_scenario::take_shared<Registry>(scenario);
+    //     let balance = balance::create_for_testing<SUI>(amount);
+    //     let coin = coin::from_balance(balance, test_scenario::ctx(scenario));
 
-        test_scenario::next_tx(scenario, admin);
-        covered_call::deposit<SUI>(&mut registry, 0, &mut coin, amount, true, test_scenario::ctx(scenario));
+    //     test_scenario::next_tx(scenario, admin);
+    //     covered_call::deposit<SUI>(&mut registry, 0, &mut coin, amount, true, test_scenario::ctx(scenario));
 
         
-        let current_vault = covered_call::test_get_vault<SUI>(
-            &mut registry,
-            0
-        );
-        let share = vault::test_get_user_share<ManagerCap, SUI>(current_vault, b"rolling", admin);
+    //     let current_vault = covered_call::test_get_vault<SUI>(
+    //         &mut registry,
+    //         0
+    //     );
+    //     let share = vault::test_get_user_share<ManagerCap, SUI>(current_vault, b"rolling", admin);
 
-        assert!(share == amount / utils::multiplier(5), 0);
+    //     assert!(share == amount / utils::multiplier(5), 0);
 
-        test_scenario::return_shared(registry);
-        transfer::transfer(coin, admin);
-
-        test_scenario::next_tx(scenario, admin);
-        scenario_val
-    }
+    //     test_scenario::return_shared(registry);
+    //     transfer::transfer(coin, admin);
+    //     test_scenario::next_tx(scenario, admin);
+    //     scenario_val
+    // }
 
     #[test]
     fun test_get_covered_call_payoff_by_price() {
@@ -239,16 +237,11 @@ module typus_covered_call::test {
         // let price_multiplier = utils::multiplier(price_decimal);
 
         // calculate sell size by vault balance value, which may actually calculate off-chain
-        let vault_1_balance = vault::test_get_balance<ManagerCap, SUI>(
+        let (rolling_user_balance, regular_user_balance, maker_balance) = vault::test_get_balance<ManagerCap, SUI>(
             covered_call::test_get_vault<SUI>(&mut registry, 0),
-            b"rolling"
         );
-        vault_1_balance = vault_1_balance + vault::test_get_balance<ManagerCap, SUI>(
-            covered_call::test_get_vault<SUI>(&mut registry, 0),
-            b"regular"
-        );
-
-        let sell_size = vault_1_balance;
+        
+        let sell_size = rolling_user_balance + regular_user_balance;
         debug::print(&string::utf8(b"sell size:"));
         debug::print(&sell_size);
 
@@ -268,10 +261,9 @@ module typus_covered_call::test {
         );
 
         // after auction
-        let premium_roi = (utils::multiplier(payoff::get_roi_decimal()) as u128) * (vault::test_get_balance<ManagerCap, SUI>(
-            covered_call::test_get_vault<SUI>(&mut registry, 0),
-            b"maker"
-        ) as u128) / (vault_1_balance as u128);
+        let premium_roi = (utils::multiplier(payoff::get_roi_decimal()) as u128)
+            * (maker_balance as u128)
+            / (rolling_user_balance + regular_user_balance as u128);
         let exposure_ratio = bid_size * utils::multiplier(8) / coin_amount;
         oracle::update(
             &mut price_oracle,
@@ -298,9 +290,9 @@ module typus_covered_call::test {
 
         debug::print(&string::utf8(b"before settle"));
         debug::print(&string::utf8(b"vault 1"));
-        test_print_vault_summary(&mut registry, 0);
+        vault::test_print_vault_summary<ManagerCap, SUI>(covered_call::test_get_vault(&registry, 0));
         debug::print(&string::utf8(b"vault 2"));
-        test_print_vault_summary(&mut registry, 1);
+        vault::test_print_vault_summary<ManagerCap, SUI>(covered_call::test_get_vault(&registry, 1));
         
         oracle::update(
             &mut price_oracle,
@@ -322,9 +314,9 @@ module typus_covered_call::test {
 
         debug::print(&string::utf8(b"after settle"));
         debug::print(&string::utf8(b"vault 1"));
-        test_print_vault_summary(&mut registry, 0);
+        vault::test_print_vault_summary<ManagerCap, SUI>(covered_call::test_get_vault(&registry, 0));
         debug::print(&string::utf8(b"vault 2"));
-        test_print_vault_summary(&mut registry, 1);
+        vault::test_print_vault_summary<ManagerCap, SUI>(covered_call::test_get_vault(&registry, 1));
         
         coin::destroy_for_testing(test_coin);
         coin::destroy_for_testing(test_coin_2);
@@ -369,13 +361,13 @@ module typus_covered_call::test {
         covered_call::deposit<SUI>(&mut registry, index, &mut test_coin_2, coin_amount, true, test_scenario::ctx(scenario));
 
         debug::print(&string::utf8(b"A: after deposit"));
-        test_print_vault_summary(&mut registry, index);
+        vault::test_print_vault_summary<ManagerCap, SUI>(covered_call::test_get_vault(&registry, index));
 
         test_scenario::next_tx(scenario, user1);
         covered_call::unsubscribe<SUI>(&mut registry, index, test_scenario::ctx(scenario));
 
         debug::print(&string::utf8(b"B: user1 unsubscribed"));
-        test_print_vault_summary(&mut registry, index);
+        vault::test_print_vault_summary<ManagerCap, SUI>(covered_call::test_get_vault(&registry, index));
 
         coin::destroy_for_testing(test_coin);
         coin::destroy_for_testing(test_coin_1);
@@ -386,39 +378,5 @@ module typus_covered_call::test {
         test_scenario::return_to_sender<ManagerCap>(scenario, manager_cap);
 
         test_scenario::end(scenario_val);
-    }
-
-    #[test_only]
-    fun test_print_vault_summary(registry: &mut Registry, index: u64) {
-        let balance_rolling = vault::test_get_balance<ManagerCap, SUI>(covered_call::test_get_vault<SUI>(
-            registry,
-            index
-        ), b"rolling");
-        let share_rolling = vault::test_get_share_supply<ManagerCap, SUI>(covered_call::test_get_vault<SUI>(
-            registry,
-            index
-        ), b"rolling");
-        let balance_regular = vault::test_get_balance<ManagerCap, SUI>(covered_call::test_get_vault<SUI>(
-            registry,
-            index
-        ), b"regular");
-        let share_regular = vault::test_get_share_supply<ManagerCap, SUI>(covered_call::test_get_vault<SUI>(
-            registry,
-            index
-        ), b"regular");
-        let balance_maker = vault::test_get_balance<ManagerCap, SUI>(covered_call::test_get_vault<SUI>(
-            registry,
-            index
-        ), b"maker");
-        let share_maker = vault::test_get_share_supply<ManagerCap, SUI>(covered_call::test_get_vault<SUI>(
-            registry,
-            index
-        ), b"maker");
-        debug::print(&(balance_rolling));
-        debug::print(&(balance_regular));
-        debug::print(&(balance_maker));
-        debug::print(&(share_rolling));
-        debug::print(&(share_regular));
-        debug::print(&(share_maker));
     }
 }

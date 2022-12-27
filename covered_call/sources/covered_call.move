@@ -518,12 +518,10 @@ module typus_covered_call::covered_call {
     public(friend) entry fun claim<TOKEN>(
         registry: &mut Registry,
         index: u64,
-        is_rolling: bool,
         ctx: &mut TxContext
     ) {
         vault::claim<ManagerCap, TOKEN>(
             &mut get_mut_covered_call_vault<TOKEN>(registry, index).vault,
-            is_rolling,
             ctx
         );
 
@@ -532,9 +530,19 @@ module typus_covered_call::covered_call {
         let user_share_key = UserShareKey {
             index,
             user: tx_context::sender(ctx),
-            is_rolling,
+            is_rolling: true,
         };
-        table::remove(user_share_table, user_share_key);
+        if (table::contains(user_share_table, user_share_key)) {
+            table::remove(user_share_table, user_share_key);
+        };
+        let user_share_key = UserShareKey {
+            index,
+            user: tx_context::sender(ctx),
+            is_rolling: false,
+        };
+        if (table::contains(user_share_table, user_share_key)) {
+            table::remove(user_share_table, user_share_key);
+        };
 
         // TODO: emit event
     }
@@ -542,17 +550,13 @@ module typus_covered_call::covered_call {
     public(friend) entry fun claim_all<TOKEN>(
         registry: &mut Registry,
         index: vector<u64>,
-        is_rolling: vector<bool>,
         ctx: &mut TxContext
     ) {
-        assert!(vector::length(&index) == vector::length(&is_rolling), E_INDEX_AND_FLAG_LENGTH_MISMATCH);
 
         while (!vector::is_empty(&index)){
             let index = vector::pop_back(&mut index);
-            let is_rolling = vector::pop_back(&mut is_rolling);
             vault::claim<ManagerCap, TOKEN>(
                 &mut get_mut_covered_call_vault<TOKEN>(registry, index).vault,
-                is_rolling,
                 ctx
             );
 
@@ -561,9 +565,19 @@ module typus_covered_call::covered_call {
             let user_share_key = UserShareKey {
                 index,
                 user: tx_context::sender(ctx),
-                is_rolling,
+                is_rolling: true,
             };
-            table::remove(user_share_table, user_share_key);
+            if (table::contains(user_share_table, user_share_key)) {
+                table::remove(user_share_table, user_share_key);
+            };
+            let user_share_key = UserShareKey {
+                index,
+                user: tx_context::sender(ctx),
+                is_rolling: false,
+            };
+            if (table::contains(user_share_table, user_share_key)) {
+                table::remove(user_share_table, user_share_key);
+            };
         }
 
         // TODO: emit event

@@ -4,19 +4,12 @@ module typus_dov::vault {
     use sui::balance::{Self, Balance};
     use sui::coin::{Self, Coin};
     use sui::event::emit;
-    use sui::table::{Self, Table};
     use sui::transfer;
     use sui::tx_context::{Self, TxContext};
     use sui::vec_map::{Self, VecMap};
 
     use typus_dov::linked_list::{Self, LinkedList};
     use typus_dov::utils;
-
-    // ======== Constants ========
-
-    const C_VAULT_ROLLING: vector<u8> = b"rolling";
-    const C_VAULT_REGULAR: vector<u8> = b"regular";
-    const C_VAULT_MAKER: vector<u8> = b"maker";
 
     // ======== Errors ========
 
@@ -34,7 +27,9 @@ module typus_dov::vault {
     // ======== Structs ========
 
     struct Vault<phantom MANAGER, phantom TOKEN> has store {
-        sub_vaults: Table<vector<u8>, SubVault<TOKEN>>,
+        rolling_sub_vault: SubVault<TOKEN>,
+        regular_sub_vault: SubVault<TOKEN>,
+        maker_sub_vault: SubVault<TOKEN>,
         able_to_deposit: bool,
         able_to_withdraw: bool,
     }
@@ -51,34 +46,31 @@ module typus_dov::vault {
     public fun new_vault<MANAGER, TOKEN>(
         ctx: &mut TxContext
     ): Vault<MANAGER, TOKEN> {
-        let vault = Vault<MANAGER, TOKEN> {
-            sub_vaults: table::new(ctx),
+        let rolling_sub_vault = SubVault<TOKEN> {
+            balance: balance::zero<TOKEN>(),
+            share_supply: 0,
+            user_shares: linked_list::new(ctx),
+        };
+        
+        let regular_sub_vault = SubVault<TOKEN> {
+            balance: balance::zero<TOKEN>(),
+            share_supply: 0,
+            user_shares: linked_list::new(ctx),
+        };
+        
+        let maker_sub_vault = SubVault<TOKEN> {
+            balance: balance::zero<TOKEN>(),
+            share_supply: 0,
+            user_shares: linked_list::new(ctx),
+        };
+
+        Vault<MANAGER, TOKEN> {
+            rolling_sub_vault,
+            regular_sub_vault,
+            maker_sub_vault,
             able_to_deposit: true,
             able_to_withdraw: true,
-        };
-        
-        let rolling_vault = SubVault<TOKEN> {
-            balance: balance::zero<TOKEN>(),
-            share_supply: 0,
-            user_shares: linked_list::new(ctx),
-        };
-        table::add(&mut vault.sub_vaults, C_VAULT_ROLLING, rolling_vault);
-        
-        let regular_vault = SubVault<TOKEN> {
-            balance: balance::zero<TOKEN>(),
-            share_supply: 0,
-            user_shares: linked_list::new(ctx),
-        };
-        table::add(&mut vault.sub_vaults, C_VAULT_REGULAR, regular_vault);
-        
-        let maker_vault = SubVault<TOKEN> {
-            balance: balance::zero<TOKEN>(),
-            share_supply: 0,
-            user_shares: linked_list::new(ctx),
-        };
-        table::add(&mut vault.sub_vaults, C_VAULT_MAKER, maker_vault);
-
-        vault
+        }
     }
 
     public fun settle_fund<MANAGER, TOKEN>(
@@ -93,22 +85,11 @@ module typus_dov::vault {
         assert!(!vault_initialized(vault), E_NOT_YET_ACTIVATED);
         assert!(!vault_settled(vault), E_ALREADY_SETTLED);
 
-        let total_balance = (balance::value(
-            &get_sub_vault<MANAGER, TOKEN>(
-                vault, C_VAULT_ROLLING
-            ).balance
-        ) as u128) + (balance::value(
-            &get_sub_vault<MANAGER, TOKEN>(
-                vault, C_VAULT_REGULAR
-            ).balance
-        ) as u128);
+        let total_balance = (balance::value(&vault.rolling_sub_vault.balance) as u128)
+            + (balance::value(&vault.regular_sub_vault.balance) as u128);
 
-        let total_share_supply = (get_sub_vault<MANAGER, TOKEN>(
-            vault, C_VAULT_ROLLING
-        ).share_supply as u128) + (get_sub_vault<MANAGER, TOKEN>(
-            vault, C_VAULT_REGULAR
-        ).share_supply as u128);
-
+        let total_share_supply = (vault.rolling_sub_vault.share_supply as u128)
+            + (vault.regular_sub_vault.share_supply as u128);
 
         assert!(
             total_balance == total_share_supply * (utils::multiplier(token_decimal) as u128) / (utils::multiplier(share_decimal) as u128),
@@ -121,32 +102,21 @@ module typus_dov::vault {
             // user receives balance from maker
             let payoff = (total_balance as u256) * ((settled_share_price - multiplier) as u256) / (multiplier as u256);
             // transfer balance from maker to rolling users
-            let rolling_share_supply = get_sub_vault<MANAGER, TOKEN>(
-                vault, C_VAULT_ROLLING
-            ).share_supply;
             let balance = balance::split<TOKEN>(
-                &mut get_mut_sub_vault<MANAGER, TOKEN>(
-                    vault, C_VAULT_MAKER
-                ).balance,
-                ((payoff * (rolling_share_supply as u256) / (total_share_supply as u256)) as u64)
+                &mut vault.maker_sub_vault.balance,
+                ((payoff * (vault.rolling_sub_vault.share_supply as u256) / (total_share_supply as u256)) as u64)
             );
             balance::join(
-                &mut get_mut_sub_vault<MANAGER, TOKEN>(
-                    vault, C_VAULT_ROLLING
-                ).balance,
+                &mut vault.rolling_sub_vault.balance,
                 balance
             );
             // transfer balance from maker to regular users
             let balance = balance::split<TOKEN>(
-                &mut get_mut_sub_vault<MANAGER, TOKEN>(
-                    vault, C_VAULT_MAKER
-                ).balance,
-                ((payoff * ((total_share_supply as u256) - (rolling_share_supply as u256)) / (total_share_supply as u256)) as u64)
+                &mut vault.maker_sub_vault.balance,
+                ((payoff * (vault.regular_sub_vault.share_supply as u256) / (total_share_supply as u256)) as u64)
             );
             balance::join(
-                &mut get_mut_sub_vault<MANAGER, TOKEN>(
-                    vault, C_VAULT_REGULAR
-                ).balance,
+                &mut vault.regular_sub_vault.balance,
                 balance
             );
         }
@@ -154,32 +124,23 @@ module typus_dov::vault {
             // maker receives balance from users
             let payoff = (total_balance as u256) * ((multiplier - settled_share_price) as u256) / (multiplier as u256);
             // transfer balance from rolling users to maker
-            let rolling_share_supply = get_sub_vault<MANAGER, TOKEN>(
-                vault, C_VAULT_ROLLING
-            ).share_supply;
+            let rolling_share_supply = vault.rolling_sub_vault.share_supply;
             let balance = balance::split<TOKEN>(
-                &mut get_mut_sub_vault<MANAGER, TOKEN>(
-                    vault, C_VAULT_ROLLING
-                ).balance,
+                &mut vault.rolling_sub_vault.balance,
                 ((payoff * (rolling_share_supply as u256) / (total_share_supply as u256)) as u64)
             );
             balance::join(
-                &mut get_mut_sub_vault<MANAGER, TOKEN>(
-                    vault, C_VAULT_MAKER
-                ).balance,
+                &mut vault.maker_sub_vault.balance,
                 balance
             );
             // transfer balance from regular users to maker
+            let regular_share_supply = vault.regular_sub_vault.share_supply;
             let balance = balance::split<TOKEN>(
-                &mut get_mut_sub_vault<MANAGER, TOKEN>(
-                    vault, C_VAULT_REGULAR
-                ).balance,
-                ((payoff * ((total_share_supply as u256) - (rolling_share_supply as u256)) / (total_share_supply as u256)) as u64)
+                &mut vault.regular_sub_vault.balance,
+                ((payoff * (regular_share_supply as u256) / (total_share_supply as u256)) as u64)
             );
             balance::join(
-                &mut get_mut_sub_vault<MANAGER, TOKEN>(
-                    vault, C_VAULT_MAKER
-                ).balance,
+                &mut vault.maker_sub_vault.balance,
                 balance
             );
         };
@@ -194,28 +155,28 @@ module typus_dov::vault {
     ): (Balance<TOKEN>, VecMap<address, u64>) {
         assert!(vault_settled(vault), E_NOT_YET_SETTLED);
 
-        let SubVault {
-            balance,
-            share_supply,
-            user_shares,
-        } = get_mut_sub_vault<MANAGER, TOKEN>(vault, C_VAULT_ROLLING);
-        let index = linked_list::first(user_shares);
-        let total_balance = balance::value(balance);
+        // let SubVault {
+        //     balance,
+        //     share_supply,
+        //     user_shares,
+        // } = get_mut_sub_vault<MANAGER, TOKEN>(vault, C_VAULT_ROLLING);
+        let index = linked_list::first(&vault.rolling_sub_vault.user_shares);
+        let total_balance = balance::value(&vault.rolling_sub_vault.balance);
         let scaled_user_shares = vec_map::empty();
         while (option::is_some(&index)) {
             let user = option::borrow(&index);
             vec_map::insert(
                 &mut scaled_user_shares,
                 *user,
-                ((*linked_list::borrow(user_shares, *user) as u128)
+                ((*linked_list::borrow(&vault.rolling_sub_vault.user_shares, *user) as u128)
                     * (total_balance as u128)
-                        / (*share_supply as u128)
+                        / (vault.rolling_sub_vault.share_supply as u128)
                             / (utils::multiplier(token_decimal - share_decimal) as u128) as u64)
         );
-            index = linked_list::next(user_shares, *user);
+            index = linked_list::next(&vault.rolling_sub_vault.user_shares, *user);
         };
 
-        (balance::split(balance, total_balance), scaled_user_shares)
+        (balance::split(&mut vault.rolling_sub_vault.balance, total_balance), scaled_user_shares)
     }
 
     public fun rock_n_roll<MANAGER, TOKEN>(
@@ -226,11 +187,10 @@ module typus_dov::vault {
     ) {
         assert!(vault_initialized(vault), E_ALREADY_ACTIVATED);
 
-        let sub_vault = get_mut_sub_vault<MANAGER, TOKEN>(vault, C_VAULT_ROLLING);
-        balance::join(&mut sub_vault.balance, balance);
+        balance::join(&mut vault.rolling_sub_vault.balance, balance);
         while (!vec_map::is_empty(&scaled_user_shares)) {
             let (user, share) = vec_map::pop(&mut scaled_user_shares);
-            add_share(sub_vault, user, share);
+            add_share(&mut vault.rolling_sub_vault, user, share);
         }
     }
 
@@ -251,19 +211,27 @@ module typus_dov::vault {
         utils::ensure_value(amount, token_decimal - share_decimal);
 
         let user = tx_context::sender(ctx);
-        let sub_vault_type = if (is_rolling) C_VAULT_ROLLING else C_VAULT_REGULAR;
         let balance = balance::split(coin::balance_mut(coin), amount);
         let share = balance::value(&balance) / utils::multiplier(token_decimal - share_decimal);
 
-        deposit_<MANAGER, TOKEN>(
-            vault,
-            sub_vault_type,
-            balance,
-            share,
-            user,
-        );
+        if (is_rolling) {
+            deposit_<MANAGER, TOKEN>(
+                &mut vault.rolling_sub_vault,
+                balance,
+                share,
+                user,
+            );
+        }
+        else {
+            deposit_<MANAGER, TOKEN>(
+                &mut vault.regular_sub_vault,
+                balance,
+                share,
+                user,
+            );
+        };
         
-        emit(UserDeposit<MANAGER, TOKEN> { user, sub_vault_type, amount, share });
+        emit(UserDeposit<MANAGER, TOKEN> { user, is_rolling, amount, share });
 
         share
     }
@@ -278,44 +246,54 @@ module typus_dov::vault {
 
         let user = tx_context::sender(ctx);
 
-        let sub_vault_type = if (is_rolling) C_VAULT_ROLLING else C_VAULT_REGULAR;
+        let (share, balance) = if (is_rolling) {
+            withdraw_<MANAGER, TOKEN>(
+                &mut vault.rolling_sub_vault,
+                share,
+                user,
+            )
+        }
+        else {
+            withdraw_<MANAGER, TOKEN>(
+                &mut vault.regular_sub_vault,
+                share,
+                user,
+            )
+        };
 
-        let (share, balance) = withdraw_<MANAGER, TOKEN>(
-            vault,
-            sub_vault_type,
-            share,
-            user,
-        );
         let amount = balance::value(&balance);
 
         transfer::transfer(coin::from_balance(balance, ctx), user);
 
-        emit(UserWithdraw<MANAGER, TOKEN> { user, sub_vault_type, share, amount });
+        emit(UserWithdraw<MANAGER, TOKEN> { user, is_rolling, share, amount });
     }
 
     public fun claim<MANAGER, TOKEN>(
         vault: &mut Vault<MANAGER, TOKEN>,
-        is_rolling: bool,
         ctx: &mut TxContext,
     ) {
         assert!(vault_settled(vault), E_NOT_YET_SETTLED);
         
         let user = tx_context::sender(ctx);
 
-        let sub_vault_type = if (is_rolling) C_VAULT_ROLLING else C_VAULT_REGULAR;
+        let (rolling_share, rolling_balance) =  withdraw_<MANAGER, TOKEN>(
+            &mut vault.rolling_sub_vault,
+            option::none(),
+            user,
+        );
 
-        let (share, balance) = withdraw_<MANAGER, TOKEN>(
-            vault,
-            sub_vault_type,
+        let (regular_share, regular_balance) =  withdraw_<MANAGER, TOKEN>(
+            &mut vault.regular_sub_vault,
             option::none(),
             user,
         );
         
-        let amount = balance::value(&balance);
+        let share = rolling_share + regular_share;
+        let amount = balance::join(&mut rolling_balance, regular_balance);
 
-        transfer::transfer(coin::from_balance(balance, ctx), user);
+        transfer::transfer(coin::from_balance(rolling_balance, ctx), user);
 
-        emit(UserClaim<MANAGER, TOKEN> { user, sub_vault_type, share, amount });
+        emit(UserClaim<MANAGER, TOKEN> { user, share, amount });
     }
 
     public fun subscribe<MANAGER, TOKEN>(
@@ -326,14 +304,12 @@ module typus_dov::vault {
 
         let user = tx_context::sender(ctx);
         let (share, balance) = withdraw_<MANAGER, TOKEN>(
-            vault,
-            C_VAULT_REGULAR,
+            &mut vault.regular_sub_vault,
             option::none(),
             user,
         );
         deposit_<MANAGER, TOKEN>(
-            vault,
-            C_VAULT_ROLLING,
+            &mut vault.rolling_sub_vault,
             balance,
             share,
             user,
@@ -348,14 +324,12 @@ module typus_dov::vault {
 
         let user = tx_context::sender(ctx);
         let (share, balance) = withdraw_<MANAGER, TOKEN>(
-            vault,
-            C_VAULT_ROLLING,
+            &mut vault.rolling_sub_vault,
             option::none(),
             user,
         );
         deposit_<MANAGER, TOKEN>(
-            vault,
-            C_VAULT_REGULAR,
+            &mut vault.regular_sub_vault,
             balance,
             share,
             user,
@@ -371,11 +345,10 @@ module typus_dov::vault {
         assert!(!vault_initialized(vault), E_NOT_YET_ACTIVATED);
         assert!(!vault_settled(vault), E_ALREADY_SETTLED);
 
-        let sub_vault = get_mut_sub_vault<MANAGER, TOKEN>(vault, C_VAULT_MAKER);
-        balance::join(&mut sub_vault.balance, balance);
+        balance::join(&mut vault.maker_sub_vault.balance, balance);
         while (!vec_map::is_empty(&maker_shares)) {
             let (user, share) = vec_map::pop(&mut maker_shares);
-            add_share(sub_vault, user, share);
+            add_share(&mut vault.maker_sub_vault, user, share);
         }
     }
 
@@ -387,8 +360,7 @@ module typus_dov::vault {
 
         let user = tx_context::sender(ctx);
         let (share, balance) = withdraw_<MANAGER, TOKEN>(
-            vault,
-            C_VAULT_MAKER,
+            &mut vault.maker_sub_vault,
             option::none(),
             user,
         );
@@ -396,7 +368,7 @@ module typus_dov::vault {
 
         transfer::transfer(coin::from_balance(balance, ctx), user);
 
-        emit(MakerClaim<MANAGER, TOKEN> { user, sub_vault_type: C_VAULT_MAKER, share, amount });
+        emit(MakerClaim<MANAGER, TOKEN> { user, share, amount });
     }
 
     public fun enable_deposit<MANAGER, TOKEN>(
@@ -429,28 +401,12 @@ module typus_dov::vault {
 
     // ======== Private Functions ========
 
-    fun get_sub_vault<MANAGER, TOKEN>(
-        vault: &Vault<MANAGER, TOKEN>,
-        sub_vault_type: vector<u8>
-    ): &SubVault<TOKEN> {
-        table::borrow(&vault.sub_vaults, sub_vault_type)
-    }
-
-    fun get_mut_sub_vault<MANAGER, TOKEN>(
-        vault: &mut Vault<MANAGER, TOKEN>,
-        sub_vault_type: vector<u8>
-    ): &mut SubVault<TOKEN> {
-        table::borrow_mut(&mut vault.sub_vaults, sub_vault_type)
-    }
-
     fun deposit_<MANAGER, TOKEN>(
-        vault: &mut Vault<MANAGER, TOKEN>,
-        sub_vault_type: vector<u8>,
+        sub_vault: &mut SubVault<TOKEN>,
         balance: Balance<TOKEN>,
         share: u64,
         user: address,
     ) {
-        let sub_vault = get_mut_sub_vault<MANAGER, TOKEN>(vault, sub_vault_type);
         // join balance
         balance::join(&mut sub_vault.balance, balance);
         // add share
@@ -458,17 +414,14 @@ module typus_dov::vault {
     }
 
     fun withdraw_<MANAGER, TOKEN>(
-        vault: &mut Vault<MANAGER, TOKEN>,
-        sub_vault_type: vector<u8>,
+        sub_vault: &mut SubVault<TOKEN>,
         share: Option<u64>,
         user: address,
     ): (u64, Balance<TOKEN>) {
-        let sub_vault = get_mut_sub_vault<MANAGER, TOKEN>(vault, sub_vault_type);
-        let share_supply = sub_vault.share_supply;
         // remove share
         let share = remove_share(sub_vault, user, share);
         // extract balance
-        let balance_amount = (balance::value(&sub_vault.balance) as u128) * (share as u128) / (share_supply as u128);
+        let balance_amount = (balance::value(&sub_vault.balance) as u128) * (share as u128) / (share + sub_vault.share_supply as u128);
         (share, balance::split<TOKEN>(&mut sub_vault.balance, (balance_amount as u64)))
     }
 
@@ -525,28 +478,26 @@ module typus_dov::vault {
 
     struct UserDeposit<phantom MANAGER, phantom TOKEN> has copy, drop {
         user: address,
-        sub_vault_type: vector<u8>,
+        is_rolling: bool,
         amount: u64,
-        share: u64
+        share: u64,
     }
     
     struct UserWithdraw<phantom MANAGER, phantom TOKEN> has copy, drop {
         user: address,
-        sub_vault_type: vector<u8>,
+        is_rolling: bool,
         share: u64,
         amount: u64,
     }
     
     struct UserClaim<phantom MANAGER, phantom TOKEN> has copy, drop {
         user: address,
-        sub_vault_type: vector<u8>,
         share: u64,
         amount: u64,
     }
     
     struct MakerClaim<phantom MANAGER, phantom TOKEN> has copy, drop {
         user: address,
-        sub_vault_type: vector<u8>,
         share: u64,
         amount: u64,
     }
@@ -569,81 +520,99 @@ module typus_dov::vault {
     }
 
 
-    #[test_only]
-    public fun test_get_user_share<MANAGER, TOKEN>(
-        vault: &Vault<MANAGER, TOKEN>,
-        sub_vault_type: vector<u8>,
-        user: address
-    ): u64 {
-        *linked_list::borrow<address, u64>(
-            &get_sub_vault<MANAGER, TOKEN>(
-                vault, sub_vault_type
-            ).user_shares,
-            user
-        )
-    }
+    // #[test_only]
+    // public fun test_get_user_share<MANAGER, TOKEN>(
+    //     vault: &Vault<MANAGER, TOKEN>,
+    //     sub_vault_type: vector<u8>,
+    //     user: address
+    // ): u64 {
+    //     *linked_list::borrow<address, u64>(
+    //         &get_sub_vault<MANAGER, TOKEN>(
+    //             vault, sub_vault_type
+    //         ).user_shares,
+    //         user
+    //     )
+    // }
 
     #[test_only]
     public fun test_get_balance<MANAGER, TOKEN>(
         vault: &Vault<MANAGER, TOKEN>,
-        sub_vault_type: vector<u8>,
-    ): u64 {
-        let balance = &get_sub_vault<MANAGER, TOKEN>(
-            vault, sub_vault_type
-        ).balance;
-        balance::value<TOKEN>(balance)
+    ): (u64, u64, u64) {
+        (
+            balance::value<TOKEN>(&vault.rolling_sub_vault.balance),
+            balance::value<TOKEN>(&vault.regular_sub_vault.balance),
+            balance::value<TOKEN>(&vault.maker_sub_vault.balance),
+        )
     }
 
     #[test_only]
     public fun test_get_share_supply<MANAGER, TOKEN>(
         vault: &Vault<MANAGER, TOKEN>,
-        sub_vault_type: vector<u8>,
-    ): u64 {
-        let share_supply = &get_sub_vault<MANAGER, TOKEN>(
-            vault, sub_vault_type
-        ).share_supply;
-        *share_supply
+    ): (u64, u64, u64) {
+        (
+            vault.rolling_sub_vault.share_supply,
+            vault.regular_sub_vault.share_supply,
+            vault.maker_sub_vault.share_supply,
+        )
     }
 
+    // #[test_only]
+    // public fun test_maker_deposit(vault: &mut Vault<TestManagerCap, sui::sui::SUI>){
+    //     use sui::test_scenario;
+    //     use sui::coin;
+    //     use sui::sui::SUI;
+
+    //     let admin = @0xFFFF;
+    //     let maker1 = @0xBABA1;
+    //     let maker2 = @0xBABA2;
+
+    //     let scenario = test_scenario::begin(admin);
+    //     let coin = coin::mint_for_testing<SUI>(10000000000, test_scenario::ctx(&mut scenario));
+    //     let coin2 = coin::mint_for_testing<SUI>(10000000000, test_scenario::ctx(&mut scenario));
+    //     test_scenario::next_tx(&mut scenario, admin);
+    //     init_test_manager(test_scenario::ctx(&mut scenario));
+    //     test_scenario::next_tx(&mut scenario, admin);
+    //     let manager_cap = test_scenario::take_from_sender<TestManagerCap>(&scenario);
+        
+    //     // admin disables deposit
+    //     disable_deposit(&manager_cap, vault);
+    //     // admin disables withdraw
+    //     disable_withdraw(&manager_cap, vault);
+        
+    //     let maker_shares = vec_map::empty();
+    //     vec_map::insert(&mut maker_shares, maker1, 10);
+    //     vec_map::insert(&mut maker_shares, maker2, 15);
+
+    //     test_scenario::next_tx(&mut scenario, maker1);
+    //     maker_deposit(&manager_cap, vault, coin::into_balance(coin),  maker_shares);
+       
+    //     test_scenario::next_tx(&mut scenario, maker2);
+    //     maker_deposit(&manager_cap, vault, coin::into_balance(coin2),  maker_shares);
+       
+    //     let sub_vault = get_mut_sub_vault<TestManagerCap, sui::sui::SUI>(vault, C_VAULT_MAKER);
+    //     assert!(balance::value(&sub_vault.balance) == 20000000000, 2);
+
+    //     test_scenario::next_tx(&mut scenario, admin);
+    //     test_scenario::return_to_sender<TestManagerCap>(&scenario, manager_cap);
+    //     test_scenario::end(scenario);
+    // }
+
     #[test_only]
-    public fun test_maker_deposit(vault: &mut Vault<TestManagerCap, sui::sui::SUI>){
-        use sui::test_scenario;
-        use sui::coin;
-        use sui::sui::SUI;
+    public fun test_print_vault_summary<MANAGER, TOKEN>(vault: &Vault<MANAGER, TOKEN>) {
+        use std::debug;
 
-        let admin = @0xFFFF;
-        let maker1 = @0xBABA1;
-        let maker2 = @0xBABA2;
-
-        let scenario = test_scenario::begin(admin);
-        let coin = coin::mint_for_testing<SUI>(10000000000, test_scenario::ctx(&mut scenario));
-        let coin2 = coin::mint_for_testing<SUI>(10000000000, test_scenario::ctx(&mut scenario));
-        test_scenario::next_tx(&mut scenario, admin);
-        init_test_manager(test_scenario::ctx(&mut scenario));
-        test_scenario::next_tx(&mut scenario, admin);
-        let manager_cap = test_scenario::take_from_sender<TestManagerCap>(&scenario);
-        
-        // admin disables deposit
-        disable_deposit(&manager_cap, vault);
-        // admin disables withdraw
-        disable_withdraw(&manager_cap, vault);
-        
-        let maker_shares = vec_map::empty();
-        vec_map::insert(&mut maker_shares, maker1, 10);
-        vec_map::insert(&mut maker_shares, maker2, 15);
-
-        test_scenario::next_tx(&mut scenario, maker1);
-        maker_deposit(&manager_cap, vault, coin::into_balance(coin),  maker_shares);
-       
-        test_scenario::next_tx(&mut scenario, maker2);
-        maker_deposit(&manager_cap, vault, coin::into_balance(coin2),  maker_shares);
-       
-        let sub_vault = get_mut_sub_vault<TestManagerCap, sui::sui::SUI>(vault, C_VAULT_MAKER);
-        assert!(balance::value(&sub_vault.balance) == 20000000000, 2);
-
-        test_scenario::next_tx(&mut scenario, admin);
-        test_scenario::return_to_sender<TestManagerCap>(&scenario, manager_cap);
-        test_scenario::end(scenario);
+        let balance_rolling = balance::value<TOKEN>(&vault.rolling_sub_vault.balance);
+        let share_rolling = vault.rolling_sub_vault.share_supply;
+        let balance_regular = balance::value<TOKEN>(&vault.rolling_sub_vault.balance);
+        let share_regular = vault.rolling_sub_vault.share_supply;
+        let balance_maker = balance::value<TOKEN>(&vault.rolling_sub_vault.balance);
+        let share_maker = vault.rolling_sub_vault.share_supply;
+        debug::print(&(balance_rolling));
+        debug::print(&(balance_regular));
+        debug::print(&(balance_maker));
+        debug::print(&(share_rolling));
+        debug::print(&(share_regular));
+        debug::print(&(share_maker));
     }
 
     // #[test]
