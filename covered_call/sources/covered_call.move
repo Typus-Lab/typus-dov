@@ -638,7 +638,32 @@ module typus_covered_call::covered_call {
             ctx,
         );
 
-        // TODO: update user share table
+        // update user receipt
+        let user_share_table = bag::borrow_mut<vector<u8>, Table<UserShareKey, u64>>(&mut registry.records, C_USER_SHARE_TABLE_NAME);
+        let user_share_key = UserShareKey {
+            index,
+            user: tx_context::sender(ctx),
+            is_rolling: false,
+        };
+        if (table::contains(user_share_table, user_share_key)) {
+            let share = table::remove(user_share_table, user_share_key);
+            let user_share_key = UserShareKey {
+                index,
+                user: tx_context::sender(ctx),
+                is_rolling: true,
+            };
+            if (table::contains(user_share_table, user_share_key)) {
+                let user_share = table::borrow_mut(user_share_table, user_share_key);
+                *user_share = *user_share + share;
+            }
+            else {
+                table::add(
+                    user_share_table,
+                    user_share_key,
+                    share,
+                );
+            };
+        };
 
         // TODO: emit event
     }
@@ -653,7 +678,32 @@ module typus_covered_call::covered_call {
             ctx,
         );
 
-        // TODO: update user share table
+        // update user receipt
+        let user_share_table = bag::borrow_mut<vector<u8>, Table<UserShareKey, u64>>(&mut registry.records, C_USER_SHARE_TABLE_NAME);
+        let user_share_key = UserShareKey {
+            index,
+            user: tx_context::sender(ctx),
+            is_rolling: true,
+        };
+        if (table::contains(user_share_table, user_share_key)) {
+            let share = table::remove(user_share_table, user_share_key);
+            let user_share_key = UserShareKey {
+                index,
+                user: tx_context::sender(ctx),
+                is_rolling: false,
+            };
+            if (table::contains(user_share_table, user_share_key)) {
+                let user_share = table::borrow_mut(user_share_table, user_share_key);
+                *user_share = *user_share + share;
+            }
+            else {
+                table::add(
+                    user_share_table,
+                    user_share_key,
+                    share,
+                );
+            };
+        };
 
         // TODO: emit event
     }
