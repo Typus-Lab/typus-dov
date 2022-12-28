@@ -479,13 +479,13 @@ module typus_protected_put::protected_put {
     public(friend) entry fun withdraw<TOKEN>(
         registry: &mut Registry,
         index: u64,
-        amount: u64,
+        share: u64,
         is_rolling: bool,
         ctx: &mut TxContext
     ) {
         vault::withdraw<ManagerCap, TOKEN>(
             &mut get_mut_protected_put_vault<TOKEN>(registry, index).vault,
-            if (amount == 0) option::none() else option::some(amount),
+            if (share == 0) option::none() else option::some(share),
             is_rolling,
             ctx
         );
