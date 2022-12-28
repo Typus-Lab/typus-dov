@@ -278,7 +278,36 @@ module typus_covered_call::covered_call {
             scaled_user_shares
         );
 
-        // TODO: update rolling user share table
+        // update user receipt
+        while (!vec_map::is_empty(&scaled_user_shares)) {
+            let (user, share) = vec_map::pop(&mut scaled_user_shares);
+            let user_share_table = bag::borrow_mut<vector<u8>, Table<UserShareKey, u64>>(&mut registry.records, C_USER_SHARE_TABLE_NAME);
+            let user_share_key = UserShareKey {
+                index,
+                user,
+                is_rolling: true,
+            };
+            if (table::contains(user_share_table, user_share_key)) {
+                table::remove(user_share_table, user_share_key);
+            };
+            let user_share_key = UserShareKey {
+                index: next,
+                user,
+                is_rolling: true,
+            };
+            if (table::contains(user_share_table, user_share_key)) {
+                let user_share = table::borrow_mut(user_share_table, user_share_key);
+                *user_share = *user_share + share;
+            }
+            else {
+                table::add(
+                    user_share_table,
+                    user_share_key,
+                    share,
+                );
+            };
+        };
+
     }
 
     fun check_already_expired(expiration_ts_ms: u64, ts_ms: u64) {
