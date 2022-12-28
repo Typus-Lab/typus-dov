@@ -11,6 +11,10 @@ module typus_dov::vault {
     use typus_dov::linked_list::{Self, LinkedList};
     use typus_dov::utils;
 
+    // ======== Constants ========
+
+    const U64_MAX: u64 = 18446744073709551615;
+
     // ======== Errors ========
 
     const E_ZERO_VALUE: u64 = 0;
@@ -23,6 +27,7 @@ module typus_dov::vault {
     const E_NOT_YET_SETTLED: u64 = 8;
     const E_ALREADY_SETTLED: u64 = 9;
     const E_ALREADY_ACTIVATED: u64 = 10;
+    const E_MAX_BALANCE_REACHED: u64 = 11;
 
     // ======== Structs ========
 
@@ -92,7 +97,9 @@ module typus_dov::vault {
             + (vault.regular_sub_vault.share_supply as u128);
 
         assert!(
-            total_balance == total_share_supply * (utils::multiplier(token_decimal) as u128) / (utils::multiplier(share_decimal) as u128),
+            total_balance
+                == total_share_supply * (utils::multiplier(token_decimal) as u128)
+                    / (utils::multiplier(share_decimal) as u128),
             E_ALREADY_SETTLED
         );
 
@@ -100,39 +107,34 @@ module typus_dov::vault {
 
         if (settled_share_price > multiplier) {
             // user receives balance from maker
-            let payoff = (total_balance as u256) * ((settled_share_price - multiplier) as u256) / (multiplier as u256);
+            let payoff = (total_balance as u256) * ((settled_share_price - multiplier) as u256)
+                / (multiplier as u256);
             // transfer balance from maker to rolling users
             let balance = balance::split<TOKEN>(
                 &mut vault.maker_sub_vault.balance,
-                ((payoff * (vault.rolling_sub_vault.share_supply as u256) / (total_share_supply as u256)) as u64)
+                ((payoff * (vault.rolling_sub_vault.share_supply as u256) / (total_share_supply as u256))
+                    as u64),
             );
-            balance::join(
-                &mut vault.rolling_sub_vault.balance,
-                balance
-            );
+            balance::join(&mut vault.rolling_sub_vault.balance, balance);
             // transfer balance from maker to regular users
             let balance = balance::split<TOKEN>(
                 &mut vault.maker_sub_vault.balance,
-                ((payoff * (vault.regular_sub_vault.share_supply as u256) / (total_share_supply as u256)) as u64)
+                ((payoff * (vault.regular_sub_vault.share_supply as u256) / (total_share_supply as u256))
+                    as u64),
             );
-            balance::join(
-                &mut vault.regular_sub_vault.balance,
-                balance
-            );
+            balance::join(&mut vault.regular_sub_vault.balance, balance);
         }
         else if (settled_share_price < multiplier) {
             // maker receives balance from users
-            let payoff = (total_balance as u256) * ((multiplier - settled_share_price) as u256) / (multiplier as u256);
+            let payoff = (total_balance as u256) * ((multiplier - settled_share_price) as u256)
+                / (multiplier as u256);
             // transfer balance from rolling users to maker
             let rolling_share_supply = vault.rolling_sub_vault.share_supply;
             let balance = balance::split<TOKEN>(
                 &mut vault.rolling_sub_vault.balance,
-                ((payoff * (rolling_share_supply as u256) / (total_share_supply as u256)) as u64)
+                ((payoff * (rolling_share_supply as u256) / (total_share_supply as u256)) as u64),
             );
-            balance::join(
-                &mut vault.maker_sub_vault.balance,
-                balance
-            );
+            balance::join(&mut vault.maker_sub_vault.balance, balance);
             // transfer balance from regular users to maker
             let regular_share_supply = vault.regular_sub_vault.share_supply;
             let balance = balance::split<TOKEN>(
@@ -209,6 +211,15 @@ module typus_dov::vault {
     ): u64 {
         assert!(vault_initialized(vault), E_ALREADY_ACTIVATED);
         utils::ensure_value(amount, token_decimal - share_decimal);
+        assert!(
+            U64_MAX - balance::value(&vault.rolling_sub_vault.balance)
+                > balance::value(&vault.regular_sub_vault.balance)
+                && U64_MAX
+                    - balance::value(&vault.rolling_sub_vault.balance)
+                    - balance::value(&vault.regular_sub_vault.balance)
+                    >= amount,
+            E_MAX_BALANCE_REACHED
+        );
 
         let user = tx_context::sender(ctx);
         let balance = balance::split(coin::balance_mut(coin), amount);
@@ -421,8 +432,12 @@ module typus_dov::vault {
         // remove share
         let share = remove_share(sub_vault, user, share);
         // extract balance
-        let balance_amount = (balance::value(&sub_vault.balance) as u128) * (share as u128) / (share + sub_vault.share_supply as u128);
-        (share, balance::split<TOKEN>(&mut sub_vault.balance, (balance_amount as u64)))
+        let balance_amount = (balance::value(&sub_vault.balance) as u128) * (share as u128)
+            / (share + sub_vault.share_supply as u128);
+        (
+            share,
+            balance::split<TOKEN>(&mut sub_vault.balance, (balance_amount as u64)),
+        )
     }
 
     fun add_share<TOKEN>(sub_vault: &mut SubVault<TOKEN>, user: address, share: u64) {
