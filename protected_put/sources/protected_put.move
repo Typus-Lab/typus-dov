@@ -168,7 +168,6 @@ module typus_protected_put::protected_put {
                 decay_speed,
                 initial_price,
                 final_price,
-                price_decimal,
                 ctx,
             )
         );
@@ -179,7 +178,8 @@ module typus_protected_put::protected_put {
             decay_speed,
             initial_price,
             final_price,
-            price_decimal
+            token_decimal: protected_put_vault.config.token_decimal,
+            share_decimal: protected_put_vault.config.share_decimal,
         });
     }
 
@@ -475,8 +475,6 @@ module typus_protected_put::protected_put {
     ) {
         vault::claim<ManagerCap, TOKEN>(
             &mut get_mut_protected_put_vault<TOKEN>(registry, index).vault,
-            if (amount == 0) option::none() else option::some(amount),
-            is_rolling,
             ctx
         );
     }
@@ -494,8 +492,6 @@ module typus_protected_put::protected_put {
             let is_rolling = vector::pop_back(&mut is_rolling);
             vault::claim<ManagerCap, TOKEN>(
                 &mut get_mut_protected_put_vault<TOKEN>(registry, index).vault,
-                option::none(),
-                is_rolling,
                 ctx
             );
         }
@@ -509,7 +505,6 @@ module typus_protected_put::protected_put {
     ) {
         vault::maker_claim<ManagerCap, TOKEN>(
             &mut get_mut_protected_put_vault<TOKEN>(registry, index).vault,
-            if (amount == 0) option::none() else option::some(amount),
             ctx
         );
     }
@@ -523,7 +518,6 @@ module typus_protected_put::protected_put {
             let index = vector::pop_back(&mut index);
             vault::maker_claim<ManagerCap, TOKEN>(
                 &mut get_mut_protected_put_vault<TOKEN>(registry, index).vault,
-                option::none(),
                 ctx
             );
         }
@@ -559,12 +553,15 @@ module typus_protected_put::protected_put {
         time: &Time,
         ctx: &mut TxContext,
     ) {
+        let protected_put_vault = dynamic_field::borrow_mut<u64, ProtectedPutVault<TOKEN>>(
+            &mut registry.id,
+            index
+        );
         dutch::new_bid<ManagerCap, TOKEN>(
-            option::borrow_mut(&mut dynamic_field::borrow_mut<u64, ProtectedPutVault<TOKEN>>(
-                &mut registry.id,
-                index
-            ).auction),
+            option::borrow_mut(&mut protected_put_vault.auction),
             size,
+            protected_put_vault.config.token_decimal,
+            protected_put_vault.config.share_decimal,
             coin,
             time,
             ctx,
@@ -604,6 +601,8 @@ module typus_protected_put::protected_put {
             manager_cap,
             option::borrow_mut(&mut protected_put_vault.auction),
             size,
+            protected_put_vault.config.token_decimal,
+            protected_put_vault.config.share_decimal,
             time
         );
         vault::maker_deposit(
@@ -694,7 +693,8 @@ module typus_protected_put::protected_put {
         decay_speed: u64,
         initial_price: u64,
         final_price: u64,
-        price_decimal: u64,
+        token_decimal: u64,
+        share_decimal: u64,
     }
 
 
