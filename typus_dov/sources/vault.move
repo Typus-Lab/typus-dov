@@ -618,10 +618,10 @@ module typus_dov::vault {
 
         let balance_rolling = balance::value<TOKEN>(&vault.rolling_sub_vault.balance);
         let share_rolling = vault.rolling_sub_vault.share_supply;
-        let balance_regular = balance::value<TOKEN>(&vault.rolling_sub_vault.balance);
-        let share_regular = vault.rolling_sub_vault.share_supply;
-        let balance_maker = balance::value<TOKEN>(&vault.rolling_sub_vault.balance);
-        let share_maker = vault.rolling_sub_vault.share_supply;
+        let balance_regular = balance::value<TOKEN>(&vault.regular_sub_vault.balance);
+        let share_regular = vault.regular_sub_vault.share_supply;
+        let balance_maker = balance::value<TOKEN>(&vault.maker_sub_vault.balance);
+        let share_maker = vault.maker_sub_vault.share_supply;
         debug::print(&(balance_rolling));
         debug::print(&(balance_regular));
         debug::print(&(balance_maker));
