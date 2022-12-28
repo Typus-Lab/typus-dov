@@ -23,7 +23,9 @@ module typus_covered_call::test {
     fun test_new_vault(): Scenario {
         let admin = @0x1;
         let current_ts_ms = 1671594861_000; // 2022/12/21 Wednesday 03:54:21
-        let expiration_ts_ms_1 = 1671782400_000; // 2022/12/23 Friday 08:00:00
+        let start_ts_ms_1 = 1671782400_000; // 2022/12/23 Friday 08:00:00
+        let expiration_ts_ms_1 = 1671782400_000 + 604800_000;  // 2022/12/30 Friday 08:00:00
+        let period = 1; // Weekly
         let strike_otm_pct = 50; // 0.05 * 1000
 
         let scenario_val = test_scenario::begin(admin);
@@ -57,6 +59,8 @@ module typus_covered_call::test {
             token_decimal,
             share_decimal,
             &time_oracle,
+            period,
+            start_ts_ms_1,
             expiration_ts_ms_1,
             strike_otm_pct,
             test_scenario::ctx(scenario)

@@ -45,6 +45,8 @@ module typus_covered_call::covered_call {
         payoff_config: PayoffConfig,
         token_decimal: u64,
         share_decimal: u64,
+        period: u8, // Daily = 0, Weekly = 1, Monthly = 2
+        start_ts_ms: u64,
         expiration_ts_ms: u64
     }
 
@@ -116,6 +118,8 @@ module typus_covered_call::covered_call {
         token_decimal: u64,
         share_decimal: u64,
         time_oracle: &Time,
+        period: u8,
+        start_ts_ms: u64,
         expiration_ts_ms: u64,
         strike_otm_pct: u64, // in 4 decimal
         ctx: &mut TxContext
@@ -131,7 +135,14 @@ module typus_covered_call::covered_call {
         let current_ts_ms = unix_time::get_ts_ms(time_oracle);
         assert!(expiration_ts_ms > current_ts_ms, E_INVALID_TIME);
 
-        let config = Config { payoff_config, token_decimal, share_decimal, expiration_ts_ms };
+        let config = Config { 
+            payoff_config, 
+            token_decimal, 
+            share_decimal, 
+            period,
+            start_ts_ms,
+            expiration_ts_ms
+        };
         let vault = vault::new_vault<ManagerCap, TOKEN>(ctx);
         let index = registry.num_of_vault;
 
@@ -302,6 +313,8 @@ module typus_covered_call::covered_call {
         token_decimal: u64,
         share_decimal: u64,
         time_oracle: &Time,
+        period: u8,
+        start_ts_ms: u64,
         expiration_ts_ms: u64,
         strike_otm_pct: u64, // in 4 decimal
         ctx: &mut TxContext
@@ -312,6 +325,8 @@ module typus_covered_call::covered_call {
             token_decimal,
             share_decimal,
             time_oracle,
+            period,
+            start_ts_ms,
             expiration_ts_ms,
             strike_otm_pct,
             ctx,
@@ -359,14 +374,14 @@ module typus_covered_call::covered_call {
         ctx: &mut TxContext,
     ) {
         let covered_call_vault = dynamic_field::borrow<u64, CoveredCallVault<TOKEN>>(&registry.id, index);
-        let token_decimal = covered_call_vault.config.token_decimal;
-        let share_decimal = covered_call_vault.config.share_decimal;
         let next = new_covered_call_vault_<TOKEN>(
             manager_cap,
             registry,
-            token_decimal,
-            share_decimal,
+            covered_call_vault.config.token_decimal,
+            covered_call_vault.config.share_decimal,
             time_oracle,
+            covered_call_vault.config.period,
+            covered_call_vault.config.expiration_ts_ms,
             expiration_ts_ms,
             strike_otm_pct,
             ctx,
