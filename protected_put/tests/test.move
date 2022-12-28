@@ -3,7 +3,6 @@ module typus_protected_put::test {
     use sui::test_scenario::{Self, Scenario};
     use sui::transfer;
     use sui::sui::SUI;
-    use sui::balance;
     use sui::coin;
     use sui::tx_context;
 
@@ -20,13 +19,15 @@ module typus_protected_put::test {
 
     use typus_protected_put::protected_put::{Self, ManagerCap, Registry};
     use typus_protected_put::payoff;
-
+ 
     #[test]
     fun test_new_vault(): Scenario {
         let underlying_asset = b"DOGE";
         let admin = @0x1;
         let current_ts_ms = 1671594861_000; // 2022/12/21 Wednesday 03:54:21
-        let expiration_ts_ms_1 = 1671782400_000; // 2022/12/23 Friday 08:00:00
+        let start_ts_ms_1 = 1671782400_000; // 2022/12/23 Friday 08:00:00
+        let expiration_ts_ms_1 = 1671782400_000 + 604800_000;  // 2022/12/30 Friday 08:00:00
+        let period = 1; // Weekly
         let strike_otm_pct = 500; // 0.05 * 10000
 
         let scenario_val = test_scenario::begin(admin);
@@ -60,6 +61,8 @@ module typus_protected_put::test {
             token_decimal,
             share_decimal,
             &time_oracle,
+            period,
+            start_ts_ms_1,
             expiration_ts_ms_1,
             underlying_asset,
             strike_otm_pct,
@@ -74,34 +77,34 @@ module typus_protected_put::test {
         scenario_val
     }
 
-    #[test]
-    fun test_deposit(): Scenario {
-        let admin = @0x1;
-        let amount = 1000;
-        let scenario_val = test_new_vault();
-        let scenario = &mut scenario_val;
-        let registry = test_scenario::take_shared<Registry>(scenario);
-        let balance = balance::create_for_testing<SUI>(amount);
-        let coin = coin::from_balance(balance, test_scenario::ctx(scenario));
+    // #[test]
+    // fun test_deposit(): Scenario {
+    //     let admin = @0x1;
+    //     let amount = 1000;
+    //     let scenario_val = test_new_vault();
+    //     let scenario = &mut scenario_val;
+    //     let registry = test_scenario::take_shared<Registry>(scenario);
+    //     let balance = balance::create_for_testing<SUI>(amount);
+    //     let coin = coin::from_balance(balance, test_scenario::ctx(scenario));
 
-        test_scenario::next_tx(scenario, admin);
-        protected_put::deposit<SUI>(&mut registry, 0, &mut coin, amount, true, test_scenario::ctx(scenario));
+    //     test_scenario::next_tx(scenario, admin);
+    //     protected_put::deposit<SUI>(&mut registry, 0, &mut coin, amount, true, test_scenario::ctx(scenario));
 
         
-        let current_vault = protected_put::test_get_vault<SUI>(
-            &mut registry,
-            0
-        );
-        let share = vault::test_get_user_share<ManagerCap, SUI>(current_vault, b"rolling", admin);
+    //     let current_vault = protected_put::test_get_vault<SUI>(
+    //         &mut registry,
+    //         0
+    //     );
+    //     let share = vault::test_get_user_share<ManagerCap, SUI>(current_vault, b"rolling", admin);
 
-        assert!(share == amount / utils::multiplier(5), 0);
+    //     assert!(share == amount / utils::multiplier(5), 0);
 
-        test_scenario::return_shared(registry);
-        transfer::transfer(coin, admin);
+    //     test_scenario::return_shared(registry);
+    //     transfer::transfer(coin, admin);
 
-        test_scenario::next_tx(scenario, admin);
-        scenario_val
-    }
+    //     test_scenario::next_tx(scenario, admin);
+    //     scenario_val
+    // }
 
     #[test]
     fun test_get_protected_put_payoff_by_price() {
@@ -305,13 +308,13 @@ module typus_protected_put::test {
             &mut price_oracle,
             &oracle_key,
             9_000_000_000,
-            expiration_ts_ms_1,
+            expiration_ts_ms_2, // vault 0 expires
             test_scenario::ctx(scenario)
         );
         unix_time::update(
             &mut time_oracle,
             &unix_time_key,
-            expiration_ts_ms_1,
+            expiration_ts_ms_2, // vault 0 expires
             test_scenario::ctx(scenario)
         );
 
@@ -386,38 +389,4 @@ module typus_protected_put::test {
 
         test_scenario::end(scenario_val);
     }
-
-    // #[test_only]
-    // fun test_print_vault_summary(registry: &mut Registry, index: u64) {
-    //     let balance_rolling = vault::test_get_balance<ManagerCap, SUI>(protected_put::test_get_vault<SUI>(
-    //         registry,
-    //         index
-    //     ), b"rolling");
-    //     let share_rolling = vault::test_get_share_supply<ManagerCap, SUI>(protected_put::test_get_vault<SUI>(
-    //         registry,
-    //         index
-    //     ), b"rolling");
-    //     let balance_regular = vault::test_get_balance<ManagerCap, SUI>(protected_put::test_get_vault<SUI>(
-    //         registry,
-    //         index
-    //     ), b"regular");
-    //     let share_regular = vault::test_get_share_supply<ManagerCap, SUI>(protected_put::test_get_vault<SUI>(
-    //         registry,
-    //         index
-    //     ), b"regular");
-    //     let balance_maker = vault::test_get_balance<ManagerCap, SUI>(protected_put::test_get_vault<SUI>(
-    //         registry,
-    //         index
-    //     ), b"maker");
-    //     let share_maker = vault::test_get_share_supply<ManagerCap, SUI>(protected_put::test_get_vault<SUI>(
-    //         registry,
-    //         index
-    //     ), b"maker");
-    //     debug::print(&(balance_rolling));
-    //     debug::print(&(balance_regular));
-    //     debug::print(&(balance_maker));
-    //     debug::print(&(share_rolling));
-    //     debug::print(&(share_regular));
-    //     debug::print(&(share_maker));
-    // }
 }

@@ -2,10 +2,12 @@ module typus_protected_put::protected_put {
     use std::option::{Self, Option};
     use std::vector;
 
+    use sui::bag::{Self, Bag};
     use sui::coin::Coin;
     use sui::dynamic_field;
     use sui::object::{Self, UID};
     use sui::transfer;
+    use sui::table::{Self, Table};
     use sui::tx_context::{Self, TxContext};
     use sui::event::emit;
 
@@ -24,6 +26,8 @@ module typus_protected_put::protected_put {
     // ======== Constants ========
 
     const C_SHARE_PRICE_DECIMAL: u64 = 8;
+    const C_USER_SHARE_TABLE_NAME: vector<u8> = b"user_share_table";
+    const C_MAKER_SHARE_TABLE_NAME: vector<u8> = b"maker_share_table";
 
     // ======== Errors ========
     const E_VAULT_NOT_EXPIRED_YET: u64 = 0;
@@ -41,12 +45,15 @@ module typus_protected_put::protected_put {
         payoff_config: PayoffConfig,
         token_decimal: u64,
         share_decimal: u64,
+        period: u8, // Daily = 0, Weekly = 1, Monthly = 2
+        start_ts_ms: u64,
         expiration_ts_ms: u64
     }
 
     struct Registry has key {
         id: UID,
         num_of_vault: u64,
+        records: Bag, // C_USER_SHARE_TABLE_NAME, C_MAKER_SHARE_TABLE_NAME
     }
 
     struct ProtectedPutVault<phantom TOKEN> has store {
@@ -55,6 +62,18 @@ module typus_protected_put::protected_put {
         auction: Option<Auction<ManagerCap, TOKEN>>,
         next: Option<u64>,
     }
+
+    struct UserShareKey has copy, drop, store {
+        index: u64,
+        user: address,
+        is_rolling: bool,
+    }
+
+    struct MakerShareKey has copy, drop, store {
+        index: u64,
+        maker: address,
+    }
+
 
     // ======== Private Functions =========
 
@@ -78,10 +97,16 @@ module typus_protected_put::protected_put {
         let id = object::new(ctx);
 
         // emit(RegistryCreated { id: object::uid_to_inner(&id) });
+        let records = bag::new(ctx);
+        let user_share_table = table::new<UserShareKey, u64>(ctx);
+        bag::add(&mut records, C_USER_SHARE_TABLE_NAME, user_share_table);
+        let maker_balance_table = table::new<MakerShareKey, u64>(ctx);
+        bag::add(&mut records, C_MAKER_SHARE_TABLE_NAME, maker_balance_table);
 
         let vault = Registry {
             id,
-            num_of_vault: 0
+            num_of_vault: 0,
+            records, 
         };
 
         transfer::share_object(vault);
@@ -93,6 +118,8 @@ module typus_protected_put::protected_put {
         token_decimal: u64,
         share_decimal: u64,
         time_oracle: &Time,
+        period: u8,
+        start_ts_ms: u64,
         expiration_ts_ms: u64,
         underlying_asset: Asset,
         strike_otm_pct: u64, // in 4 decimal
@@ -110,7 +137,7 @@ module typus_protected_put::protected_put {
         let current_ts_ms = unix_time::get_ts_ms(time_oracle);
         assert!(expiration_ts_ms > current_ts_ms, E_INVALID_TIME);
 
-        let config = Config { payoff_config, token_decimal, share_decimal, expiration_ts_ms };
+        let config = Config { payoff_config, token_decimal, share_decimal, period, start_ts_ms, expiration_ts_ms };
         let vault = vault::new_vault<ManagerCap, TOKEN>(ctx);
         let index = registry.num_of_vault;
 
@@ -145,7 +172,6 @@ module typus_protected_put::protected_put {
         decay_speed: u64,
         initial_price: u64,
         final_price: u64,
-        price_decimal: u64,
         ctx: &mut TxContext,
     ) {
         let protected_put_vault = dynamic_field::borrow_mut<u64, ProtectedPutVault<TOKEN>>(
@@ -260,6 +286,8 @@ module typus_protected_put::protected_put {
         token_decimal: u64,
         share_decimal: u64,
         time_oracle: &Time,
+        period: u8,
+        start_ts_ms: u64,
         expiration_ts_ms: u64,
         underlying_asset: vector<u8>,
         strike_otm_pct: u64, // in 4 decimal
@@ -272,6 +300,8 @@ module typus_protected_put::protected_put {
             token_decimal,
             share_decimal,
             time_oracle,
+            period,
+            start_ts_ms,
             expiration_ts_ms,
             underlying_asset,
             strike_otm_pct,
@@ -380,9 +410,6 @@ module typus_protected_put::protected_put {
         final_price: u64,
         ctx: &mut TxContext,
     ) {
-        let protected_put_vault = dynamic_field::borrow<u64, ProtectedPutVault<TOKEN>>(&registry.id, index);
-        let token_decimal = protected_put_vault.config.token_decimal;
-        let share_decimal = protected_put_vault.config.share_decimal;
         new_auction_<TOKEN>(
             manager_cap,
             registry,
@@ -393,7 +420,6 @@ module typus_protected_put::protected_put {
             decay_speed,
             initial_price,
             final_price,
-            token_decimal - share_decimal,
             ctx,
         );
     }
@@ -414,15 +440,15 @@ module typus_protected_put::protected_put {
         ctx: &mut TxContext,
     ) {
         let protected_put_vault = dynamic_field::borrow<u64, ProtectedPutVault<TOKEN>>(&registry.id, index);
-        let token_decimal = protected_put_vault.config.token_decimal;
-        let share_decimal = protected_put_vault.config.share_decimal;
         let underlying_asset = asset::new_asset(underlying_asset);
         let next = new_protected_put_vault_<TOKEN>(
             manager_cap,
             registry,
-            token_decimal,
-            share_decimal,
+            protected_put_vault.config.token_decimal,
+            protected_put_vault.config.share_decimal,
             time_oracle,
+            protected_put_vault.config.period,
+            protected_put_vault.config.expiration_ts_ms,
             expiration_ts_ms,
             underlying_asset,
             strike_otm_pct,
@@ -446,7 +472,6 @@ module typus_protected_put::protected_put {
             decay_speed,
             initial_price,
             final_price,
-            token_decimal - share_decimal,
             ctx,
         );
     }
@@ -469,14 +494,33 @@ module typus_protected_put::protected_put {
     public(friend) entry fun claim<TOKEN>(
         registry: &mut Registry,
         index: u64,
-        amount: u64,
-        is_rolling: bool,
         ctx: &mut TxContext
     ) {
         vault::claim<ManagerCap, TOKEN>(
             &mut get_mut_protected_put_vault<TOKEN>(registry, index).vault,
             ctx
         );
+
+        // update user receipt
+        let user_share_table = bag::borrow_mut<vector<u8>, Table<UserShareKey, u64>>(&mut registry.records, C_USER_SHARE_TABLE_NAME);
+        let user_share_key = UserShareKey {
+            index,
+            user: tx_context::sender(ctx),
+            is_rolling: true,
+        };
+        if (table::contains(user_share_table, user_share_key)) {
+            table::remove(user_share_table, user_share_key);
+        };
+        let user_share_key = UserShareKey {
+            index,
+            user: tx_context::sender(ctx),
+            is_rolling: false,
+        };
+        if (table::contains(user_share_table, user_share_key)) {
+            table::remove(user_share_table, user_share_key);
+        };
+
+        // TODO: emit event
     }
 
     public(friend) entry fun claim_all<TOKEN>(
@@ -489,24 +533,51 @@ module typus_protected_put::protected_put {
 
         while (!vector::is_empty(&index)){
             let index = vector::pop_back(&mut index);
-            let is_rolling = vector::pop_back(&mut is_rolling);
             vault::claim<ManagerCap, TOKEN>(
                 &mut get_mut_protected_put_vault<TOKEN>(registry, index).vault,
                 ctx
             );
+
+            // update user receipt
+            let user_share_table = bag::borrow_mut<vector<u8>, Table<UserShareKey, u64>>(&mut registry.records, C_USER_SHARE_TABLE_NAME);
+            let user_share_key = UserShareKey {
+                index,
+                user: tx_context::sender(ctx),
+                is_rolling: true,
+            };
+            if (table::contains(user_share_table, user_share_key)) {
+                table::remove(user_share_table, user_share_key);
+            };
+            let user_share_key = UserShareKey {
+                index,
+                user: tx_context::sender(ctx),
+                is_rolling: false,
+            };
+            if (table::contains(user_share_table, user_share_key)) {
+                table::remove(user_share_table, user_share_key);
+            };
         }
     }
 
     public(friend) entry fun maker_claim<TOKEN>(
         registry: &mut Registry,
         index: u64,
-        amount: u64,
         ctx: &mut TxContext
     ) {
         vault::maker_claim<ManagerCap, TOKEN>(
             &mut get_mut_protected_put_vault<TOKEN>(registry, index).vault,
             ctx
         );
+
+        // update maker receipt
+        let maker_share_table = bag::borrow_mut<vector<u8>, Table<MakerShareKey, u64>>(&mut registry.records, C_MAKER_SHARE_TABLE_NAME);
+        let maker_share_key = MakerShareKey {
+            index,
+            maker: tx_context::sender(ctx),
+        };
+        table::remove(maker_share_table, maker_share_key);
+
+        // TODO: emit event
     }
 
     public(friend) entry fun maker_claim_all<TOKEN>(
@@ -532,6 +603,35 @@ module typus_protected_put::protected_put {
             &mut get_mut_protected_put_vault<TOKEN>(registry, index).vault,
             ctx,
         );
+
+        // update user receipt
+        let user_share_table = bag::borrow_mut<vector<u8>, Table<UserShareKey, u64>>(&mut registry.records, C_USER_SHARE_TABLE_NAME);
+        let user_share_key = UserShareKey {
+            index,
+            user: tx_context::sender(ctx),
+            is_rolling: false,
+        };
+        if (table::contains(user_share_table, user_share_key)) {
+            let share = table::remove(user_share_table, user_share_key);
+            let user_share_key = UserShareKey {
+                index,
+                user: tx_context::sender(ctx),
+                is_rolling: true,
+            };
+            if (table::contains(user_share_table, user_share_key)) {
+                let user_share = table::borrow_mut(user_share_table, user_share_key);
+                *user_share = *user_share + share;
+            }
+            else {
+                table::add(
+                    user_share_table,
+                    user_share_key,
+                    share,
+                );
+            };
+        };
+
+        // TODO: emit event
     }
 
     public(friend) entry fun unsubscribe<TOKEN>(
@@ -543,6 +643,35 @@ module typus_protected_put::protected_put {
             &mut get_mut_protected_put_vault<TOKEN>(registry, index).vault,
             ctx,
         );
+
+        // update user receipt
+        let user_share_table = bag::borrow_mut<vector<u8>, Table<UserShareKey, u64>>(&mut registry.records, C_USER_SHARE_TABLE_NAME);
+        let user_share_key = UserShareKey {
+            index,
+            user: tx_context::sender(ctx),
+            is_rolling: true,
+        };
+        if (table::contains(user_share_table, user_share_key)) {
+            let share = table::remove(user_share_table, user_share_key);
+            let user_share_key = UserShareKey {
+                index,
+                user: tx_context::sender(ctx),
+                is_rolling: false,
+            };
+            if (table::contains(user_share_table, user_share_key)) {
+                let user_share = table::borrow_mut(user_share_table, user_share_key);
+                *user_share = *user_share + share;
+            }
+            else {
+                table::add(
+                    user_share_table,
+                    user_share_key,
+                    share,
+                );
+            };
+        };
+
+        // TODO: emit event
     }
 
     public(friend) entry fun new_bid<TOKEN>(
