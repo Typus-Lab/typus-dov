@@ -352,7 +352,7 @@ module typus_covered_call::test {
         let test_coin = coin::mint_for_testing<SUI>(300000, test_scenario::ctx(scenario));
         let coin_amount = coin::value<SUI>(&test_coin);
         covered_call::deposit<SUI>(&mut registry, index, &mut test_coin, coin_amount, true, test_scenario::ctx(scenario));
-        covered_call::unsubscribe<SUI>(&mut registry, index, test_scenario::ctx(scenario));
+        covered_call::unsubscribe<SUI>(&mut registry, index, 0, test_scenario::ctx(scenario));
 
         test_scenario::next_tx(scenario, user1);
         let test_coin_1 = coin::mint_for_testing<SUI>(1000000, test_scenario::ctx(scenario));
@@ -368,7 +368,7 @@ module typus_covered_call::test {
         vault::test_print_vault_summary<ManagerCap, SUI>(covered_call::test_get_vault(&registry, index));
 
         test_scenario::next_tx(scenario, user1);
-        covered_call::unsubscribe<SUI>(&mut registry, index, test_scenario::ctx(scenario));
+        covered_call::unsubscribe<SUI>(&mut registry, index, 0, test_scenario::ctx(scenario));
 
         debug::print(&string::utf8(b"B: user1 unsubscribed"));
         vault::test_print_vault_summary<ManagerCap, SUI>(covered_call::test_get_vault(&registry, index));

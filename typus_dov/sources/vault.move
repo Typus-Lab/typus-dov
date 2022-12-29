@@ -309,6 +309,7 @@ module typus_dov::vault {
 
     public fun subscribe<MANAGER, TOKEN>(
         vault: &mut Vault<MANAGER, TOKEN>,
+        share: Option<u64>,
         ctx: &mut TxContext
     ) {
         assert!(vault_initialized(vault) || vault_activated(vault), E_SUBSCRIBE_DISABLED);
@@ -316,7 +317,7 @@ module typus_dov::vault {
         let user = tx_context::sender(ctx);
         let (share, balance) = withdraw_<MANAGER, TOKEN>(
             &mut vault.regular_sub_vault,
-            option::none(),
+            share,
             user,
         );
         deposit_<MANAGER, TOKEN>(
@@ -329,6 +330,7 @@ module typus_dov::vault {
 
     public fun unsubscribe<MANAGER, TOKEN>(
         vault: &mut Vault<MANAGER, TOKEN>,
+        share: Option<u64>,
         ctx: &mut TxContext
     ) {
         assert!(vault_initialized(vault) || vault_activated(vault), E_UNSUBSCRIBE_DISABLED);
@@ -336,7 +338,7 @@ module typus_dov::vault {
         let user = tx_context::sender(ctx);
         let (share, balance) = withdraw_<MANAGER, TOKEN>(
             &mut vault.rolling_sub_vault,
-            option::none(),
+            share,
             user,
         );
         deposit_<MANAGER, TOKEN>(

@@ -675,10 +675,12 @@ module typus_covered_call::covered_call {
     public(friend) entry fun subscribe<TOKEN>(
         registry: &mut Registry,
         index: u64,
+        share: u64,
         ctx: &mut TxContext
     ) {
         vault::subscribe<ManagerCap, TOKEN>(
             &mut get_mut_covered_call_vault<TOKEN>(registry, index).vault,
+            if (share == 0) option::none() else option::some(share),
             ctx,
         );
 
@@ -715,10 +717,12 @@ module typus_covered_call::covered_call {
     public(friend) entry fun unsubscribe<TOKEN>(
         registry: &mut Registry,
         index: u64,
+        share: u64,
         ctx: &mut TxContext
     ) {
         vault::unsubscribe<ManagerCap, TOKEN>(
             &mut get_mut_covered_call_vault<TOKEN>(registry, index).vault,
+            if (share == 0) option::none() else option::some(share),
             ctx,
         );
 
