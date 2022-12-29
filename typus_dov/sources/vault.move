@@ -82,9 +82,11 @@ module typus_dov::vault {
         manager_cap: &MANAGER,
         vault: &mut Vault<MANAGER, TOKEN>,
         settled_share_price: u64,
+        performance_fee: u64,
         token_decimal: u64,
         share_decimal: u64,
-        share_price_decimal: u64
+        share_price_decimal: u64,
+        fee_decimal: u64,
     ) {
         assert!(settled_share_price > 0, E_ZERO_VALUE);
         assert!(!vault_initialized(vault), E_NOT_YET_ACTIVATED);
@@ -107,22 +109,33 @@ module typus_dov::vault {
 
         if (settled_share_price > multiplier) {
             // user receives balance from maker
-            let payoff = (total_balance as u256) * ((settled_share_price - multiplier) as u256)
+            let total_payoff = (total_balance as u256) * ((settled_share_price - multiplier) as u256)
                 / (multiplier as u256);
+            let performance_fee_to_pay = total_payoff * (performance_fee as u256) / (utils::multiplier(fee_decimal) as u256);
+            let user_payoff = total_payoff - performance_fee_to_pay;
+
             // transfer balance from maker to rolling users
             let balance = balance::split<TOKEN>(
                 &mut vault.maker_sub_vault.balance,
-                ((payoff * (vault.rolling_sub_vault.share_supply as u256) / (total_share_supply as u256))
+                ((user_payoff * (vault.rolling_sub_vault.share_supply as u256) / (total_share_supply as u256))
                     as u64),
             );
             balance::join(&mut vault.rolling_sub_vault.balance, balance);
+
             // transfer balance from maker to regular users
             let balance = balance::split<TOKEN>(
                 &mut vault.maker_sub_vault.balance,
-                ((payoff * (vault.regular_sub_vault.share_supply as u256) / (total_share_supply as u256))
+                ((user_payoff * (vault.regular_sub_vault.share_supply as u256) / (total_share_supply as u256))
                     as u64),
             );
             balance::join(&mut vault.regular_sub_vault.balance, balance);
+
+            // transfer balance from maker to vault
+            let balance = balance::split<TOKEN>(
+                &mut vault.maker_sub_vault.balance,
+                (performance_fee_to_pay as u64)
+            );
+            balance::join(&mut vault.regular_sub_vault.balance, balance); // ?????
         }
         else if (settled_share_price < multiplier) {
             // maker receives balance from users

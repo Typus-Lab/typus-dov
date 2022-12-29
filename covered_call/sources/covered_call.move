@@ -43,11 +43,19 @@ module typus_covered_call::covered_call {
 
     struct Config has store, drop, copy {
         payoff_config: PayoffConfig,
+        fee_config: FeeConfig,
         token_decimal: u64,
         share_decimal: u64,
         period: u8, // Daily = 0, Weekly = 1, Monthly = 2
         start_ts_ms: u64,
         expiration_ts_ms: u64
+    }
+
+    struct FeeConfig has store, drop, copy {
+        fee_decimal: u64,
+        withdrawal_fee: u64,
+        performance_fee: u64,
+        delivery_fee: u64,
     }
 
     struct Registry has key {
@@ -122,9 +130,12 @@ module typus_covered_call::covered_call {
         start_ts_ms: u64,
         expiration_ts_ms: u64,
         strike_otm_pct: u64, // in 4 decimal
+        fee_decimal: u64,
+        withdrawal_fee: u64,
+        performance_fee: u64,
+        delivery_fee: u64,
         ctx: &mut TxContext
     ): u64 {
-
         let payoff_config = payoff::new_payoff_config(
             strike_otm_pct,
             option::none(),
@@ -132,11 +143,19 @@ module typus_covered_call::covered_call {
             option::none(),
         );
 
+        let fee_config = FeeConfig {
+            fee_decimal,
+            withdrawal_fee,
+            performance_fee,
+            delivery_fee,
+        };
+
         let current_ts_ms = unix_time::get_ts_ms(time_oracle);
         assert!(expiration_ts_ms > current_ts_ms, E_INVALID_TIME);
 
         let config = Config { 
-            payoff_config, 
+            payoff_config,
+            fee_config,
             token_decimal, 
             share_decimal, 
             period,
@@ -248,10 +267,12 @@ module typus_covered_call::covered_call {
             manager_cap,
             &mut covered_call_vault.vault,
             settled_share_price,
+            covered_call_vault.config.fee_config.performance_fee,
             token_decimal,
             share_decimal,
-            C_SHARE_PRICE_DECIMAL
-        );
+            C_SHARE_PRICE_DECIMAL,
+            covered_call_vault.config.fee_config.fee_decimal,
+        ); 
         // TODO: calculate performance fee
     }
 
@@ -346,6 +367,10 @@ module typus_covered_call::covered_call {
         start_ts_ms: u64,
         expiration_ts_ms: u64,
         strike_otm_pct: u64, // in 4 decimal
+        fee_decimal: u64,
+        withdrawal_fee: u64,
+        performance_fee: u64,
+        delivery_fee: u64,
         ctx: &mut TxContext
     ) {
         new_covered_call_vault_<TOKEN>(
@@ -358,6 +383,10 @@ module typus_covered_call::covered_call {
             start_ts_ms,
             expiration_ts_ms,
             strike_otm_pct,
+            fee_decimal,
+            withdrawal_fee,
+            performance_fee,
+            delivery_fee,
             ctx,
         );
     }
@@ -413,6 +442,10 @@ module typus_covered_call::covered_call {
             covered_call_vault.config.expiration_ts_ms,
             expiration_ts_ms,
             strike_otm_pct,
+            covered_call_vault.config.fee_config.fee_decimal,
+            covered_call_vault.config.fee_config.withdrawal_fee,
+            covered_call_vault.config.fee_config.performance_fee,
+            covered_call_vault.config.fee_config.delivery_fee,
             ctx,
         );
         option::fill(

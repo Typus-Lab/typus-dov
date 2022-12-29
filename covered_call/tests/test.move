@@ -27,6 +27,10 @@ module typus_covered_call::test {
         let expiration_ts_ms_1 = 1671782400_000 + 604800_000;  // 2022/12/30 Friday 08:00:00
         let period = 1; // Weekly
         let strike_otm_pct = 500; // 0.05 * 10000
+        let fee_decimal = 4;
+        let withdrawal_fee = 100; // 0.01 * 10000
+        let performance_fee = 1000; // 0.1 * 10000
+        let delivery_fee = 30; // 0.003 * 10000
 
         let scenario_val = test_scenario::begin(admin);
         let scenario = &mut scenario_val;
@@ -63,6 +67,10 @@ module typus_covered_call::test {
             start_ts_ms_1,
             expiration_ts_ms_1,
             strike_otm_pct,
+            fee_decimal,
+            withdrawal_fee,
+            performance_fee,
+            delivery_fee,
             test_scenario::ctx(scenario)
         );
         test_scenario::return_to_sender<ManagerCap>(scenario, manager_cap);
@@ -126,8 +134,9 @@ module typus_covered_call::test {
         let admin = @0x1;
         let price_decimal = 8;
         let current_ts_ms = 1671594861_000; // 2022/12/21 Wednesday 03:54:21
-        let expiration_ts_ms_1 = 1671782400_000; // 2022/12/23 Friday 08:00:00
-        let expiration_ts_ms_2 = 1672387200_000; // 2022/12/30 Friday 08:00:00
+        let start_ts_ms_1 = 1671782400_000; // 2022/12/23 Friday 08:00:00
+        let expiration_ts_ms_1 = 1672387200_000; // 2022/12/30 Friday 08:00:00
+        let expiration_ts_ms_2 = 1672992000_000; // 2023/01/06 Friday 08:00:00
         let decay_speed = 1;
 
         let strike_otm_pct = 500; // 0.05 * 10000
@@ -178,7 +187,7 @@ module typus_covered_call::test {
         let _option_price_multiplier = utils::multiplier(option_price_decimal);
         let initial_option_price = 5_000;
         let final_option_price = 1_000;
-        let start_auction_ts_ms = expiration_ts_ms_1 - 1000;
+        let start_auction_ts_ms = start_ts_ms_1 - 1000;
         let end_auction_ts_ms = start_auction_ts_ms + 500;
         oracle::update(
             &mut price_oracle,
@@ -302,13 +311,13 @@ module typus_covered_call::test {
             &mut price_oracle,
             &oracle_key,
             13_000_000_000,
-            expiration_ts_ms_1,
+            expiration_ts_ms_1, // vault 0 expiration ts ms
             test_scenario::ctx(scenario)
         );
         unix_time::update(
             &mut time_oracle,
             &unix_time_key,
-            expiration_ts_ms_1,
+            expiration_ts_ms_1, // vault 0 expiration ts ms
             test_scenario::ctx(scenario)
         );
 
