@@ -1,4 +1,4 @@
-module typus_dov::asset {
+module typus_framework::asset {
     struct Asset has store, drop, copy {
         name: vector<u8>,
     }

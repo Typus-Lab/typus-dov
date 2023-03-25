@@ -1,7 +1,7 @@
 # Typus DeFi Option Vaults (DOV)
 
 ## Vault
-[README](typus_dov/README.md)
+[README](typus_framework/README.md)
 
 ## Covered Call
 [README](covered_call/README.md)
@@ -20,9 +20,9 @@
    ```
 6. update [typus-cranker](https://github.com/Typus-Lab/typus-rust)
 7. update [typus-oracle README.md](https://github.com/Typus-Lab/typus-oracle/blob/main/README.md) addresses
-8. deploy [typus_dov](https://github.com/Typus-Lab/typus-dov/tree/main/typus_dov)
-9. update [typus_dov Move.toml](https://github.com/Typus-Lab/typus-dov/blob/main/typus_dov/Move.toml) `typus_dov` address
-10. update [typus_dov README.md](https://github.com/Typus-Lab/typus-dov/blob/main/typus_dov/README.md) addresses
+8. deploy [typus_framework](https://github.com/Typus-Lab/typus-dov/tree/main/typus_framework)
+9. update [typus_framework Move.toml](https://github.com/Typus-Lab/typus-dov/blob/main/typus_framework/Move.toml) `typus_framework` address
+10. update [typus_framework README.md](https://github.com/Typus-Lab/typus-dov/blob/main/typus_framework/README.md) addresses
 11. deploy [covered_call](https://github.com/Typus-Lab/typus-dov/tree/main/covered_call)
 12. update [covered_call README.md](https://github.com/Typus-Lab/typus-dov/blob/main/covered_call/README.md) addresses
 13. send `new_covered_call_vault` transaction

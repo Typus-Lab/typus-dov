@@ -1,7 +1,7 @@
 // Copyright (c) Typus Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-module typus_dov::i64 {
+module typus_framework::i64 {
 
     /// @dev Maximum I64 value as a u64.
     const MAX_I64_AS_U64: u64 = (1 << 63) - 1;

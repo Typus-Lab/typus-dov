@@ -10,16 +10,16 @@ module typus_protected_put::test {
     use std::debug;
     use std::option;
 
-    use typus_dov::i64;
-    use typus_dov::vault;
-    use typus_dov::utils;
-    use typus_dov::asset;
+    use typus_framework::i64;
+    use typus_framework::vault;
+    use typus_framework::utils;
+    use typus_framework::asset;
     use typus_oracle::oracle::{Self, Oracle};
     use typus_oracle::unix_time::{Self, Time};
 
     use typus_protected_put::protected_put::{Self, ManagerCap, Registry};
     use typus_protected_put::payoff;
- 
+
     #[test]
     fun test_new_vault(): Scenario {
         let underlying_asset = b"DOGE";
@@ -47,7 +47,7 @@ module typus_protected_put::test {
         let time_oracle = test_scenario::take_shared<Time>(scenario);
         test_scenario::next_tx(scenario, admin);
         let unix_time_key = test_scenario::take_from_sender<unix_time::Key>(scenario);
-        
+
         unix_time::update(
             &mut time_oracle,
             &unix_time_key,
@@ -90,7 +90,7 @@ module typus_protected_put::test {
     //     test_scenario::next_tx(scenario, admin);
     //     protected_put::deposit<SUI>(&mut registry, 0, &mut coin, amount, true, test_scenario::ctx(scenario));
 
-        
+
     //     let current_vault = protected_put::test_get_vault<SUI>(
     //         &mut registry,
     //         0
@@ -303,7 +303,7 @@ module typus_protected_put::test {
         vault::test_print_vault_summary<ManagerCap, SUI>(protected_put::test_get_vault(&registry, 0));
         debug::print(&string::utf8(b"vault 2"));
         vault::test_print_vault_summary<ManagerCap, SUI>(protected_put::test_get_vault(&registry, 1));
-        
+
         oracle::update(
             &mut price_oracle,
             &oracle_key,
@@ -327,17 +327,17 @@ module typus_protected_put::test {
         vault::test_print_vault_summary<ManagerCap, SUI>(protected_put::test_get_vault(&registry, 0));
         debug::print(&string::utf8(b"vault 2"));
         vault::test_print_vault_summary<ManagerCap, SUI>(protected_put::test_get_vault(&registry, 1));
-        
+
         coin::destroy_for_testing(test_coin);
         coin::destroy_for_testing(test_coin_2);
         coin::destroy_for_testing(mm_test_coin);
-        test_scenario::return_shared(registry); 
+        test_scenario::return_shared(registry);
         test_scenario::return_to_sender<ManagerCap>(scenario, manager_cap);
         test_scenario::return_to_sender<unix_time::Key>(scenario, unix_time_key);
         transfer::transfer(oracle_key, tx_context::sender(test_scenario::ctx(scenario)));
         transfer::share_object(price_oracle);
         transfer::share_object(time_oracle);
-        test_scenario::end(scenario_val); 
+        test_scenario::end(scenario_val);
     }
 
     #[test]
@@ -349,7 +349,7 @@ module typus_protected_put::test {
 
         let user1 = @0xBABE1;
         let user2 = @0xBABE2;
-        
+
         let registry = test_scenario::take_shared<Registry>(scenario);
         let manager_cap = test_scenario::take_from_sender<ManagerCap>(scenario);
 
@@ -383,7 +383,7 @@ module typus_protected_put::test {
         coin::destroy_for_testing(test_coin_1);
         coin::destroy_for_testing(test_coin_2);
 
-        test_scenario::return_shared(registry); 
+        test_scenario::return_shared(registry);
         test_scenario::next_tx(scenario, admin);
         test_scenario::return_to_sender<ManagerCap>(scenario, manager_cap);
 

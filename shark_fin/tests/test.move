@@ -9,8 +9,8 @@
 //     use std::string;
 //     // use std::debug;
 
-//     use typus_dov::asset;
-//     use typus_dov::vault::{Self, VaultRegistry};
+//     use typus_framework::asset;
+//     use typus_framework::vault::{Self, VaultRegistry};
 //     use typus_shark_fin::payoff::{Self, PayoffConfig};
 //     use typus_shark_fin::shark_fin::{Self, Config};
 
@@ -34,7 +34,7 @@
 //                 2,
 //                 test_scenario::ctx(scenario)
 //             );
-//             vault::get_vault<SUI, Config>(&registry, 0);     
+//             vault::get_vault<SUI, Config>(&registry, 0);
 
 //             test_scenario::return_shared(registry)
 //         };
@@ -47,7 +47,7 @@
 //         let admin = @0x1;
 //         let scenario_val = test_new_vault();
 //         let scenario = &mut scenario_val;
-        
+
 //         let registry = test_scenario::take_shared<VaultRegistry<Config>>(scenario);
 
 //         let balance = balance::create_for_testing<SUI>(1000);
@@ -105,7 +105,7 @@
 //     //     use sui::sui::SUI;
 //     //     use sui::coin;
 //     //     use typus_shark_fin::shark_fin::{Self, Config};
-//     //     use typus_dov::vault;
+//     //     use typus_framework::vault;
 
 //     //     let admin = @0xFFFF;
 //     //     let admin_scenario = test_scenario::begin(admin);
@@ -144,7 +144,7 @@
 //     //     let mm_test_coin = coin::mint_for_testing<SUI>(10000, ctx);
 //     //     let value = vault::deposit<SUI, Config>(
 //     //         &mut vault_registry,
-//     //         0, 
+//     //         0,
 //     //         string::utf8(b"maker"),
 //     //         &mut mm_test_coin,
 //     //         10000
@@ -156,7 +156,7 @@
 //     //     coin::destroy_for_testing(test_coin);
 //     //     coin::destroy_for_testing(mm_test_coin);
 //     //     test_scenario::end(admin_scenario);
-       
+
 //     //     vault_registry
 //     // }
 // }

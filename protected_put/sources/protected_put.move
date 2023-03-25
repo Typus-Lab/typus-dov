@@ -12,11 +12,11 @@ module typus_protected_put::protected_put {
     use sui::event::emit;
 
     use typus_protected_put::payoff::{Self, PayoffConfig};
-    use typus_dov::dutch::{Self, Auction};
-    use typus_dov::i64;
-    use typus_dov::vault::{Self, Vault};
-    use typus_dov::utils;
-    use typus_dov::asset::{Self, Asset};
+    use typus_framework::dutch::{Self, Auction};
+    use typus_framework::i64;
+    use typus_framework::vault::{Self, Vault};
+    use typus_framework::utils;
+    use typus_framework::asset::{Self, Asset};
     use typus_oracle::oracle::{Self, Oracle};
     use typus_oracle::unix_time::{Self, Time};
 
@@ -106,7 +106,7 @@ module typus_protected_put::protected_put {
         let vault = Registry {
             id,
             num_of_vault: 0,
-            records, 
+            records,
         };
 
         transfer::share_object(vault);
@@ -338,7 +338,7 @@ module typus_protected_put::protected_put {
         premium_roi: u64,
         exposure_ratio: u64
     ) {
-        
+
         payoff::set_strike(
             &mut dynamic_field::borrow_mut<u64, ProtectedPutVault<TOKEN>>(
                 &mut registry.id,

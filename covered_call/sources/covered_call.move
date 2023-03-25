@@ -13,10 +13,10 @@ module typus_covered_call::covered_call {
     use sui::vec_map;
 
     use typus_covered_call::payoff::{Self, PayoffConfig};
-    use typus_dov::dutch::{Self, Auction};
-    use typus_dov::i64;
-    use typus_dov::utils;
-    use typus_dov::vault::{Self, Vault};
+    use typus_framework::dutch::{Self, Auction};
+    use typus_framework::i64;
+    use typus_framework::utils;
+    use typus_framework::vault::{Self, Vault};
     use typus_oracle::oracle::{Self, Oracle};
     use typus_oracle::unix_time::{Self, Time};
 
@@ -153,11 +153,11 @@ module typus_covered_call::covered_call {
         let current_ts_ms = unix_time::get_ts_ms(time_oracle);
         assert!(expiration_ts_ms > current_ts_ms, E_INVALID_TIME);
 
-        let config = Config { 
+        let config = Config {
             payoff_config,
             fee_config,
-            token_decimal, 
-            share_decimal, 
+            token_decimal,
+            share_decimal,
             period,
             start_ts_ms,
             expiration_ts_ms
@@ -272,7 +272,7 @@ module typus_covered_call::covered_call {
             share_decimal,
             C_SHARE_PRICE_DECIMAL,
             covered_call_vault.config.fee_config.fee_decimal,
-        ); 
+        );
         // TODO: calculate performance fee
     }
 
@@ -479,7 +479,7 @@ module typus_covered_call::covered_call {
         premium_roi: u64,
         exposure_ratio: u64
     ) {
-        
+
         payoff::set_strike(
             &mut dynamic_field::borrow_mut<u64, CoveredCallVault<TOKEN>>(
                 &mut registry.id,
@@ -898,7 +898,7 @@ module typus_covered_call::covered_call {
     ) {
         let token_decimal = dynamic_field::borrow<u64, CoveredCallVault<TOKEN>>(&registry.id, index).config.token_decimal;
         let share_decimal = dynamic_field::borrow<u64, CoveredCallVault<TOKEN>>(&registry.id, index).config.share_decimal;
-        
+
         settle_(
             manager_cap,
             get_mut_covered_call_vault<TOKEN>(registry, index),

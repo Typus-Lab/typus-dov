@@ -1,7 +1,7 @@
 // Copyright (c) Typus Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-module typus_dov::sealed {
+module typus_framework::sealed {
     use std::vector;
     use sui::balance::{Self, Balance};
     use sui::coin::{Self, Coin};
@@ -92,7 +92,7 @@ module typus_dov::sealed {
         auction: &mut Auction<Token>,
         bid_hash: vector<u8>,
         encrypted_bid: vector<u8>,
-        coin: &mut Coin<Token>, 
+        coin: &mut Coin<Token>,
         time: &Time,
         ctx: &mut TxContext,
     ) {
@@ -174,14 +174,14 @@ module typus_dov::sealed {
             transfer_amount = price * size - auction.min_deposit
         };
         let user_fund = table::borrow_mut(&mut auction.funds, bid_index);
-    
+
         // transfer quote coins for the trade
         coin::join(&mut user_fund.coin, coin::split(coin, transfer_amount, ctx));
 
         assert!(verify_bid_hash(&bid.bid_hash, price, size, blinding_factor), E_BID_COMMITMENT_MISMATCH);
         assert!(price != 0, E_ZERO_PRICE);
         assert!(size != 0, E_ZERO_SIZE);
-        
+
         bid.price = option::some(price);
         bid.size = option::some(size);
         bid.blinding_factor = option::some(blinding_factor);
@@ -208,10 +208,10 @@ module typus_dov::sealed {
         let price_vec = bcs::to_bytes(&price);
         let size_vec =  bcs::to_bytes(&size);
         let blinding_factor_vec =  bcs::to_bytes(&blinding_factor);
-        vector::append(&mut serialized_bid_info, price_vec); 
-        vector::append(&mut serialized_bid_info, size_vec); 
-        vector::append(&mut serialized_bid_info, blinding_factor_vec); 
-        
+        vector::append(&mut serialized_bid_info, price_vec);
+        vector::append(&mut serialized_bid_info, size_vec);
+        vector::append(&mut serialized_bid_info, blinding_factor_vec);
+
         // vector::destroy_empty(contents);
         // compare::cmp_bcs_bytes(&hash_to_verify, hash) == 0
 
@@ -388,7 +388,7 @@ module typus_dov::sealed {
     ////////////////////////////////////////////
     /// Events
     ///////////////////////////////////////////
-    
+
     struct SealedBidCreated has copy, drop {
         bid_index: u64,
         owner: address,
@@ -434,7 +434,7 @@ module typus_dov::sealed {
         forfeited_amount: u64,
         timestamp: u64,
     }
-    
+
     fun selection_sort<Token>(bids: &mut vector<Bid>) {
         let length = vector::length(bids);
         let i = 0;
@@ -487,7 +487,7 @@ module typus_dov::sealed {
         let user2 = @0xBABE2;
         let user3 = @0xBABE3;
         let scenario = test_scenario::begin(admin);
-     
+
         ////////////////////////////////////////////////////////////////////////////////////
         //   New Sealed Bid Auction
         ////////////////////////////////////////////////////////////////////////////////////
@@ -501,11 +501,11 @@ module typus_dov::sealed {
         let time = test_scenario::take_shared<Time>(&scenario);
         test_scenario::next_tx(&mut scenario, admin);
         let key = test_scenario::take_from_address<Key>(&scenario, admin);
-     
+
         ////////////////////////////////////////////////////////////////////////////////////
         //   New Bids
         ////////////////////////////////////////////////////////////////////////////////////
-       
+
         // update time
         unix_time::update(&mut time, &key, bid_closing_time - 60*60*12, test_scenario::ctx(&mut scenario)) ;
         // new bid 1 with user 1
@@ -561,7 +561,7 @@ module typus_dov::sealed {
         let bid = table::borrow(&auction.bids, 2);
         assert!(bid.index == 2, 1);
         assert!(auction.index == 3, 1);
-    
+
         // new bid 4 with user 3
         test_scenario::next_tx(&mut scenario, user3);
         let serialize_bid_info = serialize_bid_info(18, 6, 33333333);
@@ -581,12 +581,12 @@ module typus_dov::sealed {
         assert!(auction.index == 4, 1);
 
         ////////////////////////////////////////////////////////////////////////////////////
-        //     Reveal Bids 
+        //     Reveal Bids
         ////////////////////////////////////////////////////////////////////////////////////
-       
+
         // update time
         unix_time::update(&mut time, &key, bid_closing_time + 60, test_scenario::ctx(&mut scenario)) ;
-        
+
         // reveal bid 1 with user 1
         test_scenario::next_tx(&mut scenario, user1);
         reveal_bid(
@@ -631,8 +631,8 @@ module typus_dov::sealed {
 
         test_scenario::next_tx(&mut scenario, admin);
         coin::destroy_for_testing(coin);
-        test_scenario::return_to_sender(&scenario, key); 
-        test_scenario::return_shared(time); 
+        test_scenario::return_to_sender(&scenario, key);
+        test_scenario::return_shared(time);
         test_scenario::end(scenario);
         auction
     }
@@ -690,7 +690,7 @@ module typus_dov::sealed {
 
         // update time
         unix_time::update(&mut time, &key, bid_closing_time + 60, test_scenario::ctx(&mut scenario)) ;
-        
+
         // reveal bid with wrong bid info - wrong price 10. it should be 12
         test_scenario::next_tx(&mut scenario, user2);
         reveal_bid(
@@ -706,8 +706,8 @@ module typus_dov::sealed {
 
         test_scenario::next_tx(&mut scenario, admin);
         coin::destroy_for_testing(coin);
-        test_scenario::return_to_sender(&scenario, key); 
-        test_scenario::return_shared(time); 
+        test_scenario::return_to_sender(&scenario, key);
+        test_scenario::return_shared(time);
         test_scenario::end(scenario);
         auction
     }
@@ -740,7 +740,7 @@ module typus_dov::sealed {
 
         // update time
         unix_time::update(&mut time, &key, bid_closing_time + 60, test_scenario::ctx(&mut scenario)) ;
-        
+
         // try to reveal bid 2 with user monkey
         test_scenario::next_tx(&mut scenario, monkey);
         reveal_bid(
@@ -756,8 +756,8 @@ module typus_dov::sealed {
 
         test_scenario::next_tx(&mut scenario, admin);
         coin::destroy_for_testing(coin);
-        test_scenario::return_to_sender(&scenario, key); 
-        test_scenario::return_shared(time); 
+        test_scenario::return_to_sender(&scenario, key);
+        test_scenario::return_shared(time);
         test_scenario::end(scenario);
 
         auction
@@ -780,7 +780,7 @@ module typus_dov::sealed {
         test_scenario::next_tx(&mut scenario, admin);
         let time = test_scenario::take_shared<Time>(&scenario);
         let key = test_scenario::take_from_address<Key>(&scenario, admin);
-     
+
         // update time
         unix_time::update(&mut time, &key, auction.reveal_closing_time + 1, test_scenario::ctx(&mut scenario)) ;
 
@@ -799,8 +799,8 @@ module typus_dov::sealed {
 
 
         test_scenario::next_tx(&mut scenario, admin);
-        test_scenario::return_to_sender(&scenario, key); 
-        test_scenario::return_shared(time); 
+        test_scenario::return_to_sender(&scenario, key);
+        test_scenario::return_shared(time);
         coin::destroy_for_testing(coin::from_balance(balance, test_scenario::ctx(&mut scenario)));
         test_scenario::end(scenario);
 

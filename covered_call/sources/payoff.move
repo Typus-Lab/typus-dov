@@ -1,7 +1,7 @@
 module typus_covered_call::payoff {
     use std::option::{Self, Option};
-    use typus_dov::i64::{Self, I64};
-    use typus_dov::utils;
+    use typus_framework::i64::{Self, I64};
+    use typus_framework::utils;
 
     friend typus_covered_call::covered_call;
 
@@ -36,7 +36,7 @@ module typus_covered_call::payoff {
     public fun get_roi_decimal(): u64 {
         ROI_PCT_DECIMAL
     }
-    
+
     public(friend) fun new_payoff_config(
         strike_otm_pct: u64,
         strike: Option<u64>,
@@ -53,7 +53,7 @@ module typus_covered_call::payoff {
 
     public(friend) fun set_premium_roi(payoff_config: &mut PayoffConfig, premium_roi: u64) {
         option::fill(&mut payoff_config.premium_roi, premium_roi);
-    } 
+    }
 
     public(friend) fun set_exposure_ratio(payoff_config: &mut PayoffConfig, exposure_ratio: u64) {
         option::fill(&mut payoff_config.exposure_ratio, exposure_ratio);
@@ -61,7 +61,7 @@ module typus_covered_call::payoff {
 
     public(friend) fun set_strike(payoff_config: &mut PayoffConfig, strike: u64) {
         option::fill(&mut payoff_config.strike, strike);
-    } 
+    }
 
     // payoff represents the RoI per week
     /// e.g. a covered call vault:
@@ -93,5 +93,5 @@ module typus_covered_call::payoff {
                 )
             )
         }
-    }    
+    }
 }

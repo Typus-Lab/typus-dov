@@ -1,9 +1,9 @@
 // module typus_shark_fin::settlement {
 //     use std::string;
 //     use sui::table;
-//     use typus_dov::utils;
-//     use typus_dov::i64;
-//     use typus_dov::vault::{Self, VaultRegistry};
+//     use typus_framework::utils;
+//     use typus_framework::i64;
+//     use typus_framework::vault::{Self, VaultRegistry};
 //     use typus_shark_fin::payoff;
 //     use typus_shark_fin::shark_fin::{Self, Config};
 
@@ -36,7 +36,7 @@
 //         assert!(user_balance_value == share_supply, E_VAULT_HAS_BEEN_SETTLED);
 
 //         let user_final_balance = i64::div(&i64::mul(&i64::from(user_balance_value),&i64::add(&roi_multiplier, &roi)), &roi_multiplier);
-        
+
 //         let user_total_payoff = i64::sub(&user_final_balance, &i64::from(user_balance_value));
 //         let rolling_user_payoff = i64::div(&i64::mul(&user_total_payoff, &i64::from(rolling_share_supply)), &i64::from(share_supply));
 //         let regular_user_payoff = i64::sub(&user_total_payoff, &rolling_user_payoff);
@@ -94,8 +94,8 @@
 //             let contains = table::contains<u64, address>(vault::get_vault_user_map<T, Config>(vault_registry, expired_index, string::utf8(b"rolling")), i);
 //             if (contains) {
 //                 let user_address = vault::get_user_address<T, Config>(vault_registry, expired_index, string::utf8(b"rolling"), i);
-//                 let adjusted_shares_in_expired_pool = vault::get_user_share<T, Config>(vault_registry, expired_index, string::utf8(b"rolling"), user_address) 
-//                     * share_price 
+//                 let adjusted_shares_in_expired_pool = vault::get_user_share<T, Config>(vault_registry, expired_index, string::utf8(b"rolling"), user_address)
+//                     * share_price
 //                     / share_price_multiplier;
 
 //                 if (table::contains<address, u64>(vault::get_mut_vault_users_table<T, Config>(vault_registry, new_index, string::utf8(b"rolling")), user_address)) {
@@ -105,10 +105,10 @@
 //                     table::add<address, u64>(vault::get_mut_vault_users_table<T, Config>(vault_registry, new_index, string::utf8(b"rolling")), user_address, adjusted_shares_in_expired_pool);
 //                 };
 //             };
-            
+
 //             i = i + 1;
 //         };
-        
+
 //     }
 
 //     // fun adjust_vault_stage<T>(dov: &mut Vault<T, Config>, stage: u64) {

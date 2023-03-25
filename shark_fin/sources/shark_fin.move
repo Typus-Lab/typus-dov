@@ -3,9 +3,9 @@
 //     use sui::transfer;
 //     use std::option;
 //     // use sui::event::emit;
-//     use typus_dov::vault::{Self, VaultRegistry};
+//     use typus_framework::vault::{Self, VaultRegistry};
 //     use typus_shark_fin::payoff::{Self, PayoffConfig};
-//     use typus_dov::asset::Asset;
+//     use typus_framework::asset::Asset;
 //     use std::string;
 //     use sui::coin::Coin;
 
@@ -57,7 +57,7 @@
 //             option::none(),
 //             option::none(),
 //         );
- 
+
 //         let config = Config {
 //             payoff_config,
 //             expiration_ts

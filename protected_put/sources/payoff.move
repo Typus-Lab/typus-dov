@@ -1,8 +1,8 @@
 module typus_protected_put::payoff {
     use std::option::{Self, Option};
-    use typus_dov::i64::{Self, I64};
-    use typus_dov::utils;
-    use typus_dov::asset::Asset;
+    use typus_framework::i64::{Self, I64};
+    use typus_framework::utils;
+    use typus_framework::asset::Asset;
 
     friend typus_protected_put::protected_put;
 
@@ -42,7 +42,7 @@ module typus_protected_put::payoff {
     public fun get_roi_decimal(): u64 {
         ROI_PCT_DECIMAL
     }
-    
+
     public(friend) fun new_payoff_config(
         underlying_asset: Asset,
         strike_otm_pct: u64,
@@ -61,7 +61,7 @@ module typus_protected_put::payoff {
 
     public(friend) fun set_premium_roi(payoff_config: &mut PayoffConfig, premium_roi: u64) {
         option::fill(&mut payoff_config.premium_roi, premium_roi);
-    } 
+    }
 
     public(friend) fun set_exposure_ratio(payoff_config: &mut PayoffConfig, exposure_ratio: u64) {
         option::fill(&mut payoff_config.exposure_ratio, exposure_ratio);
@@ -69,7 +69,7 @@ module typus_protected_put::payoff {
 
     public(friend) fun set_strike(payoff_config: &mut PayoffConfig, strike: u64) {
         option::fill(&mut payoff_config.strike, strike);
-    } 
+    }
 
     // payoff represents the RoI per week
     /// e.g. a protected put vault:
@@ -101,5 +101,5 @@ module typus_protected_put::payoff {
                 )
             )
         }
-    }    
+    }
 }

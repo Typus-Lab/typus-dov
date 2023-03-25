@@ -4,8 +4,8 @@ version = "0.0.1"
 
 [dependencies]
 Sui = { git = "https://github.com/MystenLabs/sui.git", subdir = "crates/sui-framework", rev = "devnet" }
-typus_dov = { local = "../typus_dov"}
+typus_framework = { local = "../typus_framework" }
 
 [addresses]
-typus_shark_fin =  "0x0"
-sui =  "0000000000000000000000000000000000000002"
+typus_shark_fin = "0x0"
+sui = "0000000000000000000000000000000000000002"

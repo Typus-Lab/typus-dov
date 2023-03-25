@@ -1,4 +1,4 @@
-module typus_dov::dutch {
+module typus_framework::dutch {
     use std::vector;
 
     use sui::balance::{Self, Balance};
@@ -11,7 +11,7 @@ module typus_dov::dutch {
 
     use typus_oracle::unix_time::{Self, Time};
 
-    use typus_dov::utils;
+    use typus_framework::utils;
 
     // ======== Errors ========
 
@@ -109,7 +109,7 @@ module typus_dov::dutch {
         let bid_value = price * size / price_multiplier;
 
         assert!(bid_value > 0, E_BID_VALUE_TOO_LOW);
-        
+
         let coin = coin::split(coin, bid_value, ctx);
         let coin_value = coin::value(&coin);
         table::add(
@@ -282,7 +282,7 @@ module typus_dov::dutch {
 
     // ======== Private Functions ========
 
-    /// decayed_price = 
+    /// decayed_price =
     ///     initial_price -
     ///         (initial_price - final_price) *
     ///             (1 - remaining_time / auction_duration) ^ decay_speed
@@ -303,7 +303,7 @@ module typus_dov::dutch {
             price_diff  = price_diff * numerator / denominator;
             decay_speed = decay_speed - 1;
         };
-        
+
         initial_price - price_diff
     }
 
@@ -352,7 +352,7 @@ module typus_dov::dutch {
         let decay_speed = 1;
         let initial_price = 5_000_000;
         let final_price = 1_000_000;
-        
+
         let auction = new(
             start_ts_ms,
             end_ts_ms,
@@ -396,12 +396,12 @@ module typus_dov::dutch {
         test_scenario::next_tx(&mut scenario, admin);
         let time = test_scenario::take_shared<Time>(&scenario);
         let key = test_scenario::take_from_address<Key>(&scenario, admin);
-     
+
         // update time
         unix_time::update(&mut time, &key, auction.start_ts_ms + 60, test_scenario::ctx(&mut scenario)) ;
 
         ///////////////////////////////////////////////
-        // new bid with user 1 
+        // new bid with user 1
         // size: 100000, owner: user1
         /////////////////////////////////////////////
         test_scenario::next_tx(&mut scenario, user1);
@@ -426,7 +426,7 @@ module typus_dov::dutch {
         // debug::print(&string::utf8(b"bid value:"));
         // debug::print(&bid_value);
         assert!(coin::value(&fund_0.coin) == bid_value, 1);
-        
+
         // update time
         unix_time::update(&mut time, &key, auction.start_ts_ms + 60*60*10, test_scenario::ctx(&mut scenario)) ;
 
@@ -474,7 +474,7 @@ module typus_dov::dutch {
         );
 
         let bid = table::borrow(&auction.bids, 2);
-        
+
         let fund_2 = table::borrow(&auction.funds, 2);
         assert!(fund_2.owner == user2, 1);
         let bid_value = bid.price * bid.size / price_multiplier;
@@ -524,8 +524,8 @@ module typus_dov::dutch {
 
         test_scenario::next_tx(&mut scenario, admin);
         coin::destroy_for_testing(coin);
-        test_scenario::return_to_sender(&scenario, key); 
-        test_scenario::return_shared(time); 
+        test_scenario::return_to_sender(&scenario, key);
+        test_scenario::return_shared(time);
         test_scenario::end(scenario);
 
         auction
@@ -546,21 +546,21 @@ module typus_dov::dutch {
         test_scenario::next_tx(&mut scenario, admin);
         let time = test_scenario::take_shared<Time>(&scenario);
         let key = test_scenario::take_from_address<Key>(&scenario, admin);
-     
+
         // update time
         unix_time::update(&mut time, &key, auction.start_ts_ms + 60*2, test_scenario::ctx(&mut scenario)) ;
 
         // remove bid 0 with user1
         test_scenario::next_tx(&mut scenario, user1);
         remove_bid(&mut auction, 0, &time, test_scenario::ctx(&mut scenario));
-      
+
         // remove bid 1 with user2
         test_scenario::next_tx(&mut scenario, user2);
         remove_bid(&mut auction, 1, &time, test_scenario::ctx(&mut scenario));
 
         test_scenario::next_tx(&mut scenario, admin);
-        test_scenario::return_to_sender(&scenario, key); 
-        test_scenario::return_shared(time); 
+        test_scenario::return_to_sender(&scenario, key);
+        test_scenario::return_shared(time);
         test_scenario::end(scenario);
 
         auction
@@ -581,17 +581,17 @@ module typus_dov::dutch {
         test_scenario::next_tx(&mut scenario, admin);
         let time = test_scenario::take_shared<Time>(&scenario);
         let key = test_scenario::take_from_address<Key>(&scenario, admin);
-     
+
         // update time
         unix_time::update(&mut time, &key, auction.start_ts_ms + 60*2, test_scenario::ctx(&mut scenario)) ;
 
         // try to remove bid 0 with monkey
         test_scenario::next_tx(&mut scenario, monkey);
         remove_bid(&mut auction, 0, &time, test_scenario::ctx(&mut scenario));
-      
+
         test_scenario::next_tx(&mut scenario, admin);
-        test_scenario::return_to_sender(&scenario, key); 
-        test_scenario::return_shared(time); 
+        test_scenario::return_to_sender(&scenario, key);
+        test_scenario::return_shared(time);
         test_scenario::end(scenario);
 
         auction
@@ -616,7 +616,7 @@ module typus_dov::dutch {
         test_scenario::next_tx(&mut scenario, admin);
         let time = test_scenario::take_shared<Time>(&scenario);
         let key = test_scenario::take_from_address<Key>(&scenario, admin);
-     
+
         // update time
         unix_time::update(&mut time, &key, auction.end_ts_ms + 1, test_scenario::ctx(&mut scenario)) ;
 
@@ -636,8 +636,8 @@ module typus_dov::dutch {
         assert!(balance::value(&balance) == 26541671, 1);
 
         test_scenario::next_tx(&mut scenario, admin);
-        test_scenario::return_to_sender(&scenario, key); 
-        test_scenario::return_shared(time); 
+        test_scenario::return_to_sender(&scenario, key);
+        test_scenario::return_shared(time);
         coin::destroy_for_testing(coin::from_balance(balance, test_scenario::ctx(&mut scenario)));
         test_scenario::end(scenario);
 

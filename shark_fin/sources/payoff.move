@@ -1,6 +1,6 @@
 // module typus_shark_fin::payoff {
 //     use std::option::{Self, Option};
-//     use typus_dov::asset::Asset;
+//     use typus_framework::asset::Asset;
 
 //     // ======== Friends =========
 
@@ -25,7 +25,7 @@
 //         high_barrier_roi: Option<u64>,
 //         high_roi_constant: Option<u64>,
 //     }
-    
+
 //     // ======== Functions =========
 
 //     public fun get_roi_decimal(): u64 {
@@ -61,7 +61,7 @@
 //     public(friend) fun set_high_roi_constant(payoff_config: &mut PayoffConfig, high_roi_constant: u64) {
 //         option::fill(&mut payoff_config.high_roi_constant, high_roi_constant);
 //     }
-    
+
 //     /// payoff represents the RoI per week
 //     /// e.g. a bullish shark fin vault: vault_type = 1
 //     /// low_barrier_roi = 1000, high_barrier_roi = 3000, high_roi_constant = 1500,
@@ -76,7 +76,7 @@
 //         let low_barrier_roi = payoff_config.low_barrier_roi;
 //         let high_barrier_roi = payoff_config.high_barrier_roi;
 //         let high_roi_constant = payoff_config.high_roi_constant;
-        
+
 //         let low_barrier_roi = option::borrow<u64>(&low_barrier_roi);
 //         let high_barrier_roi = option::borrow<u64>(&high_barrier_roi);
 //         let high_roi_constant = option::borrow<u64>(&high_roi_constant);
@@ -89,8 +89,8 @@
 //                 *high_roi_constant
 //             } else {
 //                 *low_barrier_roi
-//                 + (*high_barrier_roi - *low_barrier_roi) 
-//                 * (price - low_barrier_price) 
+//                 + (*high_barrier_roi - *low_barrier_roi)
+//                 * (price - low_barrier_price)
 //                 / (high_barrier_price - low_barrier_price)
 //             }
 //         } else {
@@ -100,8 +100,8 @@
 //                 *high_roi_constant
 //             } else {
 //                 *high_barrier_roi
-//                 - (*high_barrier_roi - *low_barrier_roi) 
-//                 * (price - low_barrier_price) 
+//                 - (*high_barrier_roi - *low_barrier_roi)
+//                 * (price - low_barrier_price)
 //                 / (high_barrier_price - low_barrier_price)
 //             }
 //         }
